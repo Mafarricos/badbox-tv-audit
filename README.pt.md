@@ -25,26 +25,20 @@ Esta ferramenta fornece dois métodos completos para auditar e limpar a sua TV:
 
 ## 🤖 Como Usar com Agentes de IA (Antigravity, Claude Code, Grok, Cursor, Copilot)
 
-Este repositório foi expressamente otimizado para agentes de programação autónomos de IA. Nem sequer precisa de abrir o terminal ou fazer git manual — basta dar a instrução ao seu agente:
+Este repositório foi expressamente otimizado para agentes de programação autónomos de IA. Não precisa de correr comandos Python ou mexer no terminal manualmente:
 
-### Opção A: A Prompt Tudo-em-Um (Sem trabalho manual no terminal)
-Basta abrir o seu Agente de IA favorito (Antigravity, Claude Code, Cursor, Copilot, Grok CLI, etc.) numa janela qualquer e enviar:
+1. Clone o repositório e abra essa pasta no seu assistente / agente:
+   ```bash
+   git clone https://github.com/Mafarricos/badbox-tv-audit.git
+   ```
+2. Cole a prompt de [**PROMPT.md**](PROMPT.md) e indique o IP (ou sub-rede) e o modelo opcional da sua TV:
+   ```text
+   Por favor lê o ficheiro AGENTS.md e efetua uma auditoria à minha Android TV / Google TV.
+   - Endereço IP: <IP_DA_TV> (ou faz scan à sub-rede 192.168.1.0/24)
+   - Modelo da TV: <MODELO_OPCIONAL>
+   ```
 
-```text
-Faz o clone de https://github.com/Mafarricos/badbox-tv-audit.git, lê o ficheiro AGENTS.md e audita a minha Android TV box no IP <IP_DA_TV>. 
-Verifica a presença de BadBox, XCPE, trojans Vo1d e proxyware. 
-Se detetares ameaças, apresenta o relatório e aplica a remediação segura com backup completo.
-```
-*(Dica: Se não souber o IP da sua TV, substitua `<IP_DA_TV>` por: `...descobre todos os aparelhos Android TV na minha rede local 192.168.1.0/24 através de --scan-subnet e analisa-os.`)*
-
----
-
-### Opção B: Se já clonou o repositório
-Se já tiver clonado o projeto (`git clone https://github.com/Mafarricos/badbox-tv-audit.git`), abra o agente dentro da pasta e diga-lhe:
-
-```text
-Lê o ficheiro AGENTS.md e faz uma auditoria à minha Android TV box no IP <IP_DA_TV>. Verifica BadBox, XCPE, Vo1d e proxyware, e aplica remediação se necessário.
-```
+*(Ou simplesmente diga ao seu agente em qualquer janela: `"Faz clone de https://github.com/Mafarricos/badbox-tv-audit.git, lê o AGENTS.md e o PROMPT.md e audita a minha TV no IP <IP_DA_TV>"`)*
 
 O agente consultará automaticamente as instruções em [`AGENTS.md`](AGENTS.md), instalará as dependências (`requirements.txt`), executará o diagnóstico com máxima poupança de tokens (`--quick-scan --json`) e aplicará a remediação com backup reversível.
 

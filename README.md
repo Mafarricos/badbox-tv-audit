@@ -28,26 +28,20 @@ This suite provides two complete audit & cleanup paths:
 
 ## 🤖 Using with AI Agents (Antigravity, Claude Code, Grok, Cursor, Copilot)
 
-This repository is optimized for autonomous AI coding agents. You don't even need to use git or the terminal manually — you can simply prompt your agent to handle everything:
+This repository is optimized for autonomous AI coding agents. You don't need to manually run Python scripts or terminal commands:
 
-### Option A: The All-in-One Prompt (Zero manual terminal work)
-Just open your AI Agent (Antigravity, Claude Code, Cursor, Copilot, Grok CLI, etc.) in any workspace and paste:
+1. Clone the repository and open that folder in your assistant:
+   ```bash
+   git clone https://github.com/Mafarricos/badbox-tv-audit.git
+   ```
+2. Paste the prompt from [**PROMPT.md**](PROMPT.md) and fill in your TV IP (or subnet) and optional model:
+   ```text
+   Please read AGENTS.md and audit my Android TV / Google TV box.
+   - IP Address: <TV_IP> (or scan local subnet 192.168.1.0/24)
+   - TV Model: <OPTIONAL_TV_MODEL>
+   ```
 
-```text
-Please clone https://github.com/Mafarricos/badbox-tv-audit.git, read AGENTS.md, and audit my Android TV box at IP <TV_IP>. 
-Check for BadBox, XCPE, Vo1d trojans, and proxyware. 
-If any threat is detected, present the findings and remediate it safely with full backup.
-```
-*(Tip: If you don't know your TV's IP address, replace `<TV_IP>` with: `...discover all Android TV devices on my local subnet 192.168.1.0/24 using --scan-subnet and audit them.`)*
-
----
-
-### Option B: If you already cloned the repository
-If you cloned the repo yourself (`git clone https://github.com/Mafarricos/badbox-tv-audit.git`), open your agent in the folder and tell it:
-
-```text
-Please read AGENTS.md and audit my Android TV box at IP <TV_IP>. Check for BadBox, XCPE, Vo1d, and proxyware, and remediate if needed.
-```
+*(Or simply tell your agent in any workspace: `"Clone https://github.com/Mafarricos/badbox-tv-audit.git, read AGENTS.md and PROMPT.md, and audit my Android TV at <TV_IP>"`)*
 
 The agent will read [`AGENTS.md`](AGENTS.md), set up dependencies (`requirements.txt`), execute the deterministic zero-token-waste pipeline (`--quick-scan --json`), parse the 5 forensic layers, and apply reversible counter-measures with automatic backup snapshots.
 
