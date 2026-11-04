@@ -101,7 +101,12 @@ TARGET_STRINGS = [
     b"painet.work",
     b"dgjm.online",
     b"uota.club",
-    b"uota.xyz"
+    b"uota.xyz",
+    b"ycxrl.com",
+    b"Corejava",
+    b"test-keys",
+    b"com.charon.rocketfly",
+    b"adups"
 ]
 
 # 2. Pacotes maliciosos, backdoors OEM e proxies residenciais da campanha
@@ -109,7 +114,8 @@ IOC_PACKAGES = [
     "x.cpe", "com.oemservice", "com.abc.nexus", "io.popanet", "gaganode",
     "linkfog", "appsalt", "traffmonetizer", "cboxtv", "hiddenview", "moyu", "spirit",
     "android-grass", "com.grass", "appdnschange", "SmartPrivilege", "SmartEntertainment",
-    "SmartThroughput", "EcoSaverDaemon", "titannet", "yokatv"
+    "SmartThroughput", "EcoSaverDaemon", "titannet", "yokatv",
+    "com.adups.fota", "com.adups.market", "com.charon.rocketfly", "com.ftest", "com.google.android.suite"
 ]
 
 # 3. IPs e Portas Críticas de C2 da botnet
@@ -120,7 +126,7 @@ C2_IPS_PORTS = [
 
 # 4. Modelos de dispositivos historicamente visados pela botnet (Apenas Informativo - Requer Evidências)
 TARGETED_HARDWARE_MODELS = [
-    "km9", "km2", "km6", "km7", "km1", "km3", "km8", "m8s", "tx3", "h616", "q96", "leap-s1",
+    "km9", "km2", "km6", "km7", "km1", "km3", "km8", "m8s", "tx3", "h616", "h618", "t95", "q96", "leap-s1",
     "videostrong", "mecool", "uhd google tv stb", "rmq"
 ]
 
