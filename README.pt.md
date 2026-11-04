@@ -25,22 +25,16 @@ Esta ferramenta fornece dois métodos completos para auditar e limpar a sua TV:
 
 ## 🤖 Como Usar com Agentes de IA (Antigravity, Claude Code, Grok, Cursor, Copilot)
 
-Este repositório foi expressamente otimizado para agentes de programação autónomos de IA. Não precisa de correr comandos Python ou mexer no terminal manualmente:
+Este repositório inclui instruções completas em [`AGENTS.md`](AGENTS.md) que os agentes de IA leem e seguem de forma autónoma. Não precisa de correr scripts Python nem executar comandos no terminal manualmente:
 
-1. Clone o repositório e abra essa pasta no seu assistente / agente:
-   ```bash
-   git clone https://github.com/Mafarricos/badbox-tv-audit.git
-   ```
-2. Cole a prompt de [**PROMPT.md**](PROMPT.md) e indique o IP (ou sub-rede) e o modelo opcional da sua TV:
-   ```text
-   Por favor lê o ficheiro AGENTS.md e efetua uma auditoria à minha Android TV / Google TV.
-   - Endereço IP: <IP_DA_TV> (ou faz scan à sub-rede 192.168.1.0/24)
-   - Modelo da TV: <MODELO_OPCIONAL>
-   ```
+Basta abrir o seu Agente de IA favorito (Antigravity, Claude Code, Cursor, Copilot, Grok CLI, etc.) e dar-lhe esta simples instrução:
 
-*(Ou simplesmente diga ao seu agente em qualquer janela: `"Faz clone de https://github.com/Mafarricos/badbox-tv-audit.git, lê o AGENTS.md e o PROMPT.md e audita a minha TV no IP <IP_DA_TV>"`)*
+```text
+Faz o clone de https://github.com/Mafarricos/badbox-tv-audit.git e audita a minha Android TV box no IP <IP_DA_TV>.
+```
+*(Dica: Se não souber o IP da sua TV, substitua `<IP_DA_TV>` por: `...descobre as Android TVs na minha sub-rede 192.168.1.0/24 e audita-as.`)*
 
-O agente consultará automaticamente as instruções em [`AGENTS.md`](AGENTS.md), instalará as dependências (`requirements.txt`), executará o diagnóstico com máxima poupança de tokens (`--quick-scan --json`) e aplicará a remediação com backup reversível.
+O agente tratará de clonar o repositório, ler o ficheiro [`AGENTS.md`](AGENTS.md), preparar o ambiente, executar o diagnóstico rápido e económico (`--quick-scan --json`) e aplicar a remediação segura com backup automático se forem detetadas anomalias.
 
 ---
 

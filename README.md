@@ -28,22 +28,16 @@ This suite provides two complete audit & cleanup paths:
 
 ## 🤖 Using with AI Agents (Antigravity, Claude Code, Grok, Cursor, Copilot)
 
-This repository is optimized for autonomous AI coding agents. You don't need to manually run Python scripts or terminal commands:
+This repository includes full instructions in [`AGENTS.md`](AGENTS.md) that modern AI coding agents automatically follow. You don't need to manually run Python scripts or terminal commands:
 
-1. Clone the repository and open that folder in your assistant:
-   ```bash
-   git clone https://github.com/Mafarricos/badbox-tv-audit.git
-   ```
-2. Paste the prompt from [**PROMPT.md**](PROMPT.md) and fill in your TV IP (or subnet) and optional model:
-   ```text
-   Please read AGENTS.md and audit my Android TV / Google TV box.
-   - IP Address: <TV_IP> (or scan local subnet 192.168.1.0/24)
-   - TV Model: <OPTIONAL_TV_MODEL>
-   ```
+Simply open your AI Agent (Antigravity, Claude Code, Cursor, Copilot, Grok CLI, etc.) and give it this single instruction:
 
-*(Or simply tell your agent in any workspace: `"Clone https://github.com/Mafarricos/badbox-tv-audit.git, read AGENTS.md and PROMPT.md, and audit my Android TV at <TV_IP>"`)*
+```text
+Clone https://github.com/Mafarricos/badbox-tv-audit.git and audit my Android TV box at IP <TV_IP>.
+```
+*(Tip: If you don't know your TV's IP address, replace `<TV_IP>` with: `...discover my Android TV devices on subnet 192.168.1.0/24 and audit them.`)*
 
-The agent will read [`AGENTS.md`](AGENTS.md), set up dependencies (`requirements.txt`), execute the deterministic zero-token-waste pipeline (`--quick-scan --json`), parse the 5 forensic layers, and apply reversible counter-measures with automatic backup snapshots.
+The agent will clone the repository, read [`AGENTS.md`](AGENTS.md), install requirements, run the token-saving 5-layer audit (`--quick-scan --json`), and present the findings or apply reversible remediation with automatic backup.
 
 ---
 
