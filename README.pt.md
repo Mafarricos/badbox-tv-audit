@@ -78,3 +78,18 @@ python tools/audit_security.py <TV_IP> --remediate --lang pt
 # 4. Restauro Reversível Imediato
 python tools/audit_security.py <TV_IP> --restore --lang pt
 ```
+
+---
+
+## 👨‍💻 Sobre Mim & Agradecimentos
+
+Olá, sou o **Carlos Correia**! Sou um entusiasta geek e programador que sempre acompanhou e adorou o mundo das TV boxes Android. Ao longo dos anos sempre recomendei ativamente aparelhos certificados Google TV e Android TV pela sua segurança e qualidade.
+
+Foi por isso uma enorme surpresa descobrir a investigação forense recente sobre a **VideoStrong / SZBBOYS (BadBox & XCPE)** e como estas ameaças de cadeia de distribuição conseguiram infiltrar-se em hardware certificado e de grande circulação. Essa descoberta motivou-me a criar este repositório, desenvolvido em estreita colaboração com Agentes de IA, para oferecer a qualquer utilizador ou técnico uma ferramenta transparente, gratuita e acessível para limpar facilmente malwares e botnets — quer seja diretamente pelo comando da TV, quer seja por linha de comandos com segurança e reversibilidade total.
+
+O conceito estrutural deste script teve por base o excelente projeto [CleanYourTV](https://cleanyour.tv) e assentou na investigação detalhada publicada pela [Synthient](https://synthient.com/blog/the-internals-of-a-badbox-operation).
+
+### Apoie o Projeto:
+Se esta ferramenta lhe foi útil e deseja apoiar o meu trabalho:
+- 📺 **Siga-me e veja os meus vídeos no YouTube:** [@Carlos___Correia](https://www.youtube.com/@Carlos___Correia)
+- ⭐ Deixe uma estrela no repositório e partilhe com a comunidade!

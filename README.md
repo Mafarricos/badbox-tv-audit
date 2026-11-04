@@ -91,3 +91,18 @@ python tools/deep_forensics.py <TV_IP> --pull-and-analyze <REMOTE_APK_PATH>
 ## 🔒 Safety & Reversibility Guarantee
 
 Every remediation action creates an exact JSON snapshot under `backups/backup_<IP>_<timestamp>.json` and an executable PowerShell rollback script `backups/restore_<IP>.ps1`. Nothing is modified without an immediate, one-click restoration path.
+
+---
+
+## 👨‍💻 About Me & Acknowledgments
+
+Hi, I'm **Carlos Correia**! I'm a tech enthusiast, geek, and developer who has always been passionate about the Android TV box ecosystem. For years, I have actively advocated for and recommended certified Google TV and Android TV devices to friends, family, and the community.
+
+Discovering the recent findings regarding **VideoStrong / SZBBOYS supply-chain compromises (BadBox & XCPE)** on certified and mainstream hardware came as quite a shock. That revelation motivated me to team up with modern AI agents to build this open, transparent, and autonomous repository — empowering anyone to easily audit, detect, and neutralize malware and residential botnets with just their TV remote or a single command.
+
+The architectural concept and pure-Python ADB connectivity of this tool draw strong inspiration from the great work of [CleanYourTV](https://cleanyour.tv) and the technical forensic investigation by [Synthient](https://synthient.com/blog/the-internals-of-a-badbox-operation).
+
+### Support My Work:
+If you find this suite useful and want to support the project:
+- 📺 **Subscribe and check out my YouTube channel:** [@Carlos___Correia](https://www.youtube.com/@Carlos___Correia)
+- ⭐ Star this repository and share it with the Android TV community!
