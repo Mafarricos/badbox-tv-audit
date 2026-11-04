@@ -12,7 +12,7 @@ It delivers:
 1. **Remote ADB Layer**: Read-only fast triage across 5 forensic layers.
 2. **On-Device TV App (`com.scanner.tv`)**: Native Leanback UI + local loopback VPN packet sentinel to detect hidden proxy botnet traffic and silent C2 callbacks.
 3. **Deterministic Scoring Engine (`audit_security.py`)**: Zero-AI rule evaluation yielding mathematically backed verdicts (`INFETADO - CRÍTICO`, `SUSPEITO`, `LIMPO / SEGURO`).
-4. **Host-Independent Remediation Engine (`--remediate`)**: Autonomous cleanup of infected TV boxes applying OS-level countermeasures without requiring router or external network changes.
+4. **Host-Independent Reversible Remediation (`--remediate` & `--restore`)**: Autonomous cleanup of infected TV boxes applying OS-level countermeasures with mandatory prior backup and 100% reversible scripts in `backups/`.
 
 ---
 
@@ -49,24 +49,35 @@ However, **if the target device is legacy, exotic, or reports an install error**
 
 ---
 
-## 4. Remediation Protocol (Neutralizing Compromised Devices)
+## 4. Remediation & Reversibility Protocol (Backup First)
 
-When a device is verified as `INFETADO - CRÍTICO` or `SUSPEITO`, agents can remediate the TV box directly:
+**Rule: Never remediate without backup.**
+When a device is verified as `INFETADO - CRÍTICO` or `SUSPEITO`, running `--remediate` **automatically performs a snapshot backup first**:
 ```bash
+# 1. Remediate with automatic backup & restore script generation:
 python tools/audit_security.py <IP> --remediate
+
+# 2. Revert back to original state if needed:
+python tools/audit_security.py <IP> --restore
+# Or execute the generated PowerShell restore script directly:
+powershell -ExecutionPolicy Bypass -File backups/restore_<IP_CLEAN>.ps1
 ```
-The remediation operates completely inside the Android operating system:
-1. **Play Protect Restoration**: Forces `settings put global package_verifier_user_consent 1` and `package_verifier_enable 1`.
-2. **Botnet App Purge**: Uninstalls user-space residential proxy apps (`com.abc.nexus`, `traffmonetizer`, `android-grass`, etc.) via `pm uninstall`.
-3. **OEM Backdoor Freezing**: Disables immutable system backdoors (`x.cpe`, `com.oemservice`) via `pm disable-user --user 0`.
-4. **Local Private DNS Hardening**: Configures `settings put global private_dns_specifier security.cloudflare-dns.com` on the device, cutting off C2 domain resolution at the socket level.
+
+The remediation cycle operates completely inside Android:
+1. **Snapshots State**: Records original `package_verifier_*` and `private_dns_*` settings and disabled package lists in `backups/backup_<IP>_<timestamp>.json`.
+2. **Generates Restore Script**: Automatically crafts `backups/restore_<IP>.ps1`.
+3. **Play Protect Restoration**: Forces `settings put global package_verifier_user_consent 1` and `package_verifier_enable 1`.
+4. **Botnet App Purge**: Uninstalls user-space residential proxy apps (`com.abc.nexus`, `traffmonetizer`, `android-grass`, etc.) via `pm uninstall`.
+5. **OEM Backdoor Freezing**: Disables immutable system backdoors (`x.cpe`, `com.oemservice`) via `pm disable-user --user 0`.
+6. **Local Private DNS Hardening**: Configures `settings put global private_dns_specifier security.cloudflare-dns.com` on the device.
 
 ---
 
 ## 5. Non-Negotiable Operational Rules for Agents
 
 - **Zero-Damage & Reversibility**: Never disable critical core system packages (`com.android.systemui`, `com.android.settings`, Bluetooth/Wi-Fi stack).
-- **Strict Read-Only Diagnostics by Default**: Diagnostics must never modify system properties unless `--remediate` is explicitly invoked.
+- **Mandatory Backup Before Change**: Every modifying operation must save original state to `backups/`.
+- **Strict Read-Only Diagnostics by Default**: Diagnostics must never modify system properties unless `--remediate` or `--restore` is explicitly invoked.
 - **Silent VPN Grant**: In automated mode, grant VPN permissions via `adb shell appops set com.scanner.tv ACTIVATE_VPN allow` to avoid blocking on user UI dialogs.
 - **TV Safe Operation**: When auditing is done, instruct or remind the operator to disable USB/Network Debugging in TV Developer Options to prevent exposed ADB ports on the local network.
 
@@ -80,7 +91,8 @@ When executing autonomous forensic audits, invoke `tools/audit_security.py` dire
 |---|---|---|
 | **Full Automated Pipeline** | `python tools/audit_security.py <IP> --auto-pipeline` | Installs APK, grants VPN silent, runs 5-layer scan, monitors network for 20s, pulls logs, evaluates scoring rules, uninstalls APK. |
 | **Fast 5-Layer ADB Scan** | `python tools/audit_security.py <IP> --quick-scan` | 100% read-only scan via ADB (checks Play Protect, C2 sockets, IoC packages, props). |
-| **Remediate / Clean Box** | `python tools/audit_security.py <IP> --remediate` | Re-enables Play Protect, uninstalls botnet packages, freezes system backdoors, and enables secure DNS. |
+| **Remediate / Clean Box** | `python tools/audit_security.py <IP> --remediate` | Creates backup, re-enables Play Protect, uninstalls bots, freezes backdoors, enables secure DNS, and creates restore script. |
+| **Restore Previous State** | `python tools/audit_security.py <IP> --restore` | Restores original settings and re-enables disabled apps from the latest backup. |
 | **Automated with Custom Recompilation** | `python tools/audit_security.py <IP> --auto-pipeline --recompile-for-device` | Gathers device SoC/SDK specs, recompiles tailored APK, runs full pipeline and cleans up. |
 | **Install Tailored App** | `python tools/audit_security.py <IP> --recompile-for-device` | Compiles from `app/` and installs on the box. |
 | **Launch TV Interface** | `python tools/audit_security.py <IP> --launch-app` | Opens the D-Pad optimized scanner on the TV display. |
@@ -93,13 +105,14 @@ When executing autonomous forensic audits, invoke `tools/audit_security.py` dire
 
 ```
 badbox-tv-audit/
+├── backups/              # Reversible device snapshots and restore_<IP>.ps1 scripts
 ├── setup.bat             # One-click Windows prerequisite installer (Python + JDK/SDK option)
 ├── setup.sh              # One-click Linux/macOS prerequisite installer
 ├── app/                  # Full Android Studio project for com.scanner.tv (SDK 34, Java 17)
 │   ├── app/src/main/     # CoreScanner.java, PacketMonitorVpnService.java, MainActivity.java
 │   └── gradlew / build   # Gradle build system
 ├── tools/
-│   ├── audit_security.py # Main forensic orchestrator, remediation engine & scoring
+│   ├── audit_security.py # Main forensic orchestrator, remediation & restore engine
 │   ├── setup_env.py      # Python environment and SDK toolchain configurator
 │   ├── tv.py             # Pure Python ADB protocol client (no system adb required)
 │   └── xcpe-scanner-tv.apk # Prebuilt universal ready-to-install Android TV package

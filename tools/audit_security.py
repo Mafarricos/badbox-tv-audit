@@ -10,6 +10,7 @@ Usage (AI Agents / Automated):
   python tools/audit_security.py <IP> --auto-pipeline
   python tools/audit_security.py <IP> --quick-scan
   python tools/audit_security.py <IP> --remediate
+  python tools/audit_security.py <IP> --restore
   python tools/audit_security.py <IP> --install-app
   python tools/audit_security.py <IP> --launch-app
   python tools/audit_security.py <IP> --pull-report
@@ -35,6 +36,7 @@ if sys.platform == "win32":
 
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 APP_PROJECT_DIR = os.path.join(PROJECT_ROOT, "app")
+BACKUPS_DIR = os.path.join(PROJECT_ROOT, "backups")
 PACKAGE_NAME = "com.scanner.tv"
 
 # 1. Assinaturas de C2, Backdoors, SDKs e Infraestrutura Videostrong / Badbox
@@ -319,14 +321,119 @@ def step_quick_audit(adb):
     print("    [✓] Amostragem concluída.")
 
 
+def create_remediation_backup(adb):
+    """
+    Cria um backup completo das definições e estado de pacotes ANTES de qualquer alteração,
+    gerando também um script de restauro reversível em backups/.
+    """
+    os.makedirs(BACKUPS_DIR, exist_ok=True)
+    clean_ip = adb.host.replace(".", "_")
+    timestamp = time.strftime("%Y%m%d_%H%M%S")
+    backup_file = os.path.join(BACKUPS_DIR, f"backup_{clean_ip}_{timestamp}.json")
+    restore_script = os.path.join(BACKUPS_DIR, f"restore_{clean_ip}.ps1")
+
+    print(f"\n[*] A criar BACKUP de segurança reversível em backups/...")
+
+    # Guardar definições originais
+    orig_user_consent = adb.run("settings get global package_verifier_user_consent").strip()
+    orig_verifier_enable = adb.run("settings get global package_verifier_enable").strip()
+    orig_dns_mode = adb.run("settings get global private_dns_mode").strip()
+    orig_dns_spec = adb.run("settings get global private_dns_specifier").strip()
+
+    # Guardar lista de pacotes desativados anteriormente
+    disabled_pkgs = adb.run("pm list packages -d").splitlines()
+
+    backup_data = {
+        "host": adb.host,
+        "timestamp": timestamp,
+        "specs": adb.specs,
+        "settings": {
+            "package_verifier_user_consent": orig_user_consent,
+            "package_verifier_enable": orig_verifier_enable,
+            "private_dns_mode": orig_dns_mode,
+            "private_dns_specifier": orig_dns_spec
+        },
+        "originally_disabled_packages": disabled_pkgs,
+        "disabled_during_remediation": []
+    }
+
+    with open(backup_file, "w", encoding="utf-8") as f:
+        json.dump(backup_data, f, indent=2)
+
+    print(f"    [✓] Ficheiro de estado guardado: {os.path.basename(backup_file)}")
+    return backup_file, backup_data, restore_script
+
+
+def generate_restore_script(adb, backup_data, restore_script_path):
+    """Gera script PowerShell autónomo e reversível para restaurar a TV."""
+    settings = backup_data.get("settings", {})
+    disabled = backup_data.get("disabled_during_remediation", [])
+    
+    ps_content = f"""# =====================================================================
+# RESTORE SCRIPT - BADBOX FORENSIC REMEDIATION REVERSAL
+# Dispositivo: {adb.host}
+# Gerado em:   {backup_data.get('timestamp')}
+# =====================================================================
+
+param(
+    [string]$TvHost = "{adb.host}"
+)
+
+$toolsDir = "{PROJECT_ROOT.replace('\\', '/')}/tools"
+Set-Location $toolsDir
+
+Write-Host ">>> A reverter remediação e restaurar estado da TV ($TvHost)..." -ForegroundColor Cyan
+
+# 1. Restaurar Definições Globais
+Write-Host "1. A repor definições originais..." -ForegroundColor Yellow
+python -c "import tv; d = tv.TVDevice('$TvHost'); d.shell('settings put global package_verifier_user_consent {settings.get('package_verifier_user_consent', '1')}')"
+python -c "import tv; d = tv.TVDevice('$TvHost'); d.shell('settings put global package_verifier_enable {settings.get('package_verifier_enable', '1')}')"
+
+$dnsMode = "{settings.get('private_dns_mode', 'off')}"
+$dnsSpec = "{settings.get('private_dns_specifier', '')}"
+if ($dnsMode -eq "null" -or $dnsMode -eq "") {{ $dnsMode = "off" }}
+python -c "import tv; d = tv.TVDevice('$TvHost'); d.shell('settings put global private_dns_mode $dnsMode')"
+if ($dnsSpec -ne "null" -and $dnsSpec -ne "") {{
+    python -c "import tv; d = tv.TVDevice('$TvHost'); d.shell('settings put global private_dns_specifier $dnsSpec')"
+}}
+
+# 2. Reativar Pacotes de Sistema Desativados
+Write-Host "2. A reativar pacotes de sistema desativados..." -ForegroundColor Yellow
+$packagesToEnable = @(
+"""
+    for pkg in disabled:
+        ps_content += f'    "{pkg}",\n'
+
+    ps_content += f"""@()
+)
+
+foreach ($pkg in $packagesToEnable) {{
+    if ($pkg) {{
+        Write-Host "   -> A reativar: $pkg"
+        python -c "import tv; d = tv.TVDevice('$TvHost'); d.shell('pm enable $pkg')"
+    }}
+}}
+
+Write-Host "`n>>> [✓] Restauro concluído com sucesso!" -ForegroundColor Green
+"""
+    with open(restore_script_path, "w", encoding="utf-8") as f:
+        f.write(ps_content)
+    print(f"    [✓] Script de reversão gerado com sucesso: {os.path.basename(restore_script_path)}")
+
+
 def step_remediate_device(adb):
     """
-    Executa a neutralização e remediação completa da box sem depender de equipamentos de rede.
-    Aplica-se diretamente ao sistema operacional Android via ADB.
+    Executa a neutralização e remediação completa da box com salvaguarda reversível (backup).
     """
     print("\n================================================================================")
     print(f"     PLANO DE REMEDIAÇÃO & NEUTRALIZAÇÃO FORENSE - ANDROID TV ({adb.host})       ")
     print("================================================================================")
+
+    if not adb.specs:
+        adb.load_specs()
+
+    # Criar Backup de Segurança Reversível
+    backup_file, backup_data, restore_script = create_remediation_backup(adb)
 
     # 1. Reativar e Trancar o Google Play Protect
     print("\n[Passo 1/4] A restaurar e trancar o Google Play Protect...")
@@ -350,21 +457,24 @@ def step_remediate_device(adb):
         for ioc in IOC_PACKAGES:
             if ioc.lower() in p_name.lower():
                 print(f"    [*] A neutralizar pacote malicioso detetado: {p_name}")
-                # Tenta primeiro desinstalar
                 uninst = adb.run(f"pm uninstall {p_name}").strip()
                 if "Success" in uninst:
                     print(f"        -> Desinstalado com sucesso: {p_name}")
                     neutralized_count += 1
                 else:
-                    # Se for app pré-instalada de sistema (/oem, /system), desativa para o utilizador
                     dis = adb.run(f"pm disable-user --user 0 {p_name}").strip()
                     print(f"        -> App de sistema desativada/congelada: {p_name} ({dis})")
+                    backup_data["disabled_during_remediation"].append(p_name)
                     neutralized_count += 1
 
     if neutralized_count == 0:
         print("    [✓] Nenhum pacote malicioso da botnet encontrado para desinstalar.")
     else:
         print(f"    [✓] Total de pacotes maliciosos neutralizados: {neutralized_count}")
+
+    # Atualizar backup com os pacotes desativados
+    with open(backup_file, "w", encoding="utf-8") as f:
+        json.dump(backup_data, f, indent=2)
 
     # 3. Terminar Processos e Forçar Paragem de Módulos
     print("\n[Passo 3/4] A terminar processos e serviços em execução da botnet...")
@@ -384,9 +494,66 @@ def step_remediate_device(adb):
     print(f"    - Servidor Seguro:  {dns_host}")
     print("    [✓] Proteção de DNS ativa: pedidos para servidores C2 serão bloqueados na fonte.")
 
+    # Gerar o script de reversão no fim
+    generate_restore_script(adb, backup_data, restore_script)
+
     print("\n================================================================================")
     print("  REMEDIAÇÃO CONCLUÍDA: A TV foi limpa e o tráfego de botnet bloqueado!")
+    print(f"  Para reverter a qualquer momento, execute: backups/{os.path.basename(restore_script)}")
     print("================================================================================\n")
+
+
+def step_restore_device(adb):
+    """Reverte as alterações de remediação usando o backup mais recente."""
+    print("\n================================================================================")
+    print(f"            REVERSÃO / RESTAURO DE SEGURANÇA - ANDROID TV ({adb.host})          ")
+    print("================================================================================")
+    
+    clean_ip = adb.host.replace(".", "_")
+    matching_backups = []
+    if os.path.exists(BACKUPS_DIR):
+        for f in sorted(os.listdir(BACKUPS_DIR), reverse=True):
+            if f.startswith(f"backup_{clean_ip}_") and f.endswith(".json"):
+                matching_backups.append(os.path.join(BACKUPS_DIR, f))
+
+    if not matching_backups:
+        print(f"[!] Nenhum ficheiro de backup encontrado para {adb.host} em backups/.")
+        return False
+
+    latest_backup = matching_backups[0]
+    print(f"[*] A carregar backup mais recente: {os.path.basename(latest_backup)}...")
+    with open(latest_backup, "r", encoding="utf-8") as f:
+        backup_data = json.load(f)
+
+    # 1. Repor definições
+    settings = backup_data.get("settings", {})
+    print("\n[1/2] A repor definições globais originais...")
+    if "package_verifier_user_consent" in settings:
+        adb.run(f"settings put global package_verifier_user_consent {settings['package_verifier_user_consent']}")
+    if "package_verifier_enable" in settings:
+        adb.run(f"settings put global package_verifier_enable {settings['package_verifier_enable']}")
+    
+    dns_mode = settings.get("private_dns_mode", "off")
+    if not dns_mode or dns_mode == "null": dns_mode = "off"
+    adb.run(f"settings put global private_dns_mode {dns_mode}")
+    
+    dns_spec = settings.get("private_dns_specifier", "")
+    if dns_spec and dns_spec != "null":
+        adb.run(f"settings put global private_dns_specifier {dns_spec}")
+    print("    [✓] Definições restauradas.")
+
+    # 2. Reativar pacotes
+    disabled = backup_data.get("disabled_during_remediation", [])
+    print("\n[2/2] A reativar pacotes desativados durante a remediação...")
+    for pkg in disabled:
+        print(f"    [*] A reativar: {pkg}")
+        adb.run(f"pm enable {pkg}")
+    print("    [✓] Pacotes reativados.")
+
+    print("\n================================================================================")
+    print("  [✓] RESTAURO CONCLUÍDO COM SUCESSO! Dispositivo reposto no estado anterior.")
+    print("================================================================================\n")
+    return True
 
 
 def ensure_build_environment():
@@ -625,15 +792,16 @@ def interactive_menu(default_ip):
         print("  6. Descarregar Relatório (JSON + Log VPN) e Avaliar Regras")
         print("  7. Desinstalar App da Box (Limpeza Forense)")
         print("")
-        print("  --- REMEDIAÇÃO E LIMPEZA ---")
-        print("  8. Neutralizar / Limpar Box (Repõe Play Protect, Desinstala Bots e Ativa DNS Seguro)")
+        print("  --- REMEDIAÇÃO E RESTAURO (REVERSÍVEL) ---")
+        print("  8. Neutralizar / Limpar Box (Repõe Play Protect, Desativa Bots e Ativa DNS Seguro)")
+        print("  9. Reverter Remediação / Restaurar Estado Anterior (Usar Backup)")
         print("")
         print("  --- CONFIGURAÇÃO E PRÉ-REQUISITOS ---")
-        print("  9. Gerir / Instalar Pré-Requisitos e Toolchains (Python / JDK / SDK)")
-        print(" 10. Mudar IP da Box")
+        print(" 10. Gerir / Instalar Pré-Requisitos e Toolchains (Python / JDK / SDK)")
+        print(" 11. Mudar IP da Box")
         print("  0. Sair")
         print("================================================================================")
-        choice = input("Escolha uma opção [0-10]: ").strip()
+        choice = input("Escolha uma opção [0-11]: ").strip()
 
         if choice == "1":
             step_automated_pipeline(adb, vpn_duration=20, force_recompile=False)
@@ -665,6 +833,9 @@ def interactive_menu(default_ip):
             step_remediate_device(adb)
             input("\nPrima ENTER para continuar...")
         elif choice == "9":
+            step_restore_device(adb)
+            input("\nPrima ENTER para continuar...")
+        elif choice == "10":
             try:
                 import setup_env
                 setup_env.interactive_installer_menu()
@@ -675,7 +846,7 @@ def interactive_menu(default_ip):
                 import setup_env
                 setup_env.interactive_installer_menu()
             input("\nPrima ENTER para continuar...")
-        elif choice == "10":
+        elif choice == "11":
             new_ip = input("Novo IP: ").strip()
             if new_ip:
                 target_ip = new_ip
@@ -693,7 +864,8 @@ if __name__ == "__main__":
     parser.add_argument("target", nargs="?", default=None, help="IP da Android TV")
     parser.add_argument("--auto-pipeline", action="store_true", help="Executa pipeline completo: instala, scan estatico, VPN 20s, recolhe logs e desinstala")
     parser.add_argument("--quick-scan", action="store_true", help="Executa o diagnóstico rápido das 5 camadas via ADB")
-    parser.add_argument("--remediate", action="store_true", help="Neutraliza a box: repõe Play Protect, remove/desativa apps da botnet e ativa DNS seguro")
+    parser.add_argument("--remediate", action="store_true", help="Neutraliza a box com backup prévio: repõe Play Protect, remove/desativa apps da botnet e ativa DNS seguro")
+    parser.add_argument("--restore", action="store_true", help="Reverte a remediação e repõe o estado anterior usando o backup")
     parser.add_argument("--install-app", action="store_true", help="Instala a app na box")
     parser.add_argument("--recompile-for-device", action="store_true", help="Força a recompilação à medida para o SoC/SDK do dispositivo")
     parser.add_argument("--launch-app", action="store_true", help="Lança a app na TV")
@@ -720,12 +892,14 @@ if __name__ == "__main__":
             setup_env.interactive_installer_menu()
         sys.exit(0)
 
-    if args.target and (args.quick_scan or args.auto_pipeline or args.remediate or args.install_app or args.recompile_for_device or args.launch_app or args.pull_report or args.remove_app):
+    if args.target and (args.quick_scan or args.auto_pipeline or args.remediate or args.restore or args.install_app or args.recompile_for_device or args.launch_app or args.pull_report or args.remove_app):
         adb = AdbDevice(args.target)
         if args.auto_pipeline:
             step_automated_pipeline(adb, vpn_duration=20, force_recompile=args.recompile_for_device)
         elif args.remediate:
             step_remediate_device(adb)
+        elif args.restore:
+            step_restore_device(adb)
         elif args.quick_scan:
             adb.load_specs()
             step_quick_audit(adb)
@@ -738,7 +912,7 @@ if __name__ == "__main__":
             step_pull_report(adb)
         elif args.remove_app:
             step_remove_app(adb)
-    elif args.target and not any([args.quick_scan, args.install_app, args.remediate, args.recompile_for_device, args.launch_app, args.pull_report, args.remove_app]):
+    elif args.target and not any([args.quick_scan, args.install_app, args.remediate, args.restore, args.recompile_for_device, args.launch_app, args.pull_report, args.remove_app]):
         adb = AdbDevice(args.target)
         adb.load_specs()
         step_quick_audit(adb)

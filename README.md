@@ -4,9 +4,9 @@
 [![Python](https://img.shields.io/badge/Python-3.9%2B-blue.svg?logo=python)](https://www.python.org/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Zero-AI Rules](https://img.shields.io/badge/Detection-Deterministic%20Scoring-orange.svg)](#-matriz-de-decis%C3%A3o-determin%C3%ADstica-zero-ai)
-[![Remediation](https://img.shields.io/badge/Remediation-Host--Independent-success.svg)](#-remedia%C3%A7%C3%A3o-e-neutraliza%C3%A7%C3%A3o-da-box)
+[![Remediation](https://img.shields.io/badge/Remediation-100%25%20Reversible-success.svg)](#-remedia%C3%A7%C3%A3o-e-neutraliza%C3%A7%C3%A3o-revers%C3%ADvel)
 
-Suite forense e de remediação completa e autónoma (CLI + App nativa Android TV com Sentinela VPN) projetada para auditoria, deteção, verificação e neutralização de malware de supply-chain e botnets residenciais (**BadBox**, **XCPE**, **Fuyao**, **Videostrong/SZBBOYS**) em dispositivos Android TV, Google TV e TV Boxes genéricas.
+Suite forense e de remediação reversível completa e autónoma (CLI + App nativa Android TV com Sentinela VPN) projetada para auditoria, deteção, verificação, neutralização e restauro de malware de supply-chain e botnets residenciais (**BadBox**, **XCPE**, **Fuyao**, **Videostrong/SZBBOYS**) em dispositivos Android TV, Google TV e TV Boxes genéricas.
 
 ---
 
@@ -17,27 +17,37 @@ Milhares de Smart TVs e TV Boxes Android económicas chegam ao utilizador pré-i
 2. Instala backdoors persistentes na partição `/system` ou `/vendor` (imunes a reposições de fábrica).
 3. Transforma o dispositivo num **nó de proxy residencial ilegal** (vendendo a largura de banda da sua casa para cibercriminosos) e participa em fraudes de cliques e visualizações ocultas.
 
-Esta ferramenta fornece uma inspeção de **camada dupla** e capacidade de **remediação sem depender do router**:
+Esta ferramenta fornece uma inspeção de **camada dupla** e capacidade de **remediação 100% reversível**:
 - **Diagnóstico ADB Remoto:** Análise forense rápida de 5 camadas sem instalar nada no aparelho.
 - **Sentinela VPN Local (App TV):** Captura em tempo real via `VpnService` de tráfego de rede invisível e ligações secretas aos servidores de Comando e Controlo (C2).
-- **Módulo de Remediação (`--remediate`):** Neutraliza a botnet e repõe as defesas nativas do Android diretamente no dispositivo.
+- **Módulo de Remediação & Restauro (`--remediate` / `--restore`):** Neutraliza a botnet com backup prévio obrigatório em `backups/`, permitindo anular qualquer alteração a qualquer altura.
 
 ---
 
-## 🧹 Remediação e Neutralização da Box
+## 🧹 Remediação e Neutralização Reversível
 
-Se uma box for diagnosticada como `INFETADO - CRÍTICO` ou `SUSPEITO`, a ferramenta consegue aplicar contramedidas diretamente no sistema operativo Android, **sem necessitar de mexer no router, firewall ou gateway de rede**:
+**Regra de Ouro: Nada é alterado sem backup prévio.**
 
-1. **Repõe e Tranca o Google Play Protect:** Força `package_verifier_user_consent = 1` e `package_verifier_enable = 1`.
-2. **Remove Módulos de Utilizador:** Desinstala apps de proxy e ad-fraud (`com.abc.nexus`, `traffmonetizer`, `android-grass`, etc.) via `pm uninstall`.
-3. **Congela Backdoors de Sistema:** Desativa backdoors OEM de fábrica (`x.cpe`, `com.oemservice`) ao nível do utilizador via `pm disable-user --user 0`, impedindo que iniciem com a TV.
-4. **Ativa Private DNS Seguro com Filtro Anti-Malware:** Configura o Android para usar DNS sobre TLS (`security.cloudflare-dns.com`), cortando a resolução dos domínios de comando e controlo.
+Se uma box for diagnosticada como `INFETADO - CRÍTICO` ou `SUSPEITO`, a ferramenta aplica contramedidas no Android **com salvaguarda automática**:
 
-Para executar a remediação automática:
+1. **Backup de Estado Prévio:** Grava o estado original do Play Protect, DNS e pacotes em `backups/backup_<IP>_<timestamp>.json` e gera um script autónomo `backups/restore_<IP>.ps1`.
+2. **Repõe e Tranca o Google Play Protect:** Força `package_verifier_user_consent = 1` e `package_verifier_enable = 1`.
+3. **Remove Módulos de Utilizador:** Desinstala apps de proxy e ad-fraud (`com.abc.nexus`, `traffmonetizer`, `android-grass`, etc.) via `pm uninstall`.
+4. **Congela Backdoors de Sistema:** Desativa backdoors OEM de fábrica (`x.cpe`, `com.oemservice`) ao nível do utilizador via `pm disable-user --user 0`.
+5. **Ativa Private DNS Seguro com Filtro Anti-Malware:** Configura o Android para usar DNS sobre TLS (`security.cloudflare-dns.com`), cortando a resolução dos domínios de comando e controlo diretamente na TV.
+
+### Como Remediá-la:
 ```bash
 python tools/audit_security.py <IP_DA_BOX> --remediate
 ```
 *(Ou selecione a **Opção 8** no menu interativo).*
+
+### Como Reverter a Remediação (Restauro):
+Se por qualquer motivo quiser repor o estado anterior:
+```bash
+python tools/audit_security.py <IP_DA_BOX> --restore
+```
+*(Ou selecione a **Opção 9** no menu interativo, ou execute diretamente `backups/restore_<IP>.ps1`).*
 
 ---
 
@@ -135,12 +145,13 @@ Irá ver o menu intuitivo:
   6. Descarregar Relatório (JSON + Log VPN) e Avaliar Regras
   7. Desinstalar App da Box (Limpeza Forense)
 
-  --- REMEDIAÇÃO E LIMPEZA ---
-  8. Neutralizar / Limpar Box (Repõe Play Protect, Desinstala Bots e Ativa DNS Seguro)
+  --- REMEDIAÇÃO E RESTAURO (REVERSÍVEL) ---
+  8. Neutralizar / Limpar Box (Repõe Play Protect, Desativa Bots e Ativa DNS Seguro)
+  9. Reverter Remediação / Restaurar Estado Anterior (Usar Backup)
 
   --- CONFIGURAÇÃO E PRÉ-REQUISITOS ---
-  9. Gerir / Instalar Pré-Requisitos e Toolchains (Python / JDK / SDK)
- 10. Mudar IP da Box
+ 10. Gerir / Instalar Pré-Requisitos e Toolchains (Python / JDK / SDK)
+ 11. Mudar IP da Box
   0. Sair
 ================================================================================
 ```
@@ -155,8 +166,11 @@ Pode invocar a ferramenta diretamente com flags:
 # Pipeline 100% automático com APK pré-compilado:
 python tools/audit_security.py <IP_DA_BOX> --auto-pipeline
 
-# Remediar e limpar a box infetada (Repor Play Protect + desinstalar bots):
+# Remediar e limpar a box infetada (com backup prévio):
 python tools/audit_security.py <IP_DA_BOX> --remediate
+
+# Reverter remediação e repor estado original:
+python tools/audit_security.py <IP_DA_BOX> --restore
 
 # Pipeline 100% automático com recompilação à medida do hardware:
 python tools/audit_security.py <IP_DA_BOX> --auto-pipeline --recompile-for-device
@@ -201,7 +215,7 @@ O veredito final é calculado com base em pontuação e regras fixas de seguran�
 
 ## 🤖 Guia para Agentes de IA
 
-Consulte o ficheiro [AGENTS.md](AGENTS.md) para a especificação das diretrizes de integridade, auto-recompilação com fallback, remediação e matriz de comandos não interativos.
+Consulte o ficheiro [AGENTS.md](AGENTS.md) para a especificação das diretrizes de integridade, auto-recompilação com fallback, ciclo de remediação reversível e matriz de comandos não interativos.
 
 ---
 
