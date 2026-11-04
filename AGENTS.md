@@ -6,12 +6,13 @@ Instructions for AI coding agents (Claude Code, Gemini CLI, Cursor, Copilot, Ant
 
 ## 1. Project Mission
 
-This repository contains an autonomous, dual-layer forensic suite specifically designed to audit Android TV, Google TV, and Android TV Box streaming devices for supply-chain malware and botnet backdoors, with primary focus on **BadBox**, **XCPE**, **Fuyao**, and **Videostrong/SZBBOYS**.
+This repository contains an autonomous, dual-layer forensic and remediation suite specifically designed to audit and sanitize Android TV, Google TV, and Android TV Box streaming devices compromised by supply-chain malware and botnet backdoors, with primary focus on **BadBox**, **XCPE**, **Fuyao**, and **Videostrong/SZBBOYS**.
 
 It delivers:
 1. **Remote ADB Layer**: Read-only fast triage across 5 forensic layers.
 2. **On-Device TV App (`com.scanner.tv`)**: Native Leanback UI + local loopback VPN packet sentinel to detect hidden proxy botnet traffic and silent C2 callbacks.
 3. **Deterministic Scoring Engine (`audit_security.py`)**: Zero-AI rule evaluation yielding mathematically backed verdicts (`INFETADO - CRÍTICO`, `SUSPEITO`, `LIMPO / SEGURO`).
+4. **Host-Independent Remediation Engine (`--remediate`)**: Autonomous cleanup of infected TV boxes applying OS-level countermeasures without requiring router or external network changes.
 
 ---
 
@@ -48,24 +49,39 @@ However, **if the target device is legacy, exotic, or reports an install error**
 
 ---
 
-## 4. Non-Negotiable Operational Rules for Agents
+## 4. Remediation Protocol (Neutralizing Compromised Devices)
 
-- **Zero-Damage & Reversibility**: Never disable critical system services or flash custom binaries. The suite installs an APK during auditing and **must uninstall it** at completion leaving zero residues on the TV.
-- **Strict Read-Only Diagnostics**: The fast ADB scan must never modify system properties, remove packages, or flip internal Android settings.
+When a device is verified as `INFETADO - CRÍTICO` or `SUSPEITO`, agents can remediate the TV box directly:
+```bash
+python tools/audit_security.py <IP> --remediate
+```
+The remediation operates completely inside the Android operating system:
+1. **Play Protect Restoration**: Forces `settings put global package_verifier_user_consent 1` and `package_verifier_enable 1`.
+2. **Botnet App Purge**: Uninstalls user-space residential proxy apps (`com.abc.nexus`, `traffmonetizer`, `android-grass`, etc.) via `pm uninstall`.
+3. **OEM Backdoor Freezing**: Disables immutable system backdoors (`x.cpe`, `com.oemservice`) via `pm disable-user --user 0`.
+4. **Local Private DNS Hardening**: Configures `settings put global private_dns_specifier security.cloudflare-dns.com` on the device, cutting off C2 domain resolution at the socket level.
+
+---
+
+## 5. Non-Negotiable Operational Rules for Agents
+
+- **Zero-Damage & Reversibility**: Never disable critical core system packages (`com.android.systemui`, `com.android.settings`, Bluetooth/Wi-Fi stack).
+- **Strict Read-Only Diagnostics by Default**: Diagnostics must never modify system properties unless `--remediate` is explicitly invoked.
 - **Silent VPN Grant**: In automated mode, grant VPN permissions via `adb shell appops set com.scanner.tv ACTIVATE_VPN allow` to avoid blocking on user UI dialogs.
 - **TV Safe Operation**: When auditing is done, instruct or remind the operator to disable USB/Network Debugging in TV Developer Options to prevent exposed ADB ports on the local network.
 
 ---
 
-## 5. CLI Agent Usage Matrix
+## 6. CLI Agent Usage Matrix
 
 When executing autonomous forensic audits, invoke `tools/audit_security.py` directly using flags:
 
 | Goal | Command | Description |
 |---|---|---|
 | **Full Automated Pipeline** | `python tools/audit_security.py <IP> --auto-pipeline` | Installs APK, grants VPN silent, runs 5-layer scan, monitors network for 20s, pulls logs, evaluates scoring rules, uninstalls APK. |
-| **Automated with Custom Recompilation** | `python tools/audit_security.py <IP> --auto-pipeline --recompile-for-device` | Gathers device SoC/SDK specs, recompiles tailored APK, runs full pipeline and cleans up. |
 | **Fast 5-Layer ADB Scan** | `python tools/audit_security.py <IP> --quick-scan` | 100% read-only scan via ADB (checks Play Protect, C2 sockets, IoC packages, props). |
+| **Remediate / Clean Box** | `python tools/audit_security.py <IP> --remediate` | Re-enables Play Protect, uninstalls botnet packages, freezes system backdoors, and enables secure DNS. |
+| **Automated with Custom Recompilation** | `python tools/audit_security.py <IP> --auto-pipeline --recompile-for-device` | Gathers device SoC/SDK specs, recompiles tailored APK, runs full pipeline and cleans up. |
 | **Install Tailored App** | `python tools/audit_security.py <IP> --recompile-for-device` | Compiles from `app/` and installs on the box. |
 | **Launch TV Interface** | `python tools/audit_security.py <IP> --launch-app` | Opens the D-Pad optimized scanner on the TV display. |
 | **Pull & Score Reports** | `python tools/audit_security.py <IP> --pull-report` | Extracts `last_scan.json` and `vpn_events.log`, executes the rule engine, prints verdict. |
@@ -73,7 +89,7 @@ When executing autonomous forensic audits, invoke `tools/audit_security.py` dire
 
 ---
 
-## 6. Repository Map
+## 7. Repository Map
 
 ```
 badbox-tv-audit/
@@ -83,7 +99,8 @@ badbox-tv-audit/
 │   ├── app/src/main/     # CoreScanner.java, PacketMonitorVpnService.java, MainActivity.java
 │   └── gradlew / build   # Gradle build system
 ├── tools/
-│   ├── audit_security.py # Main forensic orchestrator, compiler manager & scoring engine
+│   ├── audit_security.py # Main forensic orchestrator, remediation engine & scoring
+│   ├── setup_env.py      # Python environment and SDK toolchain configurator
 │   ├── tv.py             # Pure Python ADB protocol client (no system adb required)
 │   └── xcpe-scanner-tv.apk # Prebuilt universal ready-to-install Android TV package
 ├── AGENTS.md             # This agent instruction manual
@@ -93,7 +110,7 @@ badbox-tv-audit/
 
 ---
 
-## 7. Decision Logic and Thresholds
+## 8. Decision Logic and Thresholds
 
 The deterministic rule engine evaluates risks without cloud AI calls:
 

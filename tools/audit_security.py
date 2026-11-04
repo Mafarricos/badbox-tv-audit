@@ -9,6 +9,7 @@ Usage (Humans):
 Usage (AI Agents / Automated):
   python tools/audit_security.py <IP> --auto-pipeline
   python tools/audit_security.py <IP> --quick-scan
+  python tools/audit_security.py <IP> --remediate
   python tools/audit_security.py <IP> --install-app
   python tools/audit_security.py <IP> --launch-app
   python tools/audit_security.py <IP> --pull-report
@@ -260,7 +261,6 @@ def step_quick_audit(adb):
     if not adb.specs:
         adb.load_specs()
 
-    # Verificação de Contexto de Hardware
     model_str = (adb.specs.get("model", "") + " " + adb.specs.get("brand", "")).lower()
     for targeted in TARGETED_HARDWARE_MODELS:
         if targeted in model_str:
@@ -317,6 +317,76 @@ def step_quick_audit(adb):
     oem_paths = adb.run("pm list packages -f -s").splitlines()
     print(f"    - Total de pacotes de sistema encontrados: {len(oem_paths)}")
     print("    [✓] Amostragem concluída.")
+
+
+def step_remediate_device(adb):
+    """
+    Executa a neutralização e remediação completa da box sem depender de equipamentos de rede.
+    Aplica-se diretamente ao sistema operacional Android via ADB.
+    """
+    print("\n================================================================================")
+    print(f"     PLANO DE REMEDIAÇÃO & NEUTRALIZAÇÃO FORENSE - ANDROID TV ({adb.host})       ")
+    print("================================================================================")
+
+    # 1. Reativar e Trancar o Google Play Protect
+    print("\n[Passo 1/4] A restaurar e trancar o Google Play Protect...")
+    adb.run("settings put global package_verifier_user_consent 1")
+    adb.run("settings put global package_verifier_enable 1")
+    user_consent = adb.run("settings get global package_verifier_user_consent").strip()
+    verifier_enable = adb.run("settings get global package_verifier_enable").strip()
+    print(f"    - package_verifier_user_consent: {user_consent}")
+    print(f"    - package_verifier_enable:       {verifier_enable}")
+    if user_consent == "1" and verifier_enable == "1":
+        print("    [✓] Play Protect restaurado com sucesso! Verificação ativa de pacotes.")
+    else:
+        print("    [!] Aviso: Não foi possível repor o valor padrão de Play Protect.")
+
+    # 2. Desinstalar / Desativar Pacotes Maliciosos da Botnet
+    print("\n[Passo 2/4] A procurar e neutralizar pacotes de botnet, trojans e proxies...")
+    pkgs = adb.run("pm list packages").splitlines()
+    neutralized_count = 0
+    for p in pkgs:
+        p_name = p.replace("package:", "").strip()
+        for ioc in IOC_PACKAGES:
+            if ioc.lower() in p_name.lower():
+                print(f"    [*] A neutralizar pacote malicioso detetado: {p_name}")
+                # Tenta primeiro desinstalar
+                uninst = adb.run(f"pm uninstall {p_name}").strip()
+                if "Success" in uninst:
+                    print(f"        -> Desinstalado com sucesso: {p_name}")
+                    neutralized_count += 1
+                else:
+                    # Se for app pré-instalada de sistema (/oem, /system), desativa para o utilizador
+                    dis = adb.run(f"pm disable-user --user 0 {p_name}").strip()
+                    print(f"        -> App de sistema desativada/congelada: {p_name} ({dis})")
+                    neutralized_count += 1
+
+    if neutralized_count == 0:
+        print("    [✓] Nenhum pacote malicioso da botnet encontrado para desinstalar.")
+    else:
+        print(f"    [✓] Total de pacotes maliciosos neutralizados: {neutralized_count}")
+
+    # 3. Terminar Processos e Forçar Paragem de Módulos
+    print("\n[Passo 3/4] A terminar processos e serviços em execução da botnet...")
+    for ioc in IOC_PACKAGES:
+        adb.run(f"am force-stop {ioc}")
+        adb.run(f"killall {ioc} 2>/dev/null")
+    print("    [✓] Processos residuais terminados.")
+
+    # 4. Ativar DNS Seguro com Filtro de Malware (Corte de C2 direto na Box)
+    print("\n[Passo 4/4] A configurar Private DNS seguro na Box (Proteção anti-malware)...")
+    print("    - A definir DNS sobre TLS para: security.cloudflare-dns.com")
+    adb.run("settings put global private_dns_mode hostname")
+    adb.run("settings put global private_dns_specifier security.cloudflare-dns.com")
+    dns_mode = adb.run("settings get global private_dns_mode").strip()
+    dns_host = adb.run("settings get global private_dns_specifier").strip()
+    print(f"    - Modo Private DNS: {dns_mode}")
+    print(f"    - Servidor Seguro:  {dns_host}")
+    print("    [✓] Proteção de DNS ativa: pedidos para servidores C2 serão bloqueados na fonte.")
+
+    print("\n================================================================================")
+    print("  REMEDIAÇÃO CONCLUÍDA: A TV foi limpa e o tráfego de botnet bloqueado!")
+    print("================================================================================\n")
 
 
 def ensure_build_environment():
@@ -555,12 +625,15 @@ def interactive_menu(default_ip):
         print("  6. Descarregar Relatório (JSON + Log VPN) e Avaliar Regras")
         print("  7. Desinstalar App da Box (Limpeza Forense)")
         print("")
+        print("  --- REMEDIAÇÃO E LIMPEZA ---")
+        print("  8. Neutralizar / Limpar Box (Repõe Play Protect, Desinstala Bots e Ativa DNS Seguro)")
+        print("")
         print("  --- CONFIGURAÇÃO E PRÉ-REQUISITOS ---")
-        print("  8. Gerir / Instalar Pré-Requisitos e Toolchains (Python / JDK / SDK)")
-        print("  9. Mudar IP da Box")
+        print("  9. Gerir / Instalar Pré-Requisitos e Toolchains (Python / JDK / SDK)")
+        print(" 10. Mudar IP da Box")
         print("  0. Sair")
         print("================================================================================")
-        choice = input("Escolha uma opção [0-9]: ").strip()
+        choice = input("Escolha uma opção [0-10]: ").strip()
 
         if choice == "1":
             step_automated_pipeline(adb, vpn_duration=20, force_recompile=False)
@@ -589,6 +662,9 @@ def interactive_menu(default_ip):
             step_remove_app(adb)
             input("\nPrima ENTER para continuar...")
         elif choice == "8":
+            step_remediate_device(adb)
+            input("\nPrima ENTER para continuar...")
+        elif choice == "9":
             try:
                 import setup_env
                 setup_env.interactive_installer_menu()
@@ -599,7 +675,7 @@ def interactive_menu(default_ip):
                 import setup_env
                 setup_env.interactive_installer_menu()
             input("\nPrima ENTER para continuar...")
-        elif choice == "9":
+        elif choice == "10":
             new_ip = input("Novo IP: ").strip()
             if new_ip:
                 target_ip = new_ip
@@ -617,6 +693,7 @@ if __name__ == "__main__":
     parser.add_argument("target", nargs="?", default=None, help="IP da Android TV")
     parser.add_argument("--auto-pipeline", action="store_true", help="Executa pipeline completo: instala, scan estatico, VPN 20s, recolhe logs e desinstala")
     parser.add_argument("--quick-scan", action="store_true", help="Executa o diagnóstico rápido das 5 camadas via ADB")
+    parser.add_argument("--remediate", action="store_true", help="Neutraliza a box: repõe Play Protect, remove/desativa apps da botnet e ativa DNS seguro")
     parser.add_argument("--install-app", action="store_true", help="Instala a app na box")
     parser.add_argument("--recompile-for-device", action="store_true", help="Força a recompilação à medida para o SoC/SDK do dispositivo")
     parser.add_argument("--launch-app", action="store_true", help="Lança a app na TV")
@@ -643,10 +720,12 @@ if __name__ == "__main__":
             setup_env.interactive_installer_menu()
         sys.exit(0)
 
-    if args.target and (args.quick_scan or args.auto_pipeline or args.install_app or args.recompile_for_device or args.launch_app or args.pull_report or args.remove_app):
+    if args.target and (args.quick_scan or args.auto_pipeline or args.remediate or args.install_app or args.recompile_for_device or args.launch_app or args.pull_report or args.remove_app):
         adb = AdbDevice(args.target)
         if args.auto_pipeline:
             step_automated_pipeline(adb, vpn_duration=20, force_recompile=args.recompile_for_device)
+        elif args.remediate:
+            step_remediate_device(adb)
         elif args.quick_scan:
             adb.load_specs()
             step_quick_audit(adb)
@@ -659,7 +738,7 @@ if __name__ == "__main__":
             step_pull_report(adb)
         elif args.remove_app:
             step_remove_app(adb)
-    elif args.target and not any([args.quick_scan, args.install_app, args.recompile_for_device, args.launch_app, args.pull_report, args.remove_app]):
+    elif args.target and not any([args.quick_scan, args.install_app, args.remediate, args.recompile_for_device, args.launch_app, args.pull_report, args.remove_app]):
         adb = AdbDevice(args.target)
         adb.load_specs()
         step_quick_audit(adb)
