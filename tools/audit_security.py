@@ -524,15 +524,16 @@ Write-Host ">>> A reverter remediação e restaurar estado da TV ($TvHost)..." -
 
 # 1. Restaurar Definições Globais
 Write-Host "1. A repor definições originais..." -ForegroundColor Yellow
-python -c "import tv; d = tv.TVDevice('$TvHost'); d.shell('settings put global package_verifier_user_consent {settings.get('package_verifier_user_consent', '1')}')"
-python -c "import tv; d = tv.TVDevice('$TvHost'); d.shell('settings put global package_verifier_enable {settings.get('package_verifier_enable', '1')}')"
+$env:TV_HOST = "$TvHost"
+python -c "import tv; d = tv.connect(); d.shell('settings put global package_verifier_user_consent {settings.get('package_verifier_user_consent', '1')}')"
+python -c "import tv; d = tv.connect(); d.shell('settings put global package_verifier_enable {settings.get('package_verifier_enable', '1')}')"
 
 $dnsMode = "{settings.get('private_dns_mode', 'off')}"
 $dnsSpec = "{settings.get('private_dns_specifier', '')}"
 if ($dnsMode -eq "null" -or $dnsMode -eq "") {{ $dnsMode = "off" }}
-python -c "import tv; d = tv.TVDevice('$TvHost'); d.shell('settings put global private_dns_mode $dnsMode')"
+python -c "import tv; d = tv.connect(); d.shell('settings put global private_dns_mode $dnsMode')"
 if ($dnsSpec -ne "null" -and $dnsSpec -ne "") {{
-    python -c "import tv; d = tv.TVDevice('$TvHost'); d.shell('settings put global private_dns_specifier $dnsSpec')"
+    python -c "import tv; d = tv.connect(); d.shell('settings put global private_dns_specifier $dnsSpec')"
 }}
 
 # 2. Reativar Pacotes de Sistema Desativados
@@ -548,7 +549,7 @@ $packagesToEnable = @(
 foreach ($pkg in $packagesToEnable) {{
     if ($pkg) {{
         Write-Host "   -> A reativar: $pkg"
-        python -c "import tv; d = tv.TVDevice('$TvHost'); d.shell('pm enable $pkg')"
+        python -c "import tv; d = tv.connect(); d.shell('pm enable $pkg')"
     }}
 }}
 
