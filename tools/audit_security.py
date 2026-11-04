@@ -136,8 +136,9 @@ class AdbDevice:
             tools_dir = os.path.join(PROJECT_ROOT, "tools")
             if tools_dir not in sys.path:
                 sys.path.insert(0, tools_dir)
+            os.environ["TV_HOST"] = self.host
             import tv
-            self.device = tv.TVDevice(self.host)
+            self.device = tv.connect()
         except Exception as e:
             print(f"[!] Erro ao inicializar conexão ADB pura: {e}")
             self.device = None
