@@ -1,4 +1,4 @@
-# Suite Forense e Antimalware para Android TV / Google TV (BadBox, Vo1d & Remediação)
+# Suite Forense e Antimalware para Android TV / Google TV (BadBox, XCPE, Vo1d & Remediação)
 
 [![Platform](https://img.shields.io/badge/Platform-Android%20TV%20%7C%20Google%20TV-3DDC84.svg?logo=android)](https://www.android.com/tv/)
 [![Python](https://img.shields.io/badge/Python-3.9%2B-blue.svg?logo=python)](https://www.python.org/)
