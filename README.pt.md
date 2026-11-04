@@ -103,6 +103,19 @@ python tools/deep_forensics.py <TV_IP> --inspect-package <NOME_DO_PACOTE>
 
 ---
 
+## 🔒 Garantia de Segurança e Reversibilidade
+
+Cada ação de remediação cria um snapshot exato em formato JSON em `backups/backup_<IP>_<timestamp>.json` e um script de reversão imediata executável em `backups/restore_<IP>.ps1`. Nada é alterado sem existir um caminho de restauro imediato a um clique.
+
+> [!IMPORTANT]
+> **Nota de Persistência (Reposição de Fábrica & Atualizações de Sistema / OTA):**  
+> Como os droppers de cadeia de distribuição (como o `com.oemservice` / XCPE) vêm gravados de fábrica pelo fabricante em partições de sistema protegidas (`/system` ou `/vendor`), esta ferramenta mitiga e congela-os ao nível do gestor de pacotes do SO (`pm disable-user`) com total segurança e sem risco de inutilizar o aparelho (*brick*).  
+> Por este motivo:
+> 1. **Reposição de Fábrica (*Factory Reset*):** Se efetuar uma reposição de valores de fábrica na TV, a partição de dados é limpa e o backdoor do sistema voltará a ficar ativo como veio de fábrica. Terá de executar novamente este script ou a aplicação para voltar a neutralizá-lo.
+> 2. **Atualizações de Sistema (OTA do Fabricante):** A mitigação permanece válida até que a própria marca lance uma atualização de firmware que remova em definitivo a ameaça da ROM. Caso a sua box receba uma atualização de sistema, execute o `--quick-scan` para verificar se a marca corrigiu o problema ou se é necessário reaplicar a remediação.
+
+---
+
 ## ⚠️ Isenção de Responsabilidade
 
 Este software e ferramentas são disponibilizados estritamente para fins educativos, forenses e de investigação de cibersegurança.

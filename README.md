@@ -111,6 +111,13 @@ python tools/deep_forensics.py <TV_IP> --pull-and-analyze <REMOTE_APK_PATH>
 
 Every remediation action creates an exact JSON snapshot under `backups/backup_<IP>_<timestamp>.json` and an executable rollback script `backups/restore_<IP>.ps1`. Nothing is modified without an immediate, one-click restoration path.
 
+> [!IMPORTANT]
+> **Persistence Notice (OTA Updates & Factory Reset):**  
+> Because supply-chain droppers (such as `com.oemservice` / XCPE) are embedded by the manufacturer inside read-only system partitions (`/system` or `/vendor`), this tool mitigates and freezes them at the OS package-manager level (`pm disable-user`) without bricking your device.  
+> As a result:
+> 1. **Factory Reset:** If you perform a factory reset, the device resets to its initial factory image and the dormant backdoor will reactivate. You will need to run this audit/remediation tool again.
+> 2. **System / OTA Updates:** A system update issued by the manufacturer could either definitively patch/remove the backdoor or, conversely, unfreeze system packages. If your TV receives a firmware update, re-run `--quick-scan` to verify whether the brand clean-patched the ROM or if remediation needs to be reapplied.
+
 ---
 
 ## ⚠️ Disclaimer

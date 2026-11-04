@@ -108,6 +108,7 @@ The remediation cycle operates completely inside Android:
 - **Zero-Damage & Reversibility**: Never disable critical core system packages (`com.android.systemui`, `com.android.settings`, Bluetooth/Wi-Fi stack).
 - **Mandatory Backup Before Change**: Every modifying operation must save original state to `backups/`.
 - **Strict Read-Only Diagnostics by Default**: Diagnostics must never modify system properties unless `--remediate` or `--restore` is explicitly invoked.
+- **Persistence Boundary Awareness**: Agents must understand and communicate that OEM backdoor freezing (`pm disable-user`) survives standard reboots, but will be reset if the user performs a **Factory Reset** or if a manufacturer **OTA system update** replaces `/system`. Remediation remains valid until the OEM issues a clean firmware update or until a factory reset occurs.
 - **Silent VPN Grant**: In automated mode, grant VPN permissions via `adb shell appops set com.scanner.tv ACTIVATE_VPN allow` to avoid blocking on user UI dialogs.
 - **TV Safe Operation**: When auditing is done, instruct or remind the operator to disable USB/Network Debugging in TV Developer Options to prevent exposed ADB ports on the local network.
 
