@@ -106,7 +106,11 @@ TARGET_STRINGS = [
     b"Corejava",
     b"test-keys",
     b"com.charon.rocketfly",
-    b"adups"
+    b"adups",
+    b"vo1d",
+    b"/system/xbin/vo1d",
+    b"/system/xbin/wd",
+    b"/data/google/daemon"
 ]
 
 # 2. Pacotes maliciosos, backdoors OEM e proxies residenciais da campanha
@@ -115,7 +119,17 @@ IOC_PACKAGES = [
     "linkfog", "appsalt", "traffmonetizer", "cboxtv", "hiddenview", "moyu", "spirit",
     "android-grass", "com.grass", "appdnschange", "SmartPrivilege", "SmartEntertainment",
     "SmartThroughput", "EcoSaverDaemon", "titannet", "yokatv",
-    "com.adups.fota", "com.adups.market", "com.charon.rocketfly", "com.ftest", "com.google.android.suite"
+    "com.adups.fota", "com.adups.market", "com.charon.rocketfly", "com.ftest", "com.google.android.suite",
+    "com.google.android.services", "vo1d"
+]
+
+# 3. Ficheiros binários e scripts de persistência de malware no sistema (Vo1d, Corejava, etc.)
+IOC_BINARY_PATHS = [
+    "/system/xbin/vo1d",
+    "/system/xbin/wd",
+    "/data/google/daemon",
+    "/data/system/Corejava",
+    "/system/etc/install-recovery.sh"
 ]
 
 # 3. IPs e Portas Críticas de C2 da botnet
@@ -374,7 +388,17 @@ def step_quick_audit(adb):
     print(f"\n{t('layer_5_title')}")
     oem_paths = adb.run("pm list packages -f -s").splitlines()
     print(t("layer_5_total", count=len(oem_paths)))
-    print(t("layer_5_ok"))
+    
+    # Verificação de binários e pastas conhecidas de malware (Vo1d, Corejava)
+    found_binaries = []
+    for b_path in IOC_BINARY_PATHS:
+        check = adb.run(f"ls -ld {b_path} 2>/dev/null").strip()
+        if check and "No such file" not in check and "not found" not in check:
+            found_binaries.append(b_path)
+    if found_binaries:
+        print(f"    [!] ALERTA CRÍTICO: Ficheiros de persistência detetados (Vo1d/Corejava): {found_binaries}")
+    else:
+        print(t("layer_5_ok"))
 
 
 def create_remediation_backup(adb):
@@ -531,6 +555,15 @@ def step_remediate_device(adb):
     for ioc in IOC_PACKAGES:
         adb.run(f"am force-stop {ioc}")
         adb.run(f"killall {ioc} 2>/dev/null")
+
+    # Neutralizar ficheiros de persistência Vo1d / Corejava caso existam
+    for b_path in IOC_BINARY_PATHS:
+        check = adb.run(f"ls -ld {b_path} 2>/dev/null").strip()
+        if check and "No such file" not in check and "not found" not in check:
+            print(f"    [*] A remover ficheiro de persistência malicioso: {b_path}")
+            adb.run(f"rm -rf {b_path} 2>/dev/null")
+            adb.run(f"touch {b_path} 2>/dev/null && chmod 000 {b_path} 2>/dev/null")
+
     print("    [✓] Processos residuais terminados.")
 
     # 4. Ativar DNS Seguro com Filtro de Malware (Corte de C2 direto na Box)

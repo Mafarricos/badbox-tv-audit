@@ -33,6 +33,7 @@ Models historically documented by security research (Synthient, Malwarebytes, De
 | Device Family | Typical Chipset | Known Threats / Signatures | Severity | Recommendation |
 |---|---|---|---|---|
 | **T95 / T95 Max / T95Z** | Allwinner H616, H618 | `Corejava`, `ycxrl.com`, `libandroid_runtime.so` injection, Adups FOTA | **CRITICAL (Active Botnet)** | Run automated remediation or replace device. |
+| **R4 TV Box / KJ-SMART4KVIP (Vo1d)** | Allwinner / Rockchip generic | `Android.Vo1d` (`/system/xbin/vo1d`, `/system/xbin/wd`, `/data/google/daemon`) | **CRITICAL (Vo1d Botnet)** | Run `--remediate` to remove binaries or isolate device. |
 | **Allwinner H616 generic clones** | Allwinner H616 | BadBox click-fraud, CopyCat adware, test-keys signed ROMs | **CRITICAL** | Isolate from local LAN immediately. |
 | **Q96 / Q96 Max** | Rockchip RK3228A, RK3328 | Preinstalled proxy nodes (Grass, TitanNet, Traffmonetizer) | **CRITICAL** | Audit with `--auto-pipeline` and isolate. |
 | **MECOOL / Videostrong KM series** (Certain older batches) | Amlogic S905X | Preloaded XCPE droppers (`x.cpe`, `com.oemservice`, `uota.club`) | **HIGH** | Run `--remediate` to freeze the OEM dropper. |
