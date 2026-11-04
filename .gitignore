@@ -1,0 +1,15 @@
+*.pyc
+__pycache__/
+*.class
+.gradle/
+build/
+app/build/
+.idea/
+*.iml
+local.properties
+.DS_Store
+Thumbs.db
+
+# Relatórios gerados em auditorias locais
+last_scan_report.json
+vpn_events.log

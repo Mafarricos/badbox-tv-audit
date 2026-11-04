@@ -1,0 +1,139 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#0A0D14"
+    android:orientation="vertical"
+    android:padding="28dp">
+
+    <!-- Header -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="XCPE &amp; Botnet Scanner TV"
+            android:textColor="#FFFFFF"
+            android:textSize="24sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/tvDeviceStats"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Status: Pronto"
+            android:textColor="#8892B0"
+            android:textSize="13sp" />
+    </LinearLayout>
+
+    <!-- Main Content Area -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_marginTop="16dp"
+        android:layout_weight="1"
+        android:orientation="horizontal">
+
+        <!-- Left: Action & Summary Card -->
+        <LinearLayout
+            android:layout_width="320dp"
+            android:layout_height="match_parent"
+            android:background="#161B26"
+            android:gravity="center"
+            android:orientation="vertical"
+            android:padding="16dp">
+
+            <TextView
+                android:id="@+id/tvVerdictBadge"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:background="#1E293B"
+                android:gravity="center"
+                android:padding="10dp"
+                android:text="AGUARDANDO SCAN"
+                android:textColor="#94A3B8"
+                android:textSize="15sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/tvScore"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:text="0 Ameaças"
+                android:textColor="#FFFFFF"
+                android:textSize="26sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/tvSubStatus"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:text="Navegue com as setas do comando"
+                android:textColor="#94A3B8"
+                android:textSize="12sp" />
+
+            <!-- Botão 1: Scan Estático (Navegável por D-Pad) -->
+            <Button
+                android:id="@+id/btnScan"
+                android:layout_width="match_parent"
+                android:layout_height="52dp"
+                android:layout_marginTop="20dp"
+                android:background="@drawable/btn_blue_focused"
+                android:focusable="true"
+                android:focusableInTouchMode="true"
+                android:nextFocusDown="@+id/btnVpnMonitor"
+                android:nextFocusRight="@+id/scrollLogs"
+                android:text="ANALISAR BOX (ESTÁTICO)"
+                android:textColor="#FFFFFF"
+                android:textSize="14sp"
+                android:textStyle="bold" />
+
+            <!-- Botão 2: Monitor VPN (Navegável por D-Pad) -->
+            <Button
+                android:id="@+id/btnVpnMonitor"
+                android:layout_width="match_parent"
+                android:layout_height="52dp"
+                android:layout_marginTop="12dp"
+                android:background="@drawable/btn_green_focused"
+                android:focusable="true"
+                android:focusableInTouchMode="true"
+                android:nextFocusUp="@+id/btnScan"
+                android:nextFocusRight="@+id/scrollLogs"
+                android:text="MONITORIZAR REDE (VPN)"
+                android:textColor="#FFFFFF"
+                android:textSize="14sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+        <!-- Right: Diagnostic Logs (Foco D-Pad configurado para a Esquerda apontar aos botões) -->
+        <ScrollView
+            android:id="@+id/scrollLogs"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_marginStart="20dp"
+            android:layout_weight="1"
+            android:background="#111622"
+            android:focusable="true"
+            android:focusableInTouchMode="true"
+            android:nextFocusLeft="@+id/btnScan"
+            android:padding="16dp">
+
+            <TextView
+                android:id="@+id/tvLogOutput"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:fontFamily="monospace"
+                android:text="Painel de Diagnóstico Pronto.\n\n[Opção 1 - Scan Estático]: Varre código em /oem/, Play Protect e pacotes em 3 segundos.\n[Opção 2 - Monitor VPN]: Interceta tráfego da box em tempo real à procura de pings para o C2 ou portas MQTT.\n"
+                android:textColor="#CBD5E1"
+                android:textSize="13sp" />
+        </ScrollView>
+    </LinearLayout>
+
+</LinearLayout>

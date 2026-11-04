@@ -1,0 +1,105 @@
+# AGENTS.md
+
+Instructions for AI coding agents (Claude Code, Gemini CLI, Cursor, Copilot, Antigravity, and others) working in this repository. Humans should start with [README.md](README.md).
+
+---
+
+## 1. Project Mission
+
+This repository contains an autonomous, dual-layer forensic suite specifically designed to audit Android TV, Google TV, and Android TV Box streaming devices for supply-chain malware and botnet backdoors, with primary focus on **BadBox**, **XCPE**, **Fuyao**, and **Videostrong/SZBBOYS**.
+
+It delivers:
+1. **Remote ADB Layer**: Read-only fast triage across 5 forensic layers.
+2. **On-Device TV App (`com.scanner.tv`)**: Native Leanback UI + local loopback VPN packet sentinel to detect hidden proxy botnet traffic and silent C2 callbacks.
+3. **Deterministic Scoring Engine (`audit_security.py`)**: Zero-AI rule evaluation yielding mathematically backed verdicts (`INFETADO - CRÍTICO`, `SUSPEITO`, `LIMPO / SEGURO`).
+
+---
+
+## 2. Environment Prerequisites & Setup (Agent Protocol)
+
+Before running any forensic task, agents **must ensure the Python environment is ready**:
+- Python 3.9+ runtime.
+- Pip requirements: `pip install -r requirements.txt` (provides `adb-shell`, `rsa`, `pyasn1`).
+- **No external ADB binary needed**: `tools/tv.py` implements pure Python ADB over TCP sockets.
+- If running in a fresh workspace or container:
+  - Windows: execute `setup.bat` or `pip install -r requirements.txt`
+  - Linux / macOS: execute `bash setup.sh` or `pip3 install -r requirements.txt`
+
+---
+
+## 3. APK Compatibility & Autonomous On-Demand Recompilation Protocol
+
+The repository ships with an optimized precompiled universal APK in `tools/xcpe-scanner-tv.apk` (supports SDK 21 to SDK 34).
+
+However, **if the target device is legacy, exotic, or reports an install error**:
+1. **Self-Healing Fallback**: If `pm install` rejects the prebuilt APK (e.g. `INSTALL_FAILED_OLDER_SDK`, `INSTALL_FAILED_NO_MATCHING_ABIS`), `audit_security.py` automatically detects the device specs (`getprop ro.build.version.sdk`), triggers `ensure_build_environment()`, and recompiles a custom build targeting the device's exact API level.
+2. **Explicit On-Demand Recompilation**: If an agent wants to guarantee an APK compiled specifically for the device's exact architecture and Android version, use:
+   ```bash
+   python tools/audit_security.py <IP> --recompile-for-device
+   ```
+   Or in automated pipeline mode:
+   ```bash
+   python tools/audit_security.py <IP> --auto-pipeline --recompile-for-device
+   ```
+3. **Toolchain Installation by Agents**:
+   - **Windows**: `winget install -e --id EclipseAdoptium.Temurin.17.JDK`
+   - **Linux**: `apt-get install -y openjdk-17-jdk`
+   - **Android SDK**: `audit_security.py` automatically sets `local.properties` with the path to `ANDROID_HOME` or standard SDK directories (`C:\AndroidSDK`, `$HOME/Android/Sdk`, `%LOCALAPPDATA%\Android\Sdk`).
+
+---
+
+## 4. Non-Negotiable Operational Rules for Agents
+
+- **Zero-Damage & Reversibility**: Never disable critical system services or flash custom binaries. The suite installs an APK during auditing and **must uninstall it** at completion leaving zero residues on the TV.
+- **Strict Read-Only Diagnostics**: The fast ADB scan must never modify system properties, remove packages, or flip internal Android settings.
+- **Silent VPN Grant**: In automated mode, grant VPN permissions via `adb shell appops set com.scanner.tv ACTIVATE_VPN allow` to avoid blocking on user UI dialogs.
+- **TV Safe Operation**: When auditing is done, instruct or remind the operator to disable USB/Network Debugging in TV Developer Options to prevent exposed ADB ports on the local network.
+
+---
+
+## 5. CLI Agent Usage Matrix
+
+When executing autonomous forensic audits, invoke `tools/audit_security.py` directly using flags:
+
+| Goal | Command | Description |
+|---|---|---|
+| **Full Automated Pipeline** | `python tools/audit_security.py <IP> --auto-pipeline` | Installs APK, grants VPN silent, runs 5-layer scan, monitors network for 20s, pulls logs, evaluates scoring rules, uninstalls APK. |
+| **Automated with Custom Recompilation** | `python tools/audit_security.py <IP> --auto-pipeline --recompile-for-device` | Gathers device SoC/SDK specs, recompiles tailored APK, runs full pipeline and cleans up. |
+| **Fast 5-Layer ADB Scan** | `python tools/audit_security.py <IP> --quick-scan` | 100% read-only scan via ADB (checks Play Protect, C2 sockets, IoC packages, props). |
+| **Install Tailored App** | `python tools/audit_security.py <IP> --recompile-for-device` | Compiles from `app/` and installs on the box. |
+| **Launch TV Interface** | `python tools/audit_security.py <IP> --launch-app` | Opens the D-Pad optimized scanner on the TV display. |
+| **Pull & Score Reports** | `python tools/audit_security.py <IP> --pull-report` | Extracts `last_scan.json` and `vpn_events.log`, executes the rule engine, prints verdict. |
+| **Clean Up / Uninstall** | `python tools/audit_security.py <IP> --remove-app` | Removes `com.scanner.tv` from the device. |
+
+---
+
+## 6. Repository Map
+
+```
+badbox-tv-audit/
+├── setup.bat             # One-click Windows prerequisite installer (Python + JDK/SDK option)
+├── setup.sh              # One-click Linux/macOS prerequisite installer
+├── app/                  # Full Android Studio project for com.scanner.tv (SDK 34, Java 17)
+│   ├── app/src/main/     # CoreScanner.java, PacketMonitorVpnService.java, MainActivity.java
+│   └── gradlew / build   # Gradle build system
+├── tools/
+│   ├── audit_security.py # Main forensic orchestrator, compiler manager & scoring engine
+│   ├── tv.py             # Pure Python ADB protocol client (no system adb required)
+│   └── xcpe-scanner-tv.apk # Prebuilt universal ready-to-install Android TV package
+├── AGENTS.md             # This agent instruction manual
+├── README.md             # Human-facing installation and usage guide
+└── requirements.txt      # Python dependencies (adb-shell, rsa, pyasn1)
+```
+
+---
+
+## 7. Decision Logic and Thresholds
+
+The deterministic rule engine evaluates risks without cloud AI calls:
+
+- **Score >= 8 OR Critical Signature found** -> `INFETADO - CRÍTICO` (>99% certainty).
+  - Triggers: `package_verifier_user_consent = -1`, direct C2 IP connections (`219.134.163.210`, `:3885-3887`), or known botnet packages (`x.cpe`, `traffmonetizer`).
+- **Score >= 3 OR >=2 Anomalies** -> `SUSPEITO` (~80% certainty).
+  - Triggers: Unprotected package verification (`enable = 0`), abnormal UDP/TCP outbound packets in quiet state.
+- **Score < 3** -> `LIMPO / SEGURO` (>98% certainty).
+  - Normal clean devices (e.g. system APK permission warnings without signatures).

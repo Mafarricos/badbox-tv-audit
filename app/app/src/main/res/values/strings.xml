@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">XCPE Scanner TV</string>
+    <string name="target_device_header">Auditoria: realme 4K Google TV Stick</string>
+    <string name="target_device_specs">SkyworthDigital | Android 14 (SDK 34) | amlogic</string>
+</resources>
