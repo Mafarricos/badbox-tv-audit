@@ -86,7 +86,7 @@ public class MainActivity extends AppCompatActivity {
             criticalThreatsCount++;
             appendColoredLog("[!] " + logMessage, Color.parseColor("#EF4444"));
             mainHandler.post(() -> {
-                tvVerdictBadge.setText("PERIGO [C2 ATIVO]");
+                tvVerdictBadge.setText(getString(R.string.badge_c2_active));
                 tvVerdictBadge.setBackgroundColor(Color.parseColor("#B91C1C"));
                 tvVerdictBadge.setTextColor(Color.WHITE);
                 btnRemediate.setVisibility(View.VISIBLE);
@@ -101,7 +101,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void startAudit() {
-        tvVerdictBadge.setText("ANALISANDO...");
+        tvVerdictBadge.setText(getString(R.string.badge_scanning));
         tvVerdictBadge.setBackgroundColor(Color.parseColor("#1E293B"));
         tvVerdictBadge.setTextColor(Color.WHITE);
         tvLogOutput.setText("");
@@ -120,7 +120,7 @@ public class MainActivity extends AppCompatActivity {
 
             mainHandler.post(() -> {
                 tvDeviceStats.setText(result.deviceDetails);
-                tvScore.setText(result.findings.size() + " Ameaça(s)");
+                tvScore.setText(getString(R.string.threats_count, result.findings.size()));
 
                 appendColoredLog("\n=================================================", Color.WHITE);
                 appendColoredLog("               RELATÓRIO CONCLUÍDO               ", Color.WHITE);
@@ -146,25 +146,25 @@ public class MainActivity extends AppCompatActivity {
 
                 switch (result.overallStatus) {
                     case LIMPO:
-                        tvVerdictBadge.setText("DISPOSITIVO LIMPO");
+                        tvVerdictBadge.setText(getString(R.string.badge_clean));
                         tvVerdictBadge.setBackgroundColor(Color.parseColor("#15803D"));
                         tvVerdictBadge.setTextColor(Color.WHITE);
-                        tvSubStatus.setText("Nenhum sinal de malware ou botnet.");
+                        tvSubStatus.setText(getString(R.string.substatus_clean));
                         btnRemediate.setVisibility(View.GONE);
                         break;
                     case SUSPEITO:
-                        tvVerdictBadge.setText("ALERTA [SUSPEITO]");
+                        tvVerdictBadge.setText(getString(R.string.badge_suspicious));
                         tvVerdictBadge.setBackgroundColor(Color.parseColor("#B45309"));
                         tvVerdictBadge.setTextColor(Color.WHITE);
-                        tvSubStatus.setText("Detectadas anomalias estruturais.");
+                        tvSubStatus.setText(getString(R.string.substatus_suspicious));
                         btnRemediate.setVisibility(View.VISIBLE);
                         btnVpnMonitor.setNextFocusDownId(R.id.btnRemediate);
                         break;
                     case INFETADO_CRITICO:
-                        tvVerdictBadge.setText("PERIGO [INFETADO]");
+                        tvVerdictBadge.setText(getString(R.string.badge_infected));
                         tvVerdictBadge.setBackgroundColor(Color.parseColor("#B91C1C"));
                         tvVerdictBadge.setTextColor(Color.WHITE);
-                        tvSubStatus.setText("Assinatura de XCPE / BadBox detectada!");
+                        tvSubStatus.setText(getString(R.string.substatus_infected));
                         btnRemediate.setVisibility(View.VISIBLE);
                         btnVpnMonitor.setNextFocusDownId(R.id.btnRemediate);
                         btnRemediate.requestFocus();
@@ -235,7 +235,7 @@ public class MainActivity extends AppCompatActivity {
             intent.setAction("STOP");
             startService(intent);
             isVpnRunning = false;
-            btnVpnMonitor.setText("MONITORIZAR REDE (VPN)");
+            btnVpnMonitor.setText(getString(R.string.btn_vpn_monitor));
             btnVpnMonitor.setBackgroundResource(R.drawable.btn_green_focused);
             btnVpnMonitor.requestFocus();
             appendColoredLog("\n[i] Monitor de rede VPN parado.", Color.WHITE);
@@ -249,7 +249,7 @@ public class MainActivity extends AppCompatActivity {
             Intent intent = new Intent(this, PacketMonitorVpnService.class);
             startService(intent);
             isVpnRunning = true;
-            btnVpnMonitor.setText("PARAR MONITOR VPN");
+            btnVpnMonitor.setText(getString(R.string.btn_stop_vpn));
             btnVpnMonitor.setBackgroundResource(R.drawable.btn_red_focused);
             btnVpnMonitor.requestFocus();
             appendColoredLog("\n[✓] Modo Sentinela Global Ativo!", Color.parseColor("#22C55E"));

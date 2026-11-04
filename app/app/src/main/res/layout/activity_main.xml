@@ -17,7 +17,7 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:text="XCPE &amp; Botnet Scanner TV"
+            android:text="@string/header_title"
             android:textColor="#FFFFFF"
             android:textSize="24sp"
             android:textStyle="bold" />
@@ -26,7 +26,7 @@
             android:id="@+id/tvDeviceStats"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Status: Pronto"
+            android:text="@string/status_ready"
             android:textColor="#8892B0"
             android:textSize="13sp" />
     </LinearLayout>
@@ -55,7 +55,7 @@
                 android:background="#1E293B"
                 android:gravity="center"
                 android:padding="10dp"
-                android:text="AGUARDANDO SCAN"
+                android:text="@string/badge_waiting"
                 android:textColor="#94A3B8"
                 android:textSize="15sp"
                 android:textStyle="bold" />
@@ -65,7 +65,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="14dp"
-                android:text="0 Ameaças"
+                android:text="@string/zero_threats"
                 android:textColor="#FFFFFF"
                 android:textSize="24sp"
                 android:textStyle="bold" />
@@ -75,7 +75,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="4dp"
-                android:text="Navegue com as setas do comando"
+                android:text="@string/nav_hint"
                 android:textColor="#94A3B8"
                 android:textSize="12sp" />
 
@@ -90,7 +90,7 @@
                 android:focusableInTouchMode="true"
                 android:nextFocusDown="@+id/btnVpnMonitor"
                 android:nextFocusRight="@+id/scrollLogs"
-                android:text="ANALISAR BOX (ESTÁTICO)"
+                android:text="@string/btn_scan"
                 android:textColor="#FFFFFF"
                 android:textSize="13sp"
                 android:textStyle="bold" />
@@ -107,7 +107,7 @@
                 android:nextFocusUp="@+id/btnScan"
                 android:nextFocusDown="@+id/btnRemediate"
                 android:nextFocusRight="@+id/scrollLogs"
-                android:text="MONITORIZAR REDE (VPN)"
+                android:text="@string/btn_vpn_monitor"
                 android:textColor="#FFFFFF"
                 android:textSize="13sp"
                 android:textStyle="bold" />
@@ -123,7 +123,7 @@
                 android:focusableInTouchMode="true"
                 android:nextFocusUp="@+id/btnVpnMonitor"
                 android:nextFocusRight="@+id/scrollLogs"
-                android:text="NEUTRALIZAR AMEAÇAS"
+                android:text="@string/btn_remediate"
                 android:textColor="#FFFFFF"
                 android:textSize="13sp"
                 android:textStyle="bold"
@@ -148,7 +148,9 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:fontFamily="monospace"
-                android:text="Painel de Diagnóstico &amp; Remediação Pronto.\n\n[1. Analisar Box]: Varre partições /oem/, pacotes maliciosos e Play Protect.\n[2. Monitor VPN]: Deteta ligações em tempo real a servidores de Comando e Controlo (C2).\n[3. Neutralizar]: Desinstala apps suspeitas no ecrã e orienta para reposição de defesas.\n"
+                android:text="@string/log_initial_help"
+                android:textColor="#CBD5E1"
+                android:textSize="13sp" />
                 android:textColor="#CBD5E1"
                 android:textSize="13sp" />
         </ScrollView>

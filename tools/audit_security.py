@@ -28,6 +28,7 @@ import tempfile
 import zipfile
 import argparse
 import subprocess
+from i18n import t, set_language, get_language
 
 # Configurar stdout/stderr para UTF-8 seguro em consolas Windows e Linux
 if sys.platform == "win32":
@@ -173,7 +174,7 @@ class AdbDevice:
             return False
 
     def load_specs(self):
-        print(f"[*] A carregar especificações do dispositivo {self.host}...")
+        print(t("loading_specs", target=self.host))
         brand = self.run("getprop ro.product.brand").strip()
         model = self.run("getprop ro.product.model").strip()
         manufacturer = self.run("getprop ro.product.manufacturer").strip()
@@ -193,9 +194,9 @@ class AdbDevice:
             "hardware": hardware,
             "sdk": sdk
         }
-        print(f"    - Modelo: {brand} {model} (Android {android_ver}, API {sdk})")
-        print(f"    - Fabricante/SoC: {manufacturer} | {board} / {hardware}")
-        print(f"    - Patch de Segurança: {security_patch}")
+        print(t("specs_model", brand=brand, model=model, ver=android_ver, sdk=sdk))
+        print(t("specs_soc", vendor=manufacturer, board=board, hw=hardware))
+        print(t("specs_patch", patch=security_patch))
         return self.specs
 
 
@@ -252,25 +253,26 @@ def evaluate_forensic_results(json_data, vpn_log_lines, device_specs=None):
                 break
 
     # 4. Veredito com Limiares de Decisão Exatos
-    print(f"Pontuação de Risco Total: {score} pontos\n")
+    print(f"Pontuação de Risco Total: {score} pontos\n" if get_language() == "pt" else f"Total Risk Score: {score} points\n")
 
     if score >= 8 or len(critical_reasons) > 0:
-        verdict = "INFETADO - CRÍTICO"
+        verdict = "INFETADO - CRÍTICO" if get_language() == "pt" else "INFECTED - CRITICAL"
         color_code = "[!]"
         confidence = ">99%"
-        desc = "Foram identificadas evidências irrefutáveis de malware/botnet (XCPE/BadBox)."
+        desc = t("verdict_crit_desc")
     elif score >= 3 or len(suspicious_reasons) >= 2:
-        verdict = "SUSPEITO"
+        verdict = "SUSPEITO" if get_language() == "pt" else "SUSPICIOUS"
         color_code = "[?]"
         confidence = "80%"
-        desc = "A box apresenta anomalias estruturais ou tráfego de rede não habitual em repouso."
+        desc = t("verdict_susp_desc")
     else:
-        verdict = "LIMPO / SEGURO"
+        verdict = "LIMPO / SEGURO" if get_language() == "pt" else "CLEAN / SAFE"
         color_code = "[✓]"
         confidence = ">98%"
-        desc = "Nenhuma evidência maliciosa ou conexão à botnet detetada."
+        desc = t("verdict_clean_desc")
 
-    print(f"{color_code} VEREDITO FINAL: {verdict} (Grau de Certeza: {confidence})")
+    header_verdict = t("verdict_crit") if "CRÍTICO" in verdict or "CRITICAL" in verdict else (t("verdict_susp") if "SUSP" in verdict else t("verdict_clean"))
+    print(f"{color_code} {header_verdict}")
     print(f"    {desc}")
 
     if critical_reasons:
@@ -294,7 +296,7 @@ def evaluate_forensic_results(json_data, vpn_log_lines, device_specs=None):
 
 def step_quick_audit(adb):
     print("\n================================================================================")
-    print(f"           DIAGNÓSTICO RÁPIDO VIA ADB (5 CAMADAS FORENSES)                      ")
+    print(f"           {t('banner_quick_audit')}                      ")
     print("================================================================================")
     
     if not adb.specs:
@@ -303,19 +305,23 @@ def step_quick_audit(adb):
     model_str = (adb.specs.get("model", "") + " " + adb.specs.get("brand", "")).lower()
     for targeted in TARGETED_HARDWARE_MODELS:
         if targeted in model_str:
-            print(f"\n[AVISO DE CONTEXTO] Este modelo ('{adb.specs.get('model')}') coincide com linhas documentadas no relatório Synthient.")
-            print("                   Será feita uma verificação rigorosa de evidências técnicas.")
+            if get_language() == "pt":
+                print(f"\n[AVISO DE CONTEXTO] Este modelo ('{adb.specs.get('model')}') coincide com linhas documentadas no relatório Synthient.")
+                print("                   Será feita uma verificação rigorosa de evidências técnicas.")
+            else:
+                print(f"\n[CONTEXT WARNING] This model ('{adb.specs.get('model')}') matches families documented in the Synthient report.")
+                print("                  A strict evidence-based verification will be performed.")
             break
 
-    print("\n[Camada 1/5] A verificar integridade do Play Protect...")
+    print(f"\n{t('layer_1_title')}")
     settings_out = adb.run("settings get global package_verifier_user_consent")
     print(f"    - package_verifier_user_consent: {settings_out.strip()}")
     if "-1" in settings_out:
-        print("    [!] ALERTA CRÍTICO: Play Protect foi forçado a desligar (-1)!")
+        print(t("layer_1_crit"))
     else:
-        print("    [✓] Play Protect não está forçado a desligar.")
+        print(t("layer_1_ok"))
 
-    print("\n[Camada 2/5] A analisar pacotes instalados contra lista de IoCs...")
+    print(f"\n{t('layer_2_title')}")
     pkgs = adb.run("pm list packages").splitlines()
     disabled_pkgs = [p.replace("package:", "").strip().lower() for p in adb.run("pm list packages -d").splitlines()]
     found_ioc_pkgs = []
@@ -329,13 +335,13 @@ def step_quick_audit(adb):
                 else:
                     found_ioc_pkgs.append(p_name)
     if found_ioc_pkgs:
-        print(f"    [!] Pacotes maliciosos ATIVOS detetados: {found_ioc_pkgs}")
+        print(t("layer_2_active_threat", pkgs=found_ioc_pkgs))
     if neutralized_ioc_pkgs:
-        print(f"    [✓] Pacotes suspeitos identificados mas NEUTRALIZADOS / CONGELADOS: {neutralized_ioc_pkgs}")
+        print(t("layer_2_frozen", pkgs=neutralized_ioc_pkgs))
     if not found_ioc_pkgs and not neutralized_ioc_pkgs:
-        print(f"    [✓] Nenhum pacote conhecido de botnet detetado ({len(pkgs)} pacotes analisados).")
+        print(t("layer_2_clean", count=len(pkgs)))
 
-    print("\n[Camada 3/5] A verificar propriedades do sistema (Build Props)...")
+    print(f"\n{t('layer_3_title')}")
     props = adb.run("getprop").splitlines()
     found_suspicious_props = []
     for prop in props:
@@ -343,11 +349,11 @@ def step_quick_audit(adb):
             if target.decode("utf-8", errors="ignore").lower() in prop.lower():
                 found_suspicious_props.append(prop)
     if found_suspicious_props:
-        print(f"    [!] Propriedades suspeitas: {found_suspicious_props}")
+        print(t("layer_3_suspicious", props=found_suspicious_props))
     else:
-        print("    [✓] Nenhuma propriedade adulterada por BadBox.")
+        print(t("layer_3_ok"))
 
-    print("\n[Camada 4/5] A verificar sockets de rede ativos e conexões C2...")
+    print(f"\n{t('layer_4_title')}")
     netstat_out = adb.run("netstat -n -a 2>/dev/null || ss -tan 2>/dev/null")
     found_conn = []
     for line in netstat_out.splitlines():
@@ -355,14 +361,14 @@ def step_quick_audit(adb):
             if c2 in line:
                 found_conn.append(line)
     if found_conn:
-        print(f"    [!] Conexão C2 detetada em tempo real: {found_conn}")
+        print(t("layer_4_c2_found", conn=found_conn))
     else:
-        print("    [✓] Nenhuma conexão ativa aos IPs/portas da botnet.")
+        print(t("layer_4_ok"))
 
-    print("\n[Camada 5/5] Amostragem de APKs OEM do sistema...")
+    print(f"\n{t('layer_5_title')}")
     oem_paths = adb.run("pm list packages -f -s").splitlines()
-    print(f"    - Total de pacotes de sistema encontrados: {len(oem_paths)}")
-    print("    [✓] Amostragem concluída.")
+    print(t("layer_5_total", count=len(oem_paths)))
+    print(t("layer_5_ok"))
 
 
 def create_remediation_backup(adb):
@@ -898,7 +904,8 @@ def interactive_menu(default_ip):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="BadBox & XCPE Forensic Suite", add_help=False)
-    parser.add_argument("target", nargs="?", default=None, help="IP da Android TV")
+    parser.add_argument("target", nargs="?", default=None, help="IP da Android TV / Target IP")
+    parser.add_argument("--lang", choices=["en", "pt"], default="pt", help="Idioma das mensagens / Interface language (pt ou en)")
     parser.add_argument("--auto-pipeline", action="store_true", help="Executa pipeline completo: instala, scan estatico, VPN 20s, recolhe logs e desinstala")
     parser.add_argument("--quick-scan", action="store_true", help="Executa o diagnóstico rápido das 5 camadas via ADB")
     parser.add_argument("--remediate", action="store_true", help="Neutraliza a box com backup prévio: repõe Play Protect, remove/desativa apps da botnet e ativa DNS seguro")
@@ -912,6 +919,9 @@ if __name__ == "__main__":
     parser.add_argument("--help", "-h", action="store_true", help="Mostra a ajuda")
 
     args, unknown = parser.parse_known_args()
+
+    if args.lang:
+        set_language(args.lang)
 
     if args.help:
         print(__doc__)

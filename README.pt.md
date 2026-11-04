@@ -1,0 +1,80 @@
+# BadBox & XCPE Forensic Suite para Android TV / Google TV
+
+[![Platform](https://img.shields.io/badge/Platform-Android%20TV%20%7C%20Google%20TV-3DDC84.svg?logo=android)](https://www.android.com/tv/)
+[![Python](https://img.shields.io/badge/Python-3.9%2B-blue.svg?logo=python)](https://www.python.org/)
+[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+
+Suite forense e de remediação reversível completa e autónoma (CLI + App nativa Android TV com Sentinela VPN) projetada para auditoria, deteção, verificação, neutralização e restauro de malware de supply-chain e botnets residenciais (**BadBox**, **XCPE**, **Fuyao**, **Videostrong/SZBBOYS**) em dispositivos Android TV, Google TV e TV Boxes genéricas.
+
+> **Idioma:** Português (PT-PT) | [For English version, see README.md](README.md)
+
+---
+
+## 🎯 Porquê esta ferramenta?
+
+Milhares de Smart TVs e TV Boxes Android económicas chegam ao utilizador pré-infetadas de fábrica. O malware:
+1. Desativa silenciosamente o **Google Play Protect** definindo `package_verifier_user_consent = -1`.
+2. Instala backdoors persistentes na partição `/system` ou `/vendor` (imunes a reposições de fábrica).
+3. Transforma o dispositivo num **nó de proxy residencial ilegal** (vendendo a largura de banda da sua casa para cibercriminosos) e participa em fraudes de cliques e visualizações ocultas.
+
+Esta ferramenta fornece dois métodos completos para auditar e limpar a sua TV:
+- **Para quem quer usar apenas o comando da TV (Sem PC/Scripts):** Instale o APK na TV via Pen USB ou browser. A própria App faz o varrimento, mostra o veredito no ecrã e disponibiliza o botão vermelho **"NEUTRALIZAR AMEAÇAS"**, permitindo desinstalar as apps da botnet e reativar proteções com o comando físico.
+- **Para Técnicos e Agentes de IA (Via PC/ADB):** Pipeline 100% silencioso e automatizado (`audit_security.py`) com criação de backup prévio e reversibilidade instantânea em `backups/`.
+
+---
+
+## 📱 Como Preparar a TV (Ativar Modo de Programador & ADB)
+
+Para que a ferramenta via PC ou um Agente de IA consiga comunicar com a sua Android TV / Google TV através da rede Wi-Fi, necessita de ativar a **Depuração ADB**:
+
+### A. Em Android TV Padrão (Android 9, 10, 11 - ex: Xiaomi, Strong, boxes genéricas):
+1. No comando da TV, vá a **Definições (Settings)** (ícone da roda dentada) -> **Preferências do Dispositivo (Device Preferences)** -> **Acerca de (About)**.
+2. Desça até à opção **Número de Compilação (Build)**.
+3. Carregue **7 vezes seguidas no botão OK / Central do comando**, até aparecer a mensagem no ecrã: *"É agora um programador!"*.
+4. Volte atrás com o comando e entre no novo menu **Opções do Programador (Developer Options)**.
+5. Ative a opção **Depuração USB (USB Debugging)** e, se existir, **Depuração de Rede (Network Debugging)**.
+6. Na primeira ligação, irá surgir um pop-up na TV a perguntar *"Permitir depuração USB a partir deste computador?"*. Marque *"Permitir sempre"* e selecione **OK**.
+
+### B. Em Google TV (Android 12, 14 - ex: Chromecast, realme, Thomson, TCL):
+1. No canto superior direito da TV, clique na sua foto/perfil -> **Definições (Settings)**.
+2. Selecione **Sistema (System)** -> **Acerca de (About)**.
+3. Desça até **Versão do SO Android TV (Android TV OS build)**.
+4. Carregue **7 vezes seguidas no botão OK do comando** até desbloquear o modo de programador.
+5. Volte atrás para **Sistema (System)** -> **Opções do Programador (Developer Options)**.
+6. Ative a **Depuração USB (USB Debugging)**.
+7. Confirme o pop-up de autorização na TV quando o computador se conectar.
+
+---
+
+## 📺 A App Nativa Android TV (`app/`)
+
+A aplicação deteta o idioma da box automaticamente (em Português se a TV estiver em Português; em Inglês para todos os outros idiomas) e é 100% controlável pelo comando (D-Pad):
+
+1. **Botão 1: ANALISAR BOX (ESTÁTICO):** Varre partições `/oem/`, `/vendor/`, integridade do Play Protect e enumera pacotes instalados em segundos.
+2. **Botão 2: MONITORIZAR REDE (VPN):** Sentinela local loopback que alerta em tempo real:
+   - **A Vermelho (`[CRÍTICO]`):** Se a box tentar falar com servidores C2 ou portas MQTT conhecidas.
+   - **A Amarelo (`[ANOMALIA]`):** Se houver tráfego anómalo em portas altas enquanto a TV devia estar em repouso.
+3. **Botão 3: NEUTRALIZAR AMEAÇAS (Aparece se forem detetadas anomalias):**
+   - Inicia a desinstalação guiada das apps da botnet com diálogo direto no ecrã.
+   - Abre o atalho para confirmação da reativação do Google Play Protect.
+   - Permite voltar a carregar em **"ANALISAR BOX"** imediatamente a seguir para comprovar que o veredito mudou de **`PERIGO [INFETADO]`** para **`DISPOSITIVO LIMPO`**.
+
+---
+
+## 🚀 Utilização da Linha de Comandos (CLI) & Agentes
+
+Pode especificar o idioma pretendido através de `--lang pt` ou `--lang en`:
+
+```bash
+# 1. Pipeline 100% Automatizado (Instala APK, scan 5 camadas, sentinela VPN 20s, scoring e limpeza)
+python tools/audit_security.py <TV_IP> --auto-pipeline --lang pt
+
+# 2. Diagnóstico Rápido ADB (Apenas Leitura)
+python tools/audit_security.py <TV_IP> --quick-scan --lang pt
+
+# 3. Remediação Autónoma (Tranca Play Protect, desativa droppers, ativa DNS DoT seguro)
+python tools/audit_security.py <TV_IP> --remediate --lang pt
+
+# 4. Restauro Reversível Imediato
+python tools/audit_security.py <TV_IP> --restore --lang pt
+```

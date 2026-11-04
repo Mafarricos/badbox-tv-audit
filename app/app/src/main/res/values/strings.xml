@@ -1,5 +1,22 @@
 <resources>
     <string name="app_name">XCPE Scanner TV</string>
-    <string name="target_device_header">Auditoria: realme 4K Google TV Stick</string>
-    <string name="target_device_specs">SkyworthDigital | Android 14 (SDK 34) | amlogic</string>
+    <string name="header_title">XCPE &amp; Botnet Scanner TV</string>
+    <string name="status_ready">Status: Ready</string>
+    <string name="badge_waiting">AWAITING SCAN</string>
+    <string name="badge_scanning">SCANNING...</string>
+    <string name="badge_clean">DEVICE CLEAN</string>
+    <string name="badge_suspicious">ALERT [SUSPICIOUS]</string>
+    <string name="badge_infected">DANGER [INFECTED]</string>
+    <string name="badge_c2_active">DANGER [C2 ACTIVE]</string>
+    <string name="zero_threats">0 Threats</string>
+    <string name="threats_count">%1$d Threat(s)</string>
+    <string name="nav_hint">Navigate with remote D-Pad</string>
+    <string name="substatus_clean">No signs of malware or botnet.</string>
+    <string name="substatus_suspicious">Structural anomalies detected.</string>
+    <string name="substatus_infected">XCPE / BadBox signature detected!</string>
+    <string name="btn_scan">SCAN TV BOX (STATIC)</string>
+    <string name="btn_vpn_monitor">MONITOR NETWORK (VPN)</string>
+    <string name="btn_stop_vpn">STOP VPN MONITOR</string>
+    <string name="btn_remediate">NEUTRALIZE THREATS</string>
+    <string name="log_initial_help">Diagnostic &amp; Remediation Panel Ready.\n\n[1. Scan TV Box]: Scans /oem/ partitions, malicious packages and Play Protect.\n[2. Monitor VPN]: Real-time detection of C2 Command and Control servers.\n[3. Neutralize]: On-screen app uninstallation and defensive hardening guidance.\n</string>
 </resources>

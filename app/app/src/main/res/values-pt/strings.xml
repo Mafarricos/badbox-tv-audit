@@ -1,0 +1,22 @@
+<resources>
+    <string name="app_name">XCPE Scanner TV</string>
+    <string name="header_title">XCPE &amp; Botnet Scanner TV</string>
+    <string name="status_ready">Estado: Pronto</string>
+    <string name="badge_waiting">AGUARDANDO ANÁLISE</string>
+    <string name="badge_scanning">A ANALISAR...</string>
+    <string name="badge_clean">DISPOSITIVO LIMPO</string>
+    <string name="badge_suspicious">ALERTA [SUSPEITO]</string>
+    <string name="badge_infected">PERIGO [INFETADO]</string>
+    <string name="badge_c2_active">PERIGO [C2 ATIVO]</string>
+    <string name="zero_threats">0 Ameaças</string>
+    <string name="threats_count">%1$d Ameaça(s)</string>
+    <string name="nav_hint">Navegue com as setas do comando</string>
+    <string name="substatus_clean">Nenhum sinal de malware ou botnet.</string>
+    <string name="substatus_suspicious">Detetadas anomalias estruturais.</string>
+    <string name="substatus_infected">Assinatura de XCPE / BadBox detetada!</string>
+    <string name="btn_scan">ANALISAR BOX (ESTÁTICO)</string>
+    <string name="btn_vpn_monitor">MONITORIZAR REDE (VPN)</string>
+    <string name="btn_stop_vpn">PARAR MONITOR VPN</string>
+    <string name="btn_remediate">NEUTRALIZAR AMEAÇAS</string>
+    <string name="log_initial_help">Painel de Diagnóstico &amp; Remediação Pronto.\n\n[1. Analisar Box]: Varre partições /oem/, pacotes maliciosos e Play Protect.\n[2. Monitor VPN]: Deteta ligações em tempo real a servidores de Comando e Controlo (C2).\n[3. Neutralizar]: Desinstala apps suspeitas no ecrã e orienta para reposição de defesas.\n</string>
+</resources>
