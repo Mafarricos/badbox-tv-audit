@@ -64,10 +64,10 @@
                 android:id="@+id/tvScore"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="16dp"
+                android:layout_marginTop="14dp"
                 android:text="0 Ameaças"
                 android:textColor="#FFFFFF"
-                android:textSize="26sp"
+                android:textSize="24sp"
                 android:textStyle="bold" />
 
             <TextView
@@ -79,12 +79,12 @@
                 android:textColor="#94A3B8"
                 android:textSize="12sp" />
 
-            <!-- Botão 1: Scan Estático (Navegável por D-Pad) -->
+            <!-- Botão 1: Scan Estático (D-Pad) -->
             <Button
                 android:id="@+id/btnScan"
                 android:layout_width="match_parent"
-                android:layout_height="52dp"
-                android:layout_marginTop="20dp"
+                android:layout_height="48dp"
+                android:layout_marginTop="16dp"
                 android:background="@drawable/btn_blue_focused"
                 android:focusable="true"
                 android:focusableInTouchMode="true"
@@ -92,27 +92,45 @@
                 android:nextFocusRight="@+id/scrollLogs"
                 android:text="ANALISAR BOX (ESTÁTICO)"
                 android:textColor="#FFFFFF"
-                android:textSize="14sp"
+                android:textSize="13sp"
                 android:textStyle="bold" />
 
-            <!-- Botão 2: Monitor VPN (Navegável por D-Pad) -->
+            <!-- Botão 2: Monitor VPN (D-Pad) -->
             <Button
                 android:id="@+id/btnVpnMonitor"
                 android:layout_width="match_parent"
-                android:layout_height="52dp"
-                android:layout_marginTop="12dp"
+                android:layout_height="48dp"
+                android:layout_marginTop="10dp"
                 android:background="@drawable/btn_green_focused"
                 android:focusable="true"
                 android:focusableInTouchMode="true"
                 android:nextFocusUp="@+id/btnScan"
+                android:nextFocusDown="@+id/btnRemediate"
                 android:nextFocusRight="@+id/scrollLogs"
                 android:text="MONITORIZAR REDE (VPN)"
                 android:textColor="#FFFFFF"
-                android:textSize="14sp"
+                android:textSize="13sp"
                 android:textStyle="bold" />
+
+            <!-- Botão 3: Neutralizar / Remediar Ameaças (Ativo quando há ameaças) -->
+            <Button
+                android:id="@+id/btnRemediate"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:layout_marginTop="10dp"
+                android:background="@drawable/btn_red_focused"
+                android:focusable="true"
+                android:focusableInTouchMode="true"
+                android:nextFocusUp="@+id/btnVpnMonitor"
+                android:nextFocusRight="@+id/scrollLogs"
+                android:text="NEUTRALIZAR AMEAÇAS"
+                android:textColor="#FFFFFF"
+                android:textSize="13sp"
+                android:textStyle="bold"
+                android:visibility="gone" />
         </LinearLayout>
 
-        <!-- Right: Diagnostic Logs (Foco D-Pad configurado para a Esquerda apontar aos botões) -->
+        <!-- Right: Diagnostic Logs -->
         <ScrollView
             android:id="@+id/scrollLogs"
             android:layout_width="0dp"
@@ -130,7 +148,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:fontFamily="monospace"
-                android:text="Painel de Diagnóstico Pronto.\n\n[Opção 1 - Scan Estático]: Varre código em /oem/, Play Protect e pacotes em 3 segundos.\n[Opção 2 - Monitor VPN]: Interceta tráfego da box em tempo real à procura de pings para o C2 ou portas MQTT.\n"
+                android:text="Painel de Diagnóstico &amp; Remediação Pronto.\n\n[1. Analisar Box]: Varre partições /oem/, pacotes maliciosos e Play Protect.\n[2. Monitor VPN]: Deteta ligações em tempo real a servidores de Comando e Controlo (C2).\n[3. Neutralizar]: Desinstala apps suspeitas no ecrã e orienta para reposição de defesas.\n"
                 android:textColor="#CBD5E1"
                 android:textSize="13sp" />
         </ScrollView>

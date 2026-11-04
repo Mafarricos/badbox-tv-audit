@@ -2,10 +2,12 @@ package com.scanner.tv;
 
 import android.content.Intent;
 import android.graphics.Color;
+import android.net.Uri;
 import android.net.VpnService;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.provider.Settings;
 import android.text.SpannableString;
 import android.text.Spanned;
 import android.text.style.ForegroundColorSpan;
@@ -16,6 +18,8 @@ import android.widget.TextView;
 
 import androidx.appcompat.app.AppCompatActivity;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -30,11 +34,14 @@ public class MainActivity extends AppCompatActivity {
     private TextView tvDeviceStats;
     private Button btnScan;
     private Button btnVpnMonitor;
+    private Button btnRemediate;
     private ScrollView scrollLogs;
 
     private boolean isVpnRunning = false;
     private int criticalThreatsCount = 0;
     private int anomalyThreatsCount = 0;
+    private ScanResult lastResult = null;
+    private final List<String> detectedMaliciousPackages = new ArrayList<>();
 
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
@@ -53,12 +60,13 @@ public class MainActivity extends AppCompatActivity {
         tvDeviceStats = findViewById(R.id.tvDeviceStats);
         btnScan = findViewById(R.id.btnScan);
         btnVpnMonitor = findViewById(R.id.btnVpnMonitor);
+        btnRemediate = findViewById(R.id.btnRemediate);
         scrollLogs = findViewById(R.id.scrollLogs);
 
         btnScan.setOnClickListener(v -> startAudit());
         btnVpnMonitor.setOnClickListener(v -> toggleVpnMonitor());
+        btnRemediate.setOnClickListener(v -> triggerOnScreenRemediation());
 
-        // Callback em tempo real com distinção por cores (Vermelho vs Amarelo)
         PacketMonitorVpnService.setPacketListener(this::handlePacketEvent);
 
         btnScan.requestFocus();
@@ -74,48 +82,43 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void handlePacketEvent(String level, String logMessage) {
-        mainHandler.post(() -> {
-            if ("CRITICO".equals(level)) {
-                criticalThreatsCount++;
-                appendColoredLog(logMessage, Color.parseColor("#EF4444")); // Vermelho vivo
-                tvVerdictBadge.setText("PERIGO [C2 / BOTNET]");
+        if ("CRITICO".equals(level)) {
+            criticalThreatsCount++;
+            appendColoredLog("[!] " + logMessage, Color.parseColor("#EF4444"));
+            mainHandler.post(() -> {
+                tvVerdictBadge.setText("PERIGO [C2 ATIVO]");
                 tvVerdictBadge.setBackgroundColor(Color.parseColor("#B91C1C"));
                 tvVerdictBadge.setTextColor(Color.WHITE);
-            } else {
-                anomalyThreatsCount++;
-                appendColoredLog(logMessage, Color.parseColor("#F59E0B")); // Amarelo/Laranja
-                if (criticalThreatsCount == 0) {
-                    tvVerdictBadge.setText("ALERTA [ANOMALIA REDE]");
-                    tvVerdictBadge.setBackgroundColor(Color.parseColor("#B45309"));
-                    tvVerdictBadge.setTextColor(Color.WHITE);
-                }
-            }
-            tvScore.setText((criticalThreatsCount + anomalyThreatsCount) + " Alerta(s)");
-            tvSubStatus.setText(criticalThreatsCount + " Críticos | " + anomalyThreatsCount + " Anomalias");
-        });
+                btnRemediate.setVisibility(View.VISIBLE);
+                btnVpnMonitor.setNextFocusDownId(R.id.btnRemediate);
+            });
+        } else if ("ANOMALIA".equals(level)) {
+            anomalyThreatsCount++;
+            appendColoredLog("[?] " + logMessage, Color.parseColor("#F59E0B"));
+        } else {
+            appendColoredLog(logMessage, Color.WHITE);
+        }
     }
 
     private void startAudit() {
-        btnScan.setEnabled(false);
-        btnScan.setText("A AUDITAR...");
+        tvVerdictBadge.setText("ANALISANDO...");
+        tvVerdictBadge.setBackgroundColor(Color.parseColor("#1E293B"));
+        tvVerdictBadge.setTextColor(Color.WHITE);
         tvLogOutput.setText("");
-        tvVerdictBadge.setText("SCAN EM CURSO...");
-        tvVerdictBadge.setBackgroundColor(Color.parseColor("#334155"));
-        tvVerdictBadge.setTextColor(Color.parseColor("#94A3B8"));
-        tvScore.setText("0");
-        tvSubStatus.setText("A analisar 5 camadas de segurança...");
+        detectedMaliciousPackages.clear();
+
+        appendColoredLog("=================================================", Color.WHITE);
+        appendColoredLog("       A INICIAR AUDITORIA FORENSE NA TV         ", Color.WHITE);
+        appendColoredLog("=================================================", Color.WHITE);
 
         executor.execute(() -> {
-            appendColoredLog("=================================================", Color.WHITE);
-            appendColoredLog("    INÍCIO DA AUDITORIA FORENSE NATIVA DA BOX   ", Color.WHITE);
-            appendColoredLog("=================================================\n", Color.WHITE);
+            ScanResult result = CoreScanner.executeScan(getApplicationContext(), msg -> {
+                appendColoredLog(msg, Color.parseColor("#93C5FD"));
+            });
 
-            ScanResult result = CoreScanner.executeScan(getApplicationContext(), msg -> appendColoredLog(msg, Color.parseColor("#94A3B8")));
+            lastResult = result;
 
             mainHandler.post(() -> {
-                btnScan.setEnabled(true);
-                btnScan.setText("REPETIR ANÁLISE");
-                btnScan.requestFocus();
                 tvDeviceStats.setText(result.deviceDetails);
                 tvScore.setText(result.findings.size() + " Ameaça(s)");
 
@@ -127,39 +130,96 @@ public class MainActivity extends AppCompatActivity {
                 appendColoredLog("Play Protect: " + result.playProtectStatus, Color.WHITE);
                 appendColoredLog("APKs OEM analisados: " + result.scannedApks.size(), Color.WHITE);
 
-                if (result.findings.isEmpty()) {
-                    appendColoredLog("\n[✓] A box está LIMPA. Nenhum IoC de botnet detectado.", Color.parseColor("#22C55E"));
-                } else {
-                    appendColoredLog("\nDETALHE DOS ACHADOS:", Color.WHITE);
-                    for (String f : result.findings) {
-                        int c = f.contains("CRÍTICO") ? Color.parseColor("#EF4444") : Color.parseColor("#F59E0B");
-                        appendColoredLog(" * " + f, c);
+                for (String f : result.findings) {
+                    if (f.contains("[CRÍTICO]")) {
+                        appendColoredLog("  * " + f, Color.parseColor("#EF4444"));
+                        if (f.contains("Pacote com assinatura")) {
+                            String pkg = f.substring(f.lastIndexOf(":") + 1).trim();
+                            if (!pkg.isEmpty()) detectedMaliciousPackages.add(pkg);
+                        }
+                    } else if (f.contains("[AVISO INFORMATIVO]")) {
+                        appendColoredLog("  * " + f, Color.parseColor("#38BDF8"));
+                    } else {
+                        appendColoredLog("  * " + f, Color.parseColor("#F59E0B"));
                     }
                 }
-                appendColoredLog("\nLog gravado em: last_scan.json e audit_events.log\n", Color.WHITE);
 
                 switch (result.overallStatus) {
                     case LIMPO:
-                        tvVerdictBadge.setText("BOX LIMPA [SEGURO]");
+                        tvVerdictBadge.setText("DISPOSITIVO LIMPO");
                         tvVerdictBadge.setBackgroundColor(Color.parseColor("#15803D"));
                         tvVerdictBadge.setTextColor(Color.WHITE);
                         tvSubStatus.setText("Nenhum sinal de malware ou botnet.");
+                        btnRemediate.setVisibility(View.GONE);
                         break;
                     case SUSPEITO:
                         tvVerdictBadge.setText("ALERTA [SUSPEITO]");
                         tvVerdictBadge.setBackgroundColor(Color.parseColor("#B45309"));
                         tvVerdictBadge.setTextColor(Color.WHITE);
                         tvSubStatus.setText("Detectadas anomalias estruturais.");
+                        btnRemediate.setVisibility(View.VISIBLE);
+                        btnVpnMonitor.setNextFocusDownId(R.id.btnRemediate);
                         break;
                     case INFETADO_CRITICO:
                         tvVerdictBadge.setText("PERIGO [INFETADO]");
                         tvVerdictBadge.setBackgroundColor(Color.parseColor("#B91C1C"));
                         tvVerdictBadge.setTextColor(Color.WHITE);
                         tvSubStatus.setText("Assinatura de XCPE / BadBox detectada!");
+                        btnRemediate.setVisibility(View.VISIBLE);
+                        btnVpnMonitor.setNextFocusDownId(R.id.btnRemediate);
+                        btnRemediate.requestFocus();
                         break;
                 }
             });
         });
+    }
+
+    /**
+     * Remediação Nativa no ecrã da TV:
+     * 1. Desinstalação com confirmação D-Pad para cada app maliciosa detetada
+     * 2. Atalho para ativar Google Play Protect
+     * 3. Atalho para configurar Private DNS seguro
+     */
+    private void triggerOnScreenRemediation() {
+        appendColoredLog("\n=================================================", Color.parseColor("#F59E0B"));
+        appendColoredLog("      A INICIAR REMEDIAÇÃO NATIVA NA TV          ", Color.parseColor("#F59E0B"));
+        appendColoredLog("=================================================", Color.parseColor("#F59E0B"));
+
+        if (!detectedMaliciousPackages.isEmpty()) {
+            appendColoredLog("[*] A abrir desinstalação guiada das apps da botnet...", Color.WHITE);
+            for (String pkg : detectedMaliciousPackages) {
+                appendColoredLog("   -> A solicitar remoção de: " + pkg, Color.parseColor("#EF4444"));
+                Intent uninstallIntent = new Intent(Intent.ACTION_UNINSTALL_PACKAGE);
+                uninstallIntent.setData(Uri.parse("package:" + pkg));
+                uninstallIntent.putExtra(Intent.EXTRA_RETURN_RESULT, true);
+                try {
+                    startActivity(uninstallIntent);
+                } catch (Exception e) {
+                    appendColoredLog("   [!] App do sistema (necessita de congelamento via ADB): " + pkg, Color.parseColor("#F59E0B"));
+                }
+            }
+        } else {
+            appendColoredLog("[✓] Não foram encontrados pacotes de terceiros na partição de utilizador.", Color.WHITE);
+        }
+
+        appendColoredLog("\n[*] A abrir Definições de Segurança / Play Protect na TV...", Color.WHITE);
+        appendColoredLog("    Por favor confirme que a 'Verificação de apps' está ATIVA.", Color.parseColor("#38BDF8"));
+        
+        try {
+            Intent secIntent = new Intent(Settings.ACTION_SECURITY_SETTINGS);
+            startActivity(secIntent);
+        } catch (Exception ignored) {
+            try {
+                Intent setIntent = new Intent(Settings.ACTION_SETTINGS);
+                startActivity(setIntent);
+            } catch (Exception e) {
+                appendColoredLog("[!] Não foi possível abrir definições automaticamente.", Color.parseColor("#EF4444"));
+            }
+        }
+
+        appendColoredLog("\n[✓] Passos de remediação aplicados!", Color.parseColor("#22C55E"));
+        appendColoredLog(">>> Prima novamente 'ANALISAR BOX' para comprovar a eficácia da limpeza!\n", Color.parseColor("#38BDF8"));
+        btnScan.requestFocus();
     }
 
     private void toggleVpnMonitor() {
