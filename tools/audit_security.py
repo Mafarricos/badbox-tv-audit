@@ -28,7 +28,7 @@ import tempfile
 import zipfile
 import argparse
 import subprocess
-from i18n import t, set_language, get_language
+from i18n import t, set_language, get_language, detect_system_language
 
 # Configurar stdout/stderr para UTF-8 seguro em consolas Windows e Linux
 if sys.platform == "win32":
@@ -961,62 +961,60 @@ def interactive_menu(default_ip):
 
     while True:
         print("\n================================================================================")
-        print(f"       XCPE / BADBOX FORENSIC SUITE - Android TV ({target_ip})                  ")
+        print(t("menu_header", target=target_ip))
         print("================================================================================")
-        print("  --- EXECUÇÃO AUTOMATIZADA ---")
-        print("  1. Pipeline 100% Automatizado (Usa APK Universal - Rápido)")
-        print("  2. Pipeline 100% Automatizado (Força RECOMPILAÇÃO no momento para a box)")
+        print(t("menu_section_auto"))
+        print(t("menu_opt_1"))
+        print(t("menu_opt_2"))
         print("")
-        print("  --- DIAGNÓSTICO E INSTALAÇÃO MANUAL ---")
-        print("  3. Diagnóstico Rápido ADB (5 Camadas - Apenas Leitura, Sem Instalar)")
-        print("  4. Instalar App na Box (Opção de Escolher: APK Existente ou Recompilar)")
-        print("  5. Abrir App no Ecrã da TV")
-        print("  6. Descarregar Relatório (JSON + Log VPN) e Avaliar Regras")
-        print("  7. Desinstalar App da Box (Limpeza Forense)")
+        print(t("menu_section_diag"))
+        print(t("menu_opt_3"))
+        print(t("menu_opt_4"))
+        print(t("menu_opt_5"))
+        print(t("menu_opt_6"))
+        print(t("menu_opt_7"))
         print("")
-        print("  --- REMEDIAÇÃO E RESTAURO (REVERSÍVEL) ---")
-        print("  8. Neutralizar / Limpar Box (Repõe Play Protect, Desativa Bots e Ativa DNS Seguro)")
-        print("  9. Reverter Remediação / Restaurar Estado Anterior (Usar Backup)")
+        print(t("menu_section_rem"))
+        print(t("menu_opt_8"))
+        print(t("menu_opt_9"))
         print("")
-        print("  --- CONFIGURAÇÃO E PRÉ-REQUISITOS ---")
-        print(" 10. Gerir / Instalar Pré-Requisitos e Toolchains (Python / JDK / SDK)")
-        print(" 11. Mudar IP da Box")
-        print("  0. Sair")
+        print(t("menu_section_cfg"))
+        print(t("menu_opt_10"))
+        print(t("menu_opt_11"))
+        print(t("menu_opt_0"))
         print("================================================================================")
-        choice = input("Escolha uma opção [0-11]: ").strip()
+        choice = input(t("menu_choice_prompt")).strip()
 
         if choice == "1":
             step_automated_pipeline(adb, vpn_duration=20, force_recompile=False)
-            input("\nPrima ENTER para continuar...")
+            input(t("menu_press_enter"))
         elif choice == "2":
             step_automated_pipeline(adb, vpn_duration=20, force_recompile=True)
-            input("\nPrima ENTER para continuar...")
+            input(t("menu_press_enter"))
         elif choice == "3":
             step_quick_audit(adb)
-            input("\nPrima ENTER para continuar...")
+            input(t("menu_press_enter"))
         elif choice == "4":
-            print("\nQual versão do APK deseja instalar?")
-            print("  [1] Usar APK universal existente (Instantâneo)")
-            print("  [2] Recompilar de raiz no momento à medida deste aparelho (Requer JDK/SDK)")
-            sub_choice = input("Escolha [1/2]: ").strip()
+            print("\n" + t("menu_opt_4"))
+            sub_choice = input("Choice [1/2]: ").strip()
             force = (sub_choice == "2")
             step_install_custom_app(adb, force_recompile=force)
-            input("\nPrima ENTER para continuar...")
+            input(t("menu_press_enter"))
         elif choice == "5":
             step_launch_app(adb)
-            input("\nPrima ENTER para continuar...")
+            input(t("menu_press_enter"))
         elif choice == "6":
             step_pull_report(adb)
-            input("\nPrima ENTER para continuar...")
+            input(t("menu_press_enter"))
         elif choice == "7":
             step_remove_app(adb)
-            input("\nPrima ENTER para continuar...")
+            input(t("menu_press_enter"))
         elif choice == "8":
             step_remediate_device(adb)
-            input("\nPrima ENTER para continuar...")
+            input(t("menu_press_enter"))
         elif choice == "9":
             step_restore_device(adb)
-            input("\nPrima ENTER para continuar...")
+            input(t("menu_press_enter"))
         elif choice == "10":
             try:
                 import setup_env
@@ -1027,25 +1025,25 @@ def interactive_menu(default_ip):
                     sys.path.insert(0, tools_dir)
                 import setup_env
                 setup_env.interactive_installer_menu()
-            input("\nPrima ENTER para continuar...")
+            input(t("menu_press_enter"))
         elif choice == "11":
-            new_ip = input("Novo IP: ").strip()
+            new_ip = input(t("menu_new_ip_prompt")).strip()
             if new_ip:
                 target_ip = new_ip
                 adb = AdbDevice(target_ip)
                 adb.load_specs()
         elif choice == "0":
-            print("\nA terminar sessão. Segurança garantida!")
+            print(t("menu_exit_msg"))
             break
         else:
-            print("[!] Opção inválida. Tente novamente.")
+            print(t("menu_invalid_opt"))
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="BadBox & XCPE Forensic Suite", add_help=False)
     parser.add_argument("target", nargs="?", default=None, help="IP da Android TV / Target IP")
     parser.add_argument("--json", action="store_true", help="Gera apenas saída compacta em formato JSON para leitura rápida por agentes de IA (poupa tokens)")
-    parser.add_argument("--lang", choices=["en", "pt"], default="pt", help="Idioma das mensagens / Interface language (pt ou en)")
+    parser.add_argument("--lang", choices=["en", "pt"], default=None, help="Idioma das mensagens / Interface language (en or pt). Defaults to system language.")
     parser.add_argument("--scan-subnet", metavar="CIDR", help="Descobre e audita automaticamente todas as Android TVs na sub-rede (ex: 192.168.1.0/24)")
     parser.add_argument("--auto-pipeline", action="store_true", help="Executa pipeline completo: instala, scan estatico, VPN 20s, recolhe logs e desinstala")
     parser.add_argument("--quick-scan", action="store_true", help="Executa o diagnóstico rápido das 5 camadas via ADB")
@@ -1063,6 +1061,8 @@ if __name__ == "__main__":
 
     if args.lang:
         set_language(args.lang)
+    else:
+        set_language(detect_system_language())
 
     if args.help:
         print(__doc__)

@@ -23,31 +23,32 @@ if TOOLS_DIR not in sys.path:
     sys.path.insert(0, TOOLS_DIR)
 
 from audit_security import AdbDevice
+from i18n import t, set_language
 
 
 def inspect_package(adb, package_name):
-    print(f"\n[*] A inspecionar pacote: {package_name} em {adb.host}...")
+    print(t("forensics_inspecting", pkg=package_name, target=adb.host))
     path = adb.run(f"pm path {package_name}").strip()
-    print(f"    - Caminho (pm path): {path or 'Nao encontrado'}")
+    print(t("forensics_pm_path", path=(path or t("forensics_not_found"))))
     
     dumpsys = adb.run(f"dumpsys package {package_name}")
-    print("\n--- DADOS PRINCIPAIS DO PACOTE (Dumpsys) ---")
+    print(t("forensics_dumpsys_hdr"))
     for line in dumpsys.splitlines():
         if any(k in line for k in ["userId", "sharedUser", "versionName", "versionCode", "codePath", "flags=", "timeStamp=", "firstInstallTime", "installerPackage"]):
             print(f"    {line.strip()}")
             
-    print("\n--- COMPONENTES DECLARADOS (Receivers / Services) ---")
+    print(t("forensics_components_hdr"))
     for line in dumpsys.splitlines():
         if any(k in line for k in ["Receiver", "Service", "BOOT_COMPLETED", "UpgradeService", "BootReceiver"]):
             print(f"    {line.strip()}")
 
-    print("\n--- ESTADO DE ATIVACAO (pm list packages -d / -e) ---")
+    print(t("forensics_state_hdr"))
     d_list = adb.run("pm list packages -d")
     e_list = adb.run("pm list packages -e")
     is_disabled = any(l.strip() == f"package:{package_name}" for l in d_list.splitlines())
     is_enabled = any(l.strip() == f"package:{package_name}" for l in e_list.splitlines())
-    print(f"    - Desativado (disabled-user / disabled): {is_disabled}")
-    print(f"    - Ativo (enabled): {is_enabled}")
+    print(t("forensics_disabled", state=is_disabled))
+    print(t("forensics_enabled", state=is_enabled))
 
     print("\n--- BLOCO USER STATE (Dumpsys Package) ---")
     in_user_block = False
@@ -131,13 +132,16 @@ def dump_network_state(adb):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Deep Forensics Utility for Android TV")
-    parser.add_argument("target", help="IP do dispositivo Android TV")
+    parser.add_argument("target", help="IP do dispositivo Android TV / Target TV IP")
+    parser.add_argument("--lang", choices=["en", "pt"], default=None, help="Idioma das mensagens / Language (en or pt)")
     parser.add_argument("--inspect-package", metavar="PKG", help="Inspeciona pacote em detalhe (path, UID, permissoes, componentes)")
     parser.add_argument("--pull-and-analyze", metavar="PATH", help="Descarrega e faz engenharia reversa das strings do APK")
     parser.add_argument("--scan-oem-droppers", action="store_true", help="Pesquisa ficheiros suspeitos em /system, /vendor, /oem")
     parser.add_argument("--dump-network-state", action="store_true", help="Lista portas em escuta e ligacoes ativas")
 
     args = parser.parse_args()
+    if args.lang:
+        set_language(args.lang)
     adb = AdbDevice(args.target)
 
     if args.inspect_package:

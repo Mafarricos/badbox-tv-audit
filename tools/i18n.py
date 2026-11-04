@@ -1,13 +1,30 @@
 # -*- coding: utf-8 -*-
 """
 Internationalization (i18n) module for badbox-tv-audit suite.
-Provides English (default) and Portuguese (pt-PT).
+Provides English (default/fallback) and Portuguese (pt-PT).
+Detects OS/environment locale automatically if no flag is passed.
 """
 
 import os
 import sys
+import locale
 
-_CURRENT_LANG = "en"
+
+def detect_system_language():
+    """Detects system or environment language, defaulting to 'en'."""
+    env_lang = os.environ.get("TV_LANG") or os.environ.get("LANG", "")
+    if env_lang.lower().startswith("pt"):
+        return "pt"
+    try:
+        loc = locale.getdefaultlocale()[0]
+        if loc and loc.lower().startswith("pt"):
+            return "pt"
+    except Exception:
+        pass
+    return "en"
+
+
+_CURRENT_LANG = detect_system_language()
 
 MESSAGES = {
     "en": {
@@ -18,6 +35,7 @@ MESSAGES = {
         "banner_remediation": "FORENSIC REMEDIATION & DEFENSIVE HARDENING - ANDROID TV ({target})",
         "banner_restore": "FORENSIC RESTORE / ROLLBACK - ANDROID TV ({target})",
         "banner_scoring": "DETERMINISTIC FORENSIC EVALUATION ENGINE",
+        "context_warning": "[CONTEXT WARNING] This device model ('{model}') matches records in the Synthient/Eclypsium supply-chain reports.\n                   Performing rigorous technical validation.",
         
         # Specs
         "loading_specs": "[*] Loading hardware specifications for {target}...",
@@ -77,82 +95,122 @@ MESSAGES = {
         "restore_p2_done": "    [✓] Packages re-enabled.",
         "restore_success": "RESTORE COMPLETE! Device returned to previous state.",
         
+        # Subnet scan
+        "subnet_searching": "[*] Scanning for Android TV devices on subnet {cidr} (port 5555)...",
+        "subnet_found": "[✓] Found {count} device(s) with ADB: {devices}",
+        "subnet_none": "[!] No devices found with port 5555 open on {cidr}.",
+        
         # Verdicts
         "score_total": "Total Risk Score: {score} points\n",
         "verdict_crit": "FINAL VERDICT: INFECTED - CRITICAL (Confidence: >99%)",
-        "verdict_crit_desc": "Irrefutable evidence of XCPE/BadBox malware found.",
+        "verdict_crit_desc": "Irrefutable evidence of supply-chain malware/botnet (XCPE/BadBox/Vo1d) found.",
         "verdict_susp": "FINAL VERDICT: SUSPICIOUS (Confidence: 80%)",
-        "verdict_susp_desc": "Device shows structural anomalies or unusual network activity.",
+        "verdict_susp_desc": "Device exhibits structural anomalies or abnormal idle background traffic.",
         "verdict_clean": "FINAL VERDICT: CLEAN / SAFE (Confidence: >98%)",
-        "verdict_clean_desc": "No malicious evidence or botnet activity detected.",
+        "verdict_clean_desc": "No malicious evidence, botnet sockets, or dropper components detected.",
         
         # Automated pipeline
-        "pipe_pushing": "\n[*] Transferring and installing TV audit app...",
+        "pipe_pushing": "\n[*] Transferring and installing on TV...",
         "pipe_install_ok": "    [✓] App installed successfully.",
-        "pipe_vpn_perm": "\n[*] Granting silent VPN and alert permissions...",
-        "pipe_launching": "\n[*] Launching audit app on TV screen...",
-        "pipe_running_scan": "\n[*] Triggering deep 5-Layer static analysis...",
-        "pipe_sentinel_start": "\n[*] Activating real-time Sentinel VPN (monitoring for {sec}s)...",
-        "pipe_sentinel_tick": "    -> Sentinel monitoring network traffic... {remaining}s remaining",
+        "pipe_vpn_perm": "\n[*] Granting VPN permissions and background alerts...",
+        "pipe_launching": "\n[*] Launching App on TV screen...",
+        "pipe_running_scan": "\n[*] Triggering deep Static Scan (5 Layers)...",
+        "pipe_sentinel_start": "\n[*] Activating real-time Sentinel VPN (listening for {sec}s)...",
+        "pipe_sentinel_tick": "    -> Sentinel active monitoring ports & traffic... {remaining}s remaining",
         "pipe_sentinel_done": "\n    [✓] Network traffic monitoring window complete.",
         "pipe_sentinel_stop": "\n[*] Disabling Sentinel VPN...",
-        "pipe_pull_report": "\n[*] Transferring reports from TV to computer...",
-        "pipe_cleaning": "\n[*] Cleaning up target device...",
-        "pipe_uninstall": "\n[*] Uninstalling audit app {pkg} from device...",
-        "pipe_complete": "PIPELINE COMPLETED: Verdict = {verdict}",
-        "pipe_log_saved": "Full audit log saved to: {log_path}"
+        "pipe_pull_report": "\n[*] Pulling device reports to computer...",
+        "pipe_cleaning": "\n[*] Cleaning up device...",
+        "pipe_uninstall": "\n[*] Uninstalling App {pkg} from TV...",
+        "pipe_complete": "PIPELINE COMPLETED SUCCESSFULLY: Verdict = {verdict}",
+        "pipe_log_saved": "Full audit log saved to: {log_path}",
+        
+        # Interactive Menu
+        "menu_header": "       XCPE / BADBOX / VO1D FORENSIC SUITE - Android TV ({target})       ",
+        "menu_section_auto": "  --- AUTOMATED EXECUTION ---",
+        "menu_opt_1": "  1. 100% Automated Pipeline (Fast Universal APK)",
+        "menu_opt_2": "  2. 100% Automated Pipeline (Force ON-DEMAND RECOMPILATION for device)",
+        "menu_section_diag": "  --- DIAGNOSTICS & MANUAL APP INSTALLATION ---",
+        "menu_opt_3": "  3. Fast 5-Layer ADB Scan (Read-Only, No App Installed)",
+        "menu_opt_4": "  4. Install App on TV (Choice: Prebuilt Universal or Custom Recompile)",
+        "menu_opt_5": "  5. Launch App on TV Screen",
+        "menu_opt_6": "  6. Pull Report (JSON + VPN Log) and Run Rules Engine",
+        "menu_opt_7": "  7. Uninstall App from TV (Forensic Clean)",
+        "menu_section_rem": "  --- REMEDIATION & ROLLBACK (REVERSIBLE) ---",
+        "menu_opt_8": "  8. Neutralize / Remediate TV (Lock Play Protect, Freeze Bots, Enable Secure DNS)",
+        "menu_opt_9": "  9. Revert Remediation / Restore Previous State (From Backup)",
+        "menu_section_cfg": "  --- CONFIGURATION & PREREQUISITES ---",
+        "menu_opt_10": " 10. Manage / Install Prerequisites & Toolchains (Python / JDK / SDK)",
+        "menu_opt_11": " 11. Change Target TV IP",
+        "menu_opt_0": "  0. Exit",
+        "menu_choice_prompt": "Select an option [0-11]: ",
+        "menu_press_enter": "\nPress ENTER to continue...",
+        "menu_new_ip_prompt": "New TV IP address: ",
+        "menu_exit_msg": "\nEnding session. Device security guaranteed!",
+        "menu_invalid_opt": "[!] Invalid option. Please try again.",
+        
+        # Deep Forensics
+        "forensics_inspecting": "\n[*] Inspecting package: {pkg} on {target}...",
+        "forensics_pm_path": "    - Package path (pm path): {path}",
+        "forensics_not_found": "Not found",
+        "forensics_dumpsys_hdr": "\n--- PACKAGE DETAILS (Dumpsys) ---",
+        "forensics_components_hdr": "\n--- DECLARED COMPONENTS (Receivers / Services) ---",
+        "forensics_state_hdr": "\n--- ACTIVATION STATE (pm list packages -d / -e) ---",
+        "forensics_disabled": "    - Disabled (disabled-user / disabled): {state}",
+        "forensics_enabled": "    - Enabled: {state}",
+        "forensics_user_state_hdr": "\n--- USER STATE BLOCK (Dumpsys Package) ---"
     },
-    
     "pt": {
-        # General & Banner
-        "banner_auto_pipeline": "PIPELINE DE AUDITORIA 100% AUTOMATIZADO (ESTÁTICO + SENTINELA VPN)",
+        # Geral & Banner
+        "banner_auto_pipeline": "PIPELINE 100% AUTOMATIZADO (ESTÁTICO + SENTINELA VPN)",
         "banner_target": "Alvo: {target} | Janela Sentinela: {duration} segundos",
         "banner_quick_audit": "DIAGNÓSTICO RÁPIDO VIA ADB (5 CAMADAS FORENSES)",
         "banner_remediation": "PLANO DE REMEDIAÇÃO & NEUTRALIZAÇÃO FORENSE - ANDROID TV ({target})",
-        "banner_restore": "REVERSÃO / RESTAURO DE SEGURANÇA - ANDROID TV ({target})",
-        "banner_scoring": "MOTOR DE AVALIAÇÃO FORENSE DETERMINÍSTICO",
+        "banner_restore": "RESTAURO REVERSÍVEL FORENSE - ANDROID TV ({target})",
+        "banner_scoring": "MOTOR DETERMINÍSTICO DE AVALIAÇÃO FORENSE",
+        "context_warning": "[AVISO DE CONTEXTO] Este modelo ('{model}') coincide com linhas documentadas no relatório Synthient/Eclypsium.\n                   Será feita uma verificação rigorosa de evidências técnicas.",
         
-        # Specs
+        # Especificações
         "loading_specs": "[*] A carregar especificações do dispositivo {target}...",
         "specs_model": "    - Modelo: {brand} {model} (Android {ver}, API {sdk})",
         "specs_soc": "    - Fabricante/SoC: {vendor} | {board} / {hw}",
         "specs_patch": "    - Patch de Segurança: {patch}",
         
-        # Layer 1: Play Protect
+        # Camada 1: Play Protect
         "layer_1_title": "[Camada 1/5] A verificar integridade do Play Protect...",
-        "layer_1_crit": "    [!] ALERTA CRÍTICO: Play Protect foi forçado a desligar (-1)!",
+        "layer_1_crit": "    [!] ALERTA CRÍTICO: O Play Protect foi forçado a DESLIGAR (-1)!",
         "layer_1_ok": "    [✓] Play Protect não está forçado a desligar.",
         
-        # Layer 2: IoCs & Packages
+        # Camada 2: IoCs & Pacotes
         "layer_2_title": "[Camada 2/5] A analisar pacotes instalados contra lista de IoCs...",
         "layer_2_active_threat": "    [!] Pacotes maliciosos ATIVOS detetados: {pkgs}",
         "layer_2_frozen": "    [✓] Pacotes suspeitos identificados mas NEUTRALIZADOS / CONGELADOS: {pkgs}",
-        "layer_2_clean": "    [✓] Nenhum pacote conhecido de botnet detetado ({count} pacotes analisados).",
+        "layer_2_clean": "    [✓] Nenhum pacote de botnet detetado ({count} pacotes analisados).",
         
-        # Layer 3: Build props
+        # Camada 3: Build props
         "layer_3_title": "[Camada 3/5] A verificar propriedades do sistema (Build Props)...",
-        "layer_3_suspicious": "    [!] Propriedades suspeitas: {props}",
+        "layer_3_suspicious": "    [!] Propriedades suspeitas encontradas: {props}",
         "layer_3_ok": "    [✓] Nenhuma propriedade adulterada por BadBox.",
         
-        # Layer 4: Sockets
+        # Camada 4: Sockets
         "layer_4_title": "[Camada 4/5] A verificar sockets de rede ativos e conexões C2...",
-        "layer_4_c2_found": "    [!] Conexão C2 detetada em tempo real: {conn}",
+        "layer_4_c2_found": "    [!] Conexão em tempo real ao C2 detetada: {conn}",
         "layer_4_ok": "    [✓] Nenhuma conexão ativa aos IPs/portas da botnet.",
         
-        # Layer 5: OEM
+        # Camada 5: OEM
         "layer_5_title": "[Camada 5/5] Amostragem de APKs OEM do sistema...",
         "layer_5_total": "    - Total de pacotes de sistema encontrados: {count}",
         "layer_5_ok": "    [✓] Amostragem concluída.",
         
-        # Remediation
+        # Remediação
         "remediation_backup": "[*] A criar BACKUP de segurança reversível em backups/...",
         "remediation_backup_done": "    [✓] Ficheiro de estado guardado: {filename}",
         "remediation_p1": "\n[Passo 1/4] A restaurar e trancar o Google Play Protect...",
         "remediation_p1_done": "    [✓] Play Protect restaurado com sucesso! Verificação ativa de pacotes.",
         "remediation_p2": "\n[Passo 2/4] A procurar e neutralizar pacotes de botnet, trojans e proxies...",
-        "remediation_p2_uninstalled": "        -> Desinstalado com sucesso: {pkg}",
+        "remediation_p2_uninstalled": "        -> Desinstalada com sucesso: {pkg}",
         "remediation_p2_frozen": "        -> App de sistema desativada/congelada: {pkg} ({res})",
-        "remediation_p2_none": "    [✓] Nenhum pacote malicioso da botnet encontrado para desinstalar.",
+        "remediation_p2_none": "    [✓] Nenhuma app de botnet para remover.",
         "remediation_p2_total": "    [✓] Total de pacotes maliciosos neutralizados: {count}",
         "remediation_p3": "\n[Passo 3/4] A terminar processos e serviços em execução da botnet...",
         "remediation_p3_done": "    [✓] Processos residuais terminados.",
@@ -161,25 +219,30 @@ MESSAGES = {
         "remediation_script_done": "    [✓] Script de reversão gerado com sucesso: {filename}",
         "remediation_success": "REMEDIAÇÃO CONCLUÍDA: A TV foi limpa e o tráfego de botnet bloqueado!",
         
-        # Restore
-        "restore_loading": "[*] A carregar backup mais recente: {filename}...",
-        "restore_p1": "\n[1/2] A repor definições globais originais...",
-        "restore_p1_done": "    [✓] Definições restauradas.",
-        "restore_p2": "\n[2/2] A reativar pacotes desativados durante a remediação...",
+        # Restauro
+        "restore_loading": "[*] A carregar último backup: {filename}...",
+        "restore_p1": "\n[1/2] A restaurar definições globais originais...",
+        "restore_p1_done": "    [✓] Definições repostas.",
+        "restore_p2": "\n[2/2] A reativar pacotes congelados na remediação...",
         "restore_p2_pkg": "    [*] A reativar: {pkg}",
         "restore_p2_done": "    [✓] Pacotes reativados.",
         "restore_success": "RESTAURO CONCLUÍDO COM SUCESSO! Dispositivo reposto no estado anterior.",
         
-        # Verdicts
+        # Varrimento de Sub-rede
+        "subnet_searching": "[*] A pesquisar dispositivos Android TV na sub-rede {cidr} (porta 5555)...",
+        "subnet_found": "[✓] Foram encontrados {count} dispositivo(s) com ADB: {devices}",
+        "subnet_none": "[!] Nenhum dispositivo encontrado com porta 5555 aberta em {cidr}.",
+        
+        # Vereditos
         "score_total": "Pontuação de Risco Total: {score} pontos\n",
         "verdict_crit": "VEREDITO FINAL: INFETADO - CRÍTICO (Grau de Certeza: >99%)",
-        "verdict_crit_desc": "Foram identificadas evidências irrefutáveis de malware/botnet (XCPE/BadBox).",
+        "verdict_crit_desc": "Foram identificadas evidências irrefutáveis de malware/botnet (XCPE/BadBox/Vo1d).",
         "verdict_susp": "VEREDITO FINAL: SUSPEITO (Grau de Certeza: 80%)",
         "verdict_susp_desc": "A box apresenta anomalias estruturais ou tráfego de rede não habitual em repouso.",
         "verdict_clean": "VEREDITO FINAL: LIMPO / SEGURO (Grau de Certeza: >98%)",
         "verdict_clean_desc": "Nenhuma evidência maliciosa ou conexão à botnet detetada.",
         
-        # Automated pipeline
+        # Pipeline automatizado
         "pipe_pushing": "\n[*] A transferir e instalar na box...",
         "pipe_install_ok": "    [✓] App instalada com sucesso.",
         "pipe_vpn_perm": "\n[*] A autorizar permissões de VPN e alertas em segundo plano...",
@@ -193,15 +256,51 @@ MESSAGES = {
         "pipe_cleaning": "\n[*] A limpar o dispositivo...",
         "pipe_uninstall": "\n[*] A desinstalar a App {pkg} da box...",
         "pipe_complete": "PIPELINE CONCLUÍDO COM SUCESSO: Veredito = {verdict}",
-        "pipe_log_saved": "Registo integral da auditoria guardado em: {log_path}"
+        "pipe_log_saved": "Registo integral da auditoria guardado em: {log_path}",
+        
+        # Menu Interativo
+        "menu_header": "       XCPE / BADBOX / VO1D FORENSIC SUITE - Android TV ({target})       ",
+        "menu_section_auto": "  --- EXECUÇÃO AUTOMATIZADA ---",
+        "menu_opt_1": "  1. Pipeline 100% Automatizado (Usa APK Universal - Rápido)",
+        "menu_opt_2": "  2. Pipeline 100% Automatizado (Força RECOMPILAÇÃO no momento para a box)",
+        "menu_section_diag": "  --- DIAGNÓSTICO E INSTALAÇÃO MANUAL ---",
+        "menu_opt_3": "  3. Diagnóstico Rápido ADB (5 Camadas - Apenas Leitura, Sem Instalar)",
+        "menu_opt_4": "  4. Instalar App na Box (Opção de Escolher: APK Existente ou Recompilar)",
+        "menu_opt_5": "  5. Abrir App no Ecrã da TV",
+        "menu_opt_6": "  6. Descarregar Relatório (JSON + Log VPN) e Avaliar Regras",
+        "menu_opt_7": "  7. Desinstalar App da Box (Limpeza Forense)",
+        "menu_section_rem": "  --- REMEDIAÇÃO E RESTAURO (REVERSÍVEL) ---",
+        "menu_opt_8": "  8. Neutralizar / Limpar Box (Repõe Play Protect, Desativa Bots e Ativa DNS Seguro)",
+        "menu_opt_9": "  9. Reverter Remediação / Restaurar Estado Anterior (Usar Backup)",
+        "menu_section_cfg": "  --- CONFIGURAÇÃO E PRÉ-REQUISITOS ---",
+        "menu_opt_10": " 10. Gerir / Instalar Pré-Requisitos e Toolchains (Python / JDK / SDK)",
+        "menu_opt_11": " 11. Mudar IP da Box",
+        "menu_opt_0": "  0. Sair",
+        "menu_choice_prompt": "Escolha uma opção [0-11]: ",
+        "menu_press_enter": "\nPrima ENTER para continuar...",
+        "menu_new_ip_prompt": "Novo IP: ",
+        "menu_exit_msg": "\nA terminar sessão. Segurança garantida!",
+        "menu_invalid_opt": "[!] Opção inválida. Tente novamente.",
+        
+        # Deep Forensics
+        "forensics_inspecting": "\n[*] A inspecionar pacote: {pkg} em {target}...",
+        "forensics_pm_path": "    - Caminho (pm path): {path}",
+        "forensics_not_found": "Não encontrado",
+        "forensics_dumpsys_hdr": "\n--- DADOS PRINCIPAIS DO PACOTE (Dumpsys) ---",
+        "forensics_components_hdr": "\n--- COMPONENTES DECLARADOS (Receivers / Services) ---",
+        "forensics_state_hdr": "\n--- ESTADO DE ATIVAÇÃO (pm list packages -d / -e) ---",
+        "forensics_disabled": "    - Desativado (disabled-user / disabled): {state}",
+        "forensics_enabled": "    - Ativo (enabled): {state}",
+        "forensics_user_state_hdr": "\n--- BLOCO USER STATE (Dumpsys Package) ---"
     }
 }
 
 
 def set_language(lang_code):
+    """Sets the active language code ('en' or 'pt')."""
     global _CURRENT_LANG
     if not lang_code:
-        _CURRENT_LANG = "en"
+        _CURRENT_LANG = detect_system_language()
     elif lang_code.lower().startswith("pt"):
         _CURRENT_LANG = "pt"
     else:
@@ -209,10 +308,12 @@ def set_language(lang_code):
 
 
 def get_language():
+    """Returns the current active language code ('en' or 'pt')."""
     return _CURRENT_LANG
 
 
 def t(key, **kwargs):
+    """Translates a message key according to the active language."""
     bundle = MESSAGES.get(_CURRENT_LANG, MESSAGES["en"])
     template = bundle.get(key, MESSAGES["en"].get(key, key))
     if kwargs:
