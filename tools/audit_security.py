@@ -204,8 +204,9 @@ class AdbDevice:
             print(f"[!] Erro ao descarregar ficheiro via ADB: {e}")
             return False
 
-    def load_specs(self):
-        print(t("loading_specs", target=self.host))
+    def load_specs(self, silent=False):
+        if not silent:
+            print(t("loading_specs", target=self.host))
         brand = self.run("getprop ro.product.brand").strip()
         model = self.run("getprop ro.product.model").strip()
         manufacturer = self.run("getprop ro.product.manufacturer").strip()
@@ -225,9 +226,10 @@ class AdbDevice:
             "hardware": hardware,
             "sdk": sdk
         }
-        print(t("specs_model", brand=brand, model=model, ver=android_ver, sdk=sdk))
-        print(t("specs_soc", vendor=manufacturer, board=board, hw=hardware))
-        print(t("specs_patch", patch=security_patch))
+        if not silent:
+            print(t("specs_model", brand=brand, model=model, ver=android_ver, sdk=sdk))
+            print(t("specs_soc", vendor=manufacturer, board=board, hw=hardware))
+            print(t("specs_patch", patch=security_patch))
         return self.specs
 
 
@@ -325,34 +327,41 @@ def evaluate_forensic_results(json_data, vpn_log_lines, device_specs=None):
     return verdict
 
 
-def step_quick_audit(adb):
-    print("\n================================================================================")
-    print(f"           {t('banner_quick_audit')}                      ")
-    print("================================================================================")
+def step_quick_audit(adb, json_output=False):
+    if not json_output:
+        print("\n================================================================================")
+        print(f"           {t('banner_quick_audit')}                      ")
+        print("================================================================================")
     
     if not adb.specs:
         adb.load_specs()
 
     model_str = (adb.specs.get("model", "") + " " + adb.specs.get("brand", "")).lower()
+    targeted_warning = None
     for targeted in TARGETED_HARDWARE_MODELS:
         if targeted in model_str:
             if get_language() == "pt":
-                print(f"\n[AVISO DE CONTEXTO] Este modelo ('{adb.specs.get('model')}') coincide com linhas documentadas no relatório Synthient.")
-                print("                   Será feita uma verificação rigorosa de evidências técnicas.")
+                targeted_warning = f"Este modelo ('{adb.specs.get('model')}') coincide com linhas documentadas no relatório Synthient/Eclypsium."
             else:
-                print(f"\n[CONTEXT WARNING] This model ('{adb.specs.get('model')}') matches families documented in the Synthient report.")
-                print("                  A strict evidence-based verification will be performed.")
+                targeted_warning = f"This model ('{adb.specs.get('model')}') matches families documented in Synthient/Eclypsium reports."
+            if not json_output:
+                print(f"\n[AVISO DE CONTEXTO] {targeted_warning}")
+                print("                   Será feita uma verificação rigorosa de evidências técnicas." if get_language() == "pt" else "                  A strict evidence-based verification will be performed.")
             break
 
-    print(f"\n{t('layer_1_title')}")
+    if not json_output:
+        print(f"\n{t('layer_1_title')}")
     settings_out = adb.run("settings get global package_verifier_user_consent")
-    print(f"    - package_verifier_user_consent: {settings_out.strip()}")
-    if "-1" in settings_out:
-        print(t("layer_1_crit"))
-    else:
-        print(t("layer_1_ok"))
+    play_protect_disabled = ("-1" in settings_out)
+    if not json_output:
+        print(f"    - package_verifier_user_consent: {settings_out.strip()}")
+        if play_protect_disabled:
+            print(t("layer_1_crit"))
+        else:
+            print(t("layer_1_ok"))
 
-    print(f"\n{t('layer_2_title')}")
+    if not json_output:
+        print(f"\n{t('layer_2_title')}")
     pkgs = adb.run("pm list packages").splitlines()
     disabled_pkgs = [p.replace("package:", "").strip().lower() for p in adb.run("pm list packages -d").splitlines()]
     found_ioc_pkgs = []
@@ -365,40 +374,47 @@ def step_quick_audit(adb):
                     neutralized_ioc_pkgs.append(p_name)
                 else:
                     found_ioc_pkgs.append(p_name)
-    if found_ioc_pkgs:
-        print(t("layer_2_active_threat", pkgs=found_ioc_pkgs))
-    if neutralized_ioc_pkgs:
-        print(t("layer_2_frozen", pkgs=neutralized_ioc_pkgs))
-    if not found_ioc_pkgs and not neutralized_ioc_pkgs:
-        print(t("layer_2_clean", count=len(pkgs)))
+    if not json_output:
+        if found_ioc_pkgs:
+            print(t("layer_2_active_threat", pkgs=found_ioc_pkgs))
+        if neutralized_ioc_pkgs:
+            print(t("layer_2_frozen", pkgs=neutralized_ioc_pkgs))
+        if not found_ioc_pkgs and not neutralized_ioc_pkgs:
+            print(t("layer_2_clean", count=len(pkgs)))
 
-    print(f"\n{t('layer_3_title')}")
+    if not json_output:
+        print(f"\n{t('layer_3_title')}")
     props = adb.run("getprop").splitlines()
     found_suspicious_props = []
     for prop in props:
         for target in TARGET_STRINGS:
             if target.decode("utf-8", errors="ignore").lower() in prop.lower():
                 found_suspicious_props.append(prop)
-    if found_suspicious_props:
-        print(t("layer_3_suspicious", props=found_suspicious_props))
-    else:
-        print(t("layer_3_ok"))
+    if not json_output:
+        if found_suspicious_props:
+            print(t("layer_3_suspicious", props=found_suspicious_props))
+        else:
+            print(t("layer_3_ok"))
 
-    print(f"\n{t('layer_4_title')}")
+    if not json_output:
+        print(f"\n{t('layer_4_title')}")
     netstat_out = adb.run("netstat -n -a 2>/dev/null || ss -tan 2>/dev/null")
     found_conn = []
     for line in netstat_out.splitlines():
         for c2 in C2_IPS_PORTS:
             if c2 in line:
                 found_conn.append(line)
-    if found_conn:
-        print(t("layer_4_c2_found", conn=found_conn))
-    else:
-        print(t("layer_4_ok"))
+    if not json_output:
+        if found_conn:
+            print(t("layer_4_c2_found", conn=found_conn))
+        else:
+            print(t("layer_4_ok"))
 
-    print(f"\n{t('layer_5_title')}")
+    if not json_output:
+        print(f"\n{t('layer_5_title')}")
     oem_paths = adb.run("pm list packages -f -s").splitlines()
-    print(t("layer_5_total", count=len(oem_paths)))
+    if not json_output:
+        print(t("layer_5_total", count=len(oem_paths)))
     
     # Verificação de binários e pastas conhecidas de malware (Vo1d, Corejava)
     found_binaries = []
@@ -406,10 +422,45 @@ def step_quick_audit(adb):
         check = adb.run(f"ls -ld {b_path} 2>/dev/null").strip()
         if check and "No such file" not in check and "not found" not in check:
             found_binaries.append(b_path)
-    if found_binaries:
-        print(f"    [!] ALERTA CRÍTICO: Ficheiros de persistência detetados (Vo1d/Corejava): {found_binaries}")
+    if not json_output:
+        if found_binaries:
+            print(f"    [!] ALERTA CRÍTICO: Ficheiros de persistência detetados (Vo1d/Corejava): {found_binaries}")
+        else:
+            print(t("layer_5_ok"))
+
+    # Cálculo Determinístico de Risco para saída JSON
+    risk_score = 0
+    if play_protect_disabled: risk_score += 10
+    if found_ioc_pkgs: risk_score += 10 * len(found_ioc_pkgs)
+    if found_conn: risk_score += 10 * len(found_conn)
+    if found_binaries: risk_score += 10 * len(found_binaries)
+    if found_suspicious_props: risk_score += 5 * len(found_suspicious_props)
+
+    if risk_score >= 8:
+        verdict = "INFETADO - CRÍTICO" if get_language() == "pt" else "INFECTED - CRITICAL"
+    elif risk_score >= 3:
+        verdict = "SUSPEITO" if get_language() == "pt" else "SUSPICIOUS"
     else:
-        print(t("layer_5_ok"))
+        verdict = "LIMPO / SEGURO" if get_language() == "pt" else "CLEAN / SAFE"
+
+    result_data = {
+        "target": adb.host,
+        "specs": adb.specs,
+        "verdict": verdict,
+        "risk_score": risk_score,
+        "play_protect_tampered": play_protect_disabled,
+        "active_ioc_packages": found_ioc_pkgs,
+        "neutralized_ioc_packages": neutralized_ioc_pkgs,
+        "suspicious_binaries": found_binaries,
+        "active_c2_connections": found_conn,
+        "suspicious_props": found_suspicious_props,
+        "hardware_warning": targeted_warning
+    }
+
+    if json_output:
+        print(json.dumps(result_data, indent=2, ensure_ascii=False))
+
+    return result_data
 
 
 def create_remediation_backup(adb):
@@ -955,6 +1006,7 @@ def interactive_menu(default_ip):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="BadBox & XCPE Forensic Suite", add_help=False)
     parser.add_argument("target", nargs="?", default=None, help="IP da Android TV / Target IP")
+    parser.add_argument("--json", action="store_true", help="Gera apenas saída compacta em formato JSON para leitura rápida por agentes de IA (poupa tokens)")
     parser.add_argument("--lang", choices=["en", "pt"], default="pt", help="Idioma das mensagens / Interface language (pt ou en)")
     parser.add_argument("--auto-pipeline", action="store_true", help="Executa pipeline completo: instala, scan estatico, VPN 20s, recolhe logs e desinstala")
     parser.add_argument("--quick-scan", action="store_true", help="Executa o diagnóstico rápido das 5 camadas via ADB")
@@ -998,8 +1050,8 @@ if __name__ == "__main__":
         elif args.restore:
             step_restore_device(adb)
         elif args.quick_scan:
-            adb.load_specs()
-            step_quick_audit(adb)
+            adb.load_specs(silent=args.json)
+            step_quick_audit(adb, json_output=args.json)
         elif args.recompile_for_device or args.install_app:
             adb.load_specs()
             step_install_custom_app(adb, force_recompile=args.recompile_for_device)

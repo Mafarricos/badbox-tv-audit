@@ -121,6 +121,7 @@ When executing autonomous forensic audits, invoke `tools/audit_security.py` dire
 |---|---|---|
 | **Full Automated Pipeline** | `python tools/audit_security.py <IP> --auto-pipeline` | Installs APK, grants VPN silent, runs 5-layer scan, monitors network for 20s, pulls logs, evaluates scoring rules, uninstalls APK. |
 | **Fast 5-Layer ADB Scan** | `python tools/audit_security.py <IP> --quick-scan` | 100% read-only scan via ADB (checks Play Protect, C2 sockets, IoC packages, props). |
+| **Token-Optimized AI Scan (JSON)** | `python tools/audit_security.py <IP> --quick-scan --json` | **Recommended for AI Agents**: Outputs a compact, machine-readable JSON structure with exact findings, saving context tokens. |
 | **Remediate / Clean Box** | `python tools/audit_security.py <IP> --remediate` | Creates backup, re-enables Play Protect, uninstalls bots, freezes backdoors, enables secure DNS, and creates restore script. |
 | **Restore Previous State** | `python tools/audit_security.py <IP> --restore` | Restores original settings and re-enables disabled apps from the latest backup. |
 | **Automated with Custom Recompilation** | `python tools/audit_security.py <IP> --auto-pipeline --recompile-for-device` | Gathers device SoC/SDK specs, recompiles tailored APK, runs full pipeline and cleans up. |
