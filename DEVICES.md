@@ -22,7 +22,8 @@ Devices that shipped with dormant or active dropper components from the OEM supp
 
 | Brand / Model | SoC / Hardware | Android / API | Initial Finding | Final State | Verified Persistence |
 |---|---|---|---|---|---|
-| **Strong 4K Google TV Stick** (`HP4613-STRONG`) | SkyworthDigital / `HP46BY4` (`amlogic`) | Android 14 (API 34) | `com.oemservice` (`/system/priv-app/app_xcpe_preset/app_xcpe_preset.apk`) | **NEUTRALIZED / FROZEN** | Backdoor package frozen via `pm disable-user --user 0`, DoT Private DNS enforced (`security.cloudflare-dns.com`), verified clean across reboots. |
+| **Mecool UHD Google TV Stick** | SkyworthDigital / `HPR3B1325_4K` (`rtd1325`) | Android 14 (API 34) | **ACTIVE XCPE BOTNET IN MEMORY**: `com.oemservice` (v6.8.4 in `/data/app` overriding v1.2.1 in system) actively running 3 persistent processes (`:NetworkService` PID 2131, `:WorkService` PID 2477, and main PID 2937) + OEM telemetry `com.oem.qa`. | **NEUTRALIZED / FROZEN (Clean Launcher Active)** | All 3 botnet processes terminated, package frozen via `pm disable-user --user 0`, DoT Private DNS configured (`security.cloudflare-dns.com`), OEM bloat removed, verified 0 active threats across reboots (`risk_score: 0`). |
+| **Strong 4K Google TV Stick** (`HP4613-STRONG`) | SkyworthDigital / `HP46BY4` (`amlogic`) | Android 14 (API 34) | `com.oemservice` (`/system/priv-app/app_xcpe_preset/app_xcpe_preset.apk`) | **NEUTRALIZED / FROZEN** | Backdoor package frozen via `pm disable-user --user 0`, DoT Private DNS enforced (`security.cloudflare-dns.com`), verified clean across reboots (`risk_score: 0`). |
 
 ---
 
