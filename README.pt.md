@@ -1,10 +1,10 @@
-# BadBox & XCPE Forensic Suite para Android TV / Google TV
+# Suite Forense e Antimalware para Android TV / Google TV (BadBox, Vo1d & Remediação)
 
 [![Platform](https://img.shields.io/badge/Platform-Android%20TV%20%7C%20Google%20TV-3DDC84.svg?logo=android)](https://www.android.com/tv/)
 [![Python](https://img.shields.io/badge/Python-3.9%2B-blue.svg?logo=python)](https://www.python.org/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-Suite forense e de remediação reversível completa e autónoma (CLI + App nativa Android TV com Sentinela VPN) projetada para auditoria, deteção, verificação, neutralização e restauro de malware de supply-chain e botnets residenciais (**BadBox**, **XCPE**, **Fuyao**, **Videostrong/SZBBOYS**) em dispositivos Android TV, Google TV e TV Boxes genéricas.
+Suite forense, de remoção de malware e de remediação reversível completa e autónoma (CLI + App nativa Android TV com Sentinela VPN) projetada para auditoria, deteção, verificação, neutralização e restauro de trojans de supply-chain, botnets residenciais e malware (**BadBox**, **XCPE**, **Vo1d**, **Fuyao**, **Videostrong/SZBBOYS** e **Proxyware Residencial**) em dispositivos Android TV, Google TV e TV Boxes genéricas.
 
 > **Idioma:** Português (PT-PT) | [For English version, see README.md](README.md) | [📱 Registo de Aparelhos Testados](DEVICES.md)
 
@@ -12,14 +12,14 @@ Suite forense e de remediação reversível completa e autónoma (CLI + App nati
 
 ## 🎯 Porquê esta ferramenta?
 
-Milhares de Smart TVs e TV Boxes Android económicas chegam ao utilizador pré-infetadas de fábrica. O malware:
+Milhares de Smart TVs e TV Boxes Android económicas chegam ao utilizador pré-infetadas de fábrica ou são comprometidas através de firmwares adulterados e aplicações não oficiais. O malware habitualmente:
 1. Desativa silenciosamente o **Google Play Protect** definindo `package_verifier_user_consent = -1`.
-2. Instala backdoors persistentes na partição `/system` ou `/vendor` (imunes a reposições de fábrica).
-3. Transforma o dispositivo num **nó de proxy residencial ilegal** (vendendo a largura de banda da sua casa para cibercriminosos) e participa em fraudes de cliques e visualizações ocultas.
+2. Instala trojans e backdoors persistentes na partição `/system` ou `/vendor` (como o **Vo1d**, **BadBox** ou **XCPE**, imunes a reposições de fábrica).
+3. Transforma o dispositivo num **nó de proxy residencial ilegal** (vendendo a largura de banda da sua casa para cibercriminosos através de SDKs ocultos de proxyware) e participa em fraudes de cliques e visualizações em segundo plano.
 
 Esta ferramenta fornece dois métodos completos para auditar e limpar a sua TV:
-- **Para quem quer usar apenas o comando da TV (Sem PC/Scripts):** Instale o APK na TV via Pen USB ou browser. A própria App faz o varrimento, mostra o veredito no ecrã e disponibiliza o botão vermelho **"NEUTRALIZAR AMEAÇAS"**, permitindo desinstalar as apps da botnet e reativar proteções com o comando físico.
-- **Para Técnicos e Agentes de IA (Via PC/ADB):** Pipeline 100% silencioso e automatizado (`audit_security.py`) com criação de backup prévio e reversibilidade instantânea em `backups/`.
+- **Para quem quer usar apenas o comando da TV (Sem PC/Scripts):** Instale o APK na TV via Pen USB ou browser. A própria App faz o varrimento, mostra o veredito no ecrã e disponibiliza o botão vermelho **"NEUTRALIZAR AMEAÇAS"**, permitindo desinstalar as apps maliciosas e reativar proteções com o comando físico.
+- **Para Técnicos e Agentes de IA (Via PC/ADB):** Pipeline 100% silencioso e automatizado (`audit_security.py`) com descoberta de sub-rede, modo JSON otimizado para economia de tokens, criação de backup prévio e reversibilidade instantânea em `backups/`.
 
 ---
 
@@ -50,9 +50,9 @@ Para que a ferramenta via PC ou um Agente de IA consiga comunicar com a sua Andr
 
 A aplicação deteta o idioma da box automaticamente (em Português se a TV estiver em Português; em Inglês para todos os outros idiomas) e é 100% controlável pelo comando (D-Pad):
 
-1. **Botão 1: ANALISAR BOX (ESTÁTICO):** Varre partições `/oem/`, `/vendor/`, integridade do Play Protect e enumera pacotes instalados em segundos.
+1. **Botão 1: ANALISAR BOX (ESTÁTICO):** Varre partições `/oem/`, `/vendor/`, integridade do Play Protect, artefactos de trojans (Vo1d, XCPE) e enumera pacotes instalados em segundos.
 2. **Botão 2: MONITORIZAR REDE (VPN):** Sentinela local loopback que alerta em tempo real:
-   - **A Vermelho (`[CRÍTICO]`):** Se a box tentar falar com servidores C2 ou portas MQTT conhecidas.
+   - **A Vermelho (`[CRÍTICO]`):** Se a box tentar falar com servidores C2 ou portas MQTT/proxy conhecidas.
    - **A Amarelo (`[ANOMALIA]`):** Se houver tráfego anómalo em portas altas enquanto a TV devia estar em repouso.
 3. **Botão 3: NEUTRALIZAR AMEAÇAS (Aparece se forem detetadas anomalias):**
    - Inicia a desinstalação guiada das apps da botnet com diálogo direto no ecrã.
@@ -85,7 +85,7 @@ python tools/audit_security.py <TV_IP> --restore --lang pt
 
 ---
 
-## ⚠️ Isenção de Responsabilidade (Disclaimer)
+## ⚠️ Isenção de Responsabilidade
 
 Este software e ferramentas são disponibilizados estritamente para fins educativos, forenses e de investigação de cibersegurança.
 
@@ -99,9 +99,9 @@ A utilização desta ferramenta é da exclusiva responsabilidade de quem a execu
 
 Olá, sou o **Carlos Correia**! Sou um entusiasta geek e programador que sempre acompanhou e adorou o mundo das TV boxes Android. Ao longo dos anos sempre recomendei ativamente aparelhos certificados Google TV e Android TV pela sua segurança e qualidade.
 
-Foi por isso uma enorme surpresa descobrir a investigação forense recente sobre a **VideoStrong / SZBBOYS (BadBox & XCPE)** e como estas ameaças de cadeia de distribuição conseguiram infiltrar-se em hardware certificado e de grande circulação. Essa descoberta motivou-me a criar este repositório, desenvolvido em estreita colaboração com Agentes de IA, para oferecer a qualquer utilizador ou técnico uma ferramenta transparente, gratuita e acessível para limpar facilmente malwares e botnets — quer seja diretamente pelo comando da TV, quer seja por linha de comandos com segurança e reversibilidade total.
+Foi por isso uma enorme surpresa descobrir a investigação forense recente sobre a **VideoStrong / SZBBOYS (BadBox & XCPE)** e como estas ameaças de cadeia de distribuição conseguiram infiltrar-se em hardware certificado e de grande circulação. Essa descoberta motivou-me a criar este repositório, desenvolvido em estreita colaboração com Agentes de IA, para oferecer a qualquer utilizador ou técnico uma ferramenta transparente, gratuita e acessível para limpar facilmente malwares, trojans e botnets — quer seja diretamente pelo comando da TV, quer seja por linha de comandos com segurança e reversibilidade total.
 
-O conceito estrutural deste script teve por base o excelente projeto [CleanYourTV](https://cleanyour.tv) e assentou na investigação detalhada publicada pela [Synthient](https://synthient.com/blog/the-internals-of-a-badbox-operation).
+O conceito estrutural deste script teve por base o excelente projeto [CleanYourTV](https://cleanyour.tv) e assentou na investigação detalhada publicada pela [Synthient](https://synthient.com/blog/the-internals-of-a-badbox-operation), [Eclypsium](https://eclypsium.com/blog/android-tv-devices-pre-0wned-supply-chain-security-threats/) e [Dr.Web](https://vms.drweb.com/bulletin/).
 
 ### Apoie o Projeto:
 Se esta ferramenta lhe foi útil e deseja apoiar o meu trabalho:

@@ -6,7 +6,7 @@ Instructions for AI coding agents (Claude Code, Gemini CLI, Cursor, Copilot, Ant
 
 ## 1. Project Mission
 
-This repository contains an autonomous, dual-layer forensic and remediation suite specifically designed to audit and sanitize Android TV, Google TV, and Android TV Box streaming devices compromised by supply-chain malware and botnet backdoors, with primary focus on **BadBox**, **XCPE**, **Fuyao**, and **Videostrong/SZBBOYS**.
+This repository contains an autonomous, dual-layer forensic and remediation suite specifically designed to audit, detect, and sanitize Android TV, Google TV, and Android TV Box streaming devices compromised by supply-chain malware, trojans, and botnet backdoors, including **BadBox**, **XCPE**, **Vo1d**, **Fuyao**, **Videostrong/SZBBOYS**, and **Residential Proxyware SDKs**.
 
 It delivers:
 1. **Remote ADB Layer**: Read-only fast triage across 5 forensic layers with live console reporting.

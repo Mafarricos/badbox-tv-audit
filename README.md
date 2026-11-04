@@ -1,4 +1,4 @@
-# BadBox & XCPE Forensic Suite for Android TV / Google TV
+# Android TV & Google TV Forensic Suite (BadBox, Vo1d & Malware Remediation)
 
 [![Platform](https://img.shields.io/badge/Platform-Android%20TV%20%7C%20Google%20TV-3DDC84.svg?logo=android)](https://www.android.com/tv/)
 [![Python](https://img.shields.io/badge/Python-3.9%2B-blue.svg?logo=python)](https://www.python.org/)
@@ -7,7 +7,7 @@
 [![App Remediation](https://img.shields.io/badge/TV%20App-On--Screen%20Remediation-success.svg)](#-native-android-tv-app)
 [![Logging](https://img.shields.io/badge/Logging-Live%20Console%20%2B%20Transcripts-informational.svg)](#-live-telemetry--audit-logs)
 
-An autonomous, dual-layer forensic and reversible remediation suite (CLI + native Android TV app with local loopback VPN sentinel) engineered to audit, detect, verify, neutralize, and restore Android TV, Google TV, and generic streaming devices compromised by supply-chain malware and residential botnets (**BadBox**, **XCPE**, **Fuyao**, **Videostrong/SZBBOYS**).
+An autonomous, dual-layer forensic, malware removal, and reversible remediation suite (CLI + native Android TV app with local loopback VPN sentinel) engineered to audit, detect, verify, neutralize, and restore Android TV, Google TV, and generic streaming devices compromised by supply-chain trojans, botnets, and malware (**BadBox**, **XCPE**, **Vo1d**, **Fuyao**, **Videostrong/SZBBOYS**, and **Residential Proxyware**).
 
 > **Language:** English (Default) | [Para a versão em Português (PT-PT), consulte README.pt.md](README.pt.md) | [📱 Tested Devices Registry](DEVICES.md)
 
@@ -15,14 +15,14 @@ An autonomous, dual-layer forensic and reversible remediation suite (CLI + nativ
 
 ## 🎯 Why this tool?
 
-Thousands of budget Android TV boxes and Smart TVs arrive pre-infected straight from the factory. The malware typically:
+Thousands of budget Android TV boxes and Smart TVs arrive pre-infected straight from the factory or become compromised via malicious streaming apps and trojanized firmware. The malware typically:
 1. Silently turns off **Google Play Protect** by forcing `package_verifier_user_consent = -1`.
-2. Installs persistent backdoors in the `/system` or `/vendor` partition (surviving factory resets).
-3. Turns the TV into an **illegal residential proxy node** (reselling your home Internet bandwidth) and performs hidden ad-fraud.
+2. Installs persistent trojans and backdoors (such as **Vo1d**, **BadBox**, or **XCPE**) into the `/system` or `/vendor` partition (surviving factory resets).
+3. Secretly runs **residential proxyware SDKs** (turning your home TV into an illegal proxy exit node and reselling your home Internet bandwidth) and performs hidden background ad-fraud.
 
 This suite provides two complete audit & cleanup paths:
 - **For Everyday Users (No PC required, Remote D-Pad only):** Install the APK on your TV via USB flash drive or browser. The app runs the scan, displays the verdict, and exposes the red **"NEUTRALIZE THREATS"** button for on-screen app uninstallation and security hardening.
-- **For Technicians & AI Agents (Via PC / ADB):** 100% silent and automated pipeline (`audit_security.py`) featuring mandatory snapshots and instant rollback scripts in `backups/`.
+- **For Technicians & AI Agents (Via PC / ADB):** 100% silent and automated pipeline (`audit_security.py`) featuring subnet discovery, token-saving JSON mode, mandatory snapshots, and instant rollback scripts in `backups/`.
 
 ---
 
@@ -53,7 +53,7 @@ To allow PC tools or AI agents to communicate with your TV over Wi-Fi, enable **
 
 The application is localized automatically (Portuguese if device is set to Portuguese; English for all other languages) and is 100% D-Pad navigable:
 
-1. **Button 1: SCAN TV BOX (STATIC):** Audits `/oem/`, `/vendor/`, Play Protect integrity, and inspects package signatures in seconds.
+1. **Button 1: SCAN TV BOX (STATIC):** Audits `/oem/`, `/vendor/`, Play Protect integrity, trojan artifacts (Vo1d, XCPE), and inspects package signatures in seconds.
 2. **Button 2: MONITOR NETWORK (VPN):** Local loopback sentinel alerting in real time:
    - **RED (`[CRITICAL]`):** If the TV initiates connections to known C2 servers or proxy ports.
    - **YELLOW (`[ANOMALY]`):** If unusual high-port network traffic is detected while the TV is idle.
@@ -82,10 +82,10 @@ python tools/audit_security.py --scan-subnet 192.168.1.0/24
 # 4. Autonomous Remediation (Locks Play Protect, freezes dropper, activates Private DNS DoT)
 python tools/audit_security.py <TV_IP> --remediate --lang en
 
-# 4. Instant Reversible Restore / Rollback
+# 5. Instant Reversible Restore / Rollback
 python tools/audit_security.py <TV_IP> --restore --lang en
 
-# 5. Deep Forensics / Package Inspector
+# 6. Deep Forensics / Package Inspector
 python tools/deep_forensics.py <TV_IP> --inspect-package <PACKAGE_NAME>
 python tools/deep_forensics.py <TV_IP> --pull-and-analyze <REMOTE_APK_PATH>
 ```
@@ -94,15 +94,15 @@ python tools/deep_forensics.py <TV_IP> --pull-and-analyze <REMOTE_APK_PATH>
 
 ## 🔒 Safety & Reversibility Guarantee
 
-Every remediation action creates an exact JSON snapshot under `backups/backup_<IP>_<timestamp>.json` and an executable PowerShell rollback script `backups/restore_<IP>.ps1`. Nothing is modified without an immediate, one-click restoration path.
+Every remediation action creates an exact JSON snapshot under `backups/backup_<IP>_<timestamp>.json` and an executable rollback script `backups/restore_<IP>.ps1`. Nothing is modified without an immediate, one-click restoration path.
 
 ---
 
-## ⚠️ Disclaimer / Isenção de Responsabilidade
+## ⚠️ Disclaimer
 
 This software is provided for educational, forensic, and security research purposes only. 
 
-I have personally tested these tools and remediation scripts on my own hardware devices: they accurately identified threats, remediated the backdoors, and all devices continued to operate normally without any loss of core streaming functionality. However, given the vast diversity of Android TV hardware, proprietary OEM firmware builds, and customized Android partitions across the market, **I cannot guarantee 100% effectiveness or complete compatibility with devices I have not directly tested**.
+I have personally tested these tools and remediation scripts on my own hardware devices: they accurately identified threats, remediated backdoors, and all devices continued to operate normally without any loss of core streaming functionality. However, given the vast diversity of Android TV hardware, proprietary OEM firmware builds, and customized Android partitions across the market, **I cannot guarantee 100% effectiveness or complete compatibility with devices I have not directly tested**.
 
 Use this tool at your own discretion and risk. Neither the author nor contributors shall be held liable for any unexpected behavior, unintended system state, or issues resulting from the use of these scripts or application. Always keep the automatic backups generated in `backups/` handy.
 
@@ -112,9 +112,9 @@ Use this tool at your own discretion and risk. Neither the author nor contributo
 
 Hi, I'm **Carlos Correia**! I'm a tech enthusiast, geek, and developer who has always been passionate about the Android TV box ecosystem. For years, I have actively advocated for and recommended certified Google TV and Android TV devices to friends, family, and the community.
 
-Discovering the recent findings regarding **VideoStrong / SZBBOYS supply-chain compromises (BadBox & XCPE)** on certified and mainstream hardware came as quite a shock. That revelation motivated me to team up with modern AI agents to build this open, transparent, and autonomous repository — empowering anyone to easily audit, detect, and neutralize malware and residential botnets with just their TV remote or a single command.
+Discovering the recent findings regarding **VideoStrong / SZBBOYS supply-chain compromises (BadBox & XCPE)** on certified and mainstream hardware came as quite a shock. That revelation motivated me to team up with modern AI agents to build this open, transparent, and autonomous repository — empowering anyone to easily audit, detect, and neutralize malware, trojans, and residential botnets with just their TV remote or a single command.
 
-The architectural concept and pure-Python ADB connectivity of this tool draw strong inspiration from the great work of [CleanYourTV](https://cleanyour.tv) and the technical forensic investigation by [Synthient](https://synthient.com/blog/the-internals-of-a-badbox-operation).
+The architectural concept and pure-Python ADB connectivity of this tool draw strong inspiration from the great work of [CleanYourTV](https://cleanyour.tv), the technical forensic investigation by [Synthient](https://synthient.com/blog/the-internals-of-a-badbox-operation), [Eclypsium](https://eclypsium.com/blog/android-tv-devices-pre-0wned-supply-chain-security-threats/), and [Dr.Web](https://vms.drweb.com/bulletin/).
 
 ### Support My Work:
 If you find this suite useful and want to support the project:
