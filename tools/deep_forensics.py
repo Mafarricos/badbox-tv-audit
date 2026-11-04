@@ -88,9 +88,13 @@ def pull_and_analyze_apk(adb, remote_apk_path, local_dest=None):
                 clean_strings = [s.decode("latin1") for s in strings]
                 
                 print(f"\n    [+] Strings suspeitas em {dex} (Classes, URLs, Comandos):")
-                keywords = ["http://", "https://", "x.cpe", "xcpe", "BootReceiver", "UpgradeService", 
-                            "PackageInstaller", "execInstall", "persist.sys", "titannet", "getgrass", 
-                            "traffmonetizer", "oem", "startForegroundService"]
+                keywords = [
+                    "http://", "https://", "x.cpe", "xcpe", "BootReceiver", "UpgradeService", 
+                    "PackageInstaller", "execInstall", "persist.sys", "titannet", "getgrass", 
+                    "traffmonetizer", "oem", "startForegroundService", "ycxrl", "corejava",
+                    "vo1d", "adups", "netnut", "popanet", "neunative", "alphasdk", "lumiapps",
+                    "install-recovery", "daemon", "watchdog"
+                ]
                 found = set()
                 for s in clean_strings:
                     if any(k.lower() in s.lower() for k in keywords):
@@ -103,7 +107,7 @@ def pull_and_analyze_apk(adb, remote_apk_path, local_dest=None):
 
 def scan_oem_droppers(adb):
     print(f"\n[*] A pesquisar vestigios de droppers / backdoors em particoes do sistema ({adb.host})...")
-    find_cmd = "find /system /vendor /product /system_ext /oem -iname '*xcpe*' -o -iname '*titan*' -o -iname '*grass*' -o -iname '*yoka*' 2>/dev/null"
+    find_cmd = "find /system /vendor /product /system_ext /oem /data/google /data/system -iname '*xcpe*' -o -iname '*titan*' -o -iname '*grass*' -o -iname '*yoka*' -o -iname '*vo1d*' -o -iname '*corejava*' 2>/dev/null"
     out = adb.run(find_cmd)
     lines = [l.strip() for l in out.splitlines() if l.strip()]
     if lines:
