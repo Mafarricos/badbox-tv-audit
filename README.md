@@ -4,6 +4,7 @@
 [![Python](https://img.shields.io/badge/Python-3.9%2B-blue.svg?logo=python)](https://www.python.org/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Zero-AI Rules](https://img.shields.io/badge/Detection-Deterministic%20Scoring-orange.svg)](#-matriz-de-decis%C3%A3o-determin%C3%ADstica-zero-ai)
+[![Logging](https://img.shields.io/badge/Logging-Live%20Console%20%2B%20Transcripts-informational.svg)](#-telemetria-visual-e-auditoria-de-logs)
 [![Remediation](https://img.shields.io/badge/Remediation-100%25%20Reversible-success.svg)](#-remedia%C3%A7%C3%A3o-e-neutraliza%C3%A7%C3%A3o-revers%C3%ADvel)
 
 Suite forense e de remediação reversível completa e autónoma (CLI + App nativa Android TV com Sentinela VPN) projetada para auditoria, deteção, verificação, neutralização e restauro de malware de supply-chain e botnets residenciais (**BadBox**, **XCPE**, **Fuyao**, **Videostrong/SZBBOYS**) em dispositivos Android TV, Google TV e TV Boxes genéricas.
@@ -17,10 +18,22 @@ Milhares de Smart TVs e TV Boxes Android económicas chegam ao utilizador pré-i
 2. Instala backdoors persistentes na partição `/system` ou `/vendor` (imunes a reposições de fábrica).
 3. Transforma o dispositivo num **nó de proxy residencial ilegal** (vendendo a largura de banda da sua casa para cibercriminosos) e participa em fraudes de cliques e visualizações ocultas.
 
-Esta ferramenta fornece uma inspeção de **camada dupla** e capacidade de **remediação 100% reversível**:
+Esta ferramenta fornece uma inspeção de **camada dupla**, **remediação 100% reversível** e **registo integral de operações**:
 - **Diagnóstico ADB Remoto:** Análise forense rápida de 5 camadas sem instalar nada no aparelho.
 - **Sentinela VPN Local (App TV):** Captura em tempo real via `VpnService` de tráfego de rede invisível e ligações secretas aos servidores de Comando e Controlo (C2).
 - **Módulo de Remediação & Restauro (`--remediate` / `--restore`):** Neutraliza a botnet com backup prévio obrigatório em `backups/`, permitindo anular qualquer alteração a qualquer altura.
+- **Logs Completos em Tempo Real (`logs/`):** Gravação integral de todas as mensagens de consola para inspeção humana ou extração por modelos de IA.
+
+---
+
+## 📊 Telemetria Visual e Auditoria de Logs
+
+Toda a interação com a box é apresentada em tempo real com **feedback visual detalhado** na consola e gravada simultaneamente em ficheiro:
+
+- **Na Consola:** O utilizador humano ou o agente de IA visualiza cada passo da execução (comunicação ADB, contagens regressivas do Sentinela VPN, respostas dos comandos `pm` e `settings`, tabelas de pontuação de risco).
+- **Na Pasta `logs/`:** Cada sessão gera automaticamente um ficheiro `logs/session_<timestamp>.log`.
+  - Permite aos utilizadores rever o histórico de auditorias e intervenções passadas.
+  - Permite a agentes de IA consultar as evidências exatas para responder a perguntas técnicas ou formular relatórios forenses.
 
 ---
 
@@ -215,7 +228,7 @@ O veredito final é calculado com base em pontuação e regras fixas de seguran�
 
 ## 🤖 Guia para Agentes de IA
 
-Consulte o ficheiro [AGENTS.md](AGENTS.md) para a especificação das diretrizes de integridade, auto-recompilação com fallback, ciclo de remediação reversível e matriz de comandos não interativos.
+Consulte o ficheiro [AGENTS.md](AGENTS.md) para a especificação das diretrizes de integridade, auto-recompilação com fallback, ciclo de remediação reversível, telemetria de logs e matriz de comandos não interativos.
 
 ---
 

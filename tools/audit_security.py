@@ -37,7 +37,43 @@ if sys.platform == "win32":
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 APP_PROJECT_DIR = os.path.join(PROJECT_ROOT, "app")
 BACKUPS_DIR = os.path.join(PROJECT_ROOT, "backups")
+LOGS_DIR = os.path.join(PROJECT_ROOT, "logs")
 PACKAGE_NAME = "com.scanner.tv"
+
+os.makedirs(LOGS_DIR, exist_ok=True)
+os.makedirs(BACKUPS_DIR, exist_ok=True)
+
+
+class DualLogger:
+    """
+    Espelha a saída para o terminal (informação visual em tempo real para humanos e agentes)
+    e grava simultaneamente num ficheiro de log persistente estruturado em logs/.
+    """
+    def __init__(self, filename=None):
+        self.terminal = sys.stdout
+        if not filename:
+            timestamp = time.strftime("%Y%m%d_%H%M%S")
+            filename = os.path.join(LOGS_DIR, f"session_{timestamp}.log")
+        self.log_file = open(filename, "a", encoding="utf-8", buffering=1)
+        self.log_path = filename
+
+    def write(self, message):
+        self.terminal.write(message)
+        self.terminal.flush()
+        # Remove códigos de controlo de terminal para manter o ficheiro de log limpo
+        clean_msg = message.replace("\r", "\n") if "\r" in message and "\n" not in message else message
+        self.log_file.write(clean_msg)
+        self.log_file.flush()
+
+    def flush(self):
+        self.terminal.flush()
+        self.log_file.flush()
+
+
+# Ativa o logger global de sessão
+CURRENT_LOGGER = DualLogger()
+sys.stdout = CURRENT_LOGGER
+
 
 # 1. Assinaturas de C2, Backdoors, SDKs e Infraestrutura Videostrong / Badbox
 TARGET_STRINGS = [
@@ -326,7 +362,6 @@ def create_remediation_backup(adb):
     Cria um backup completo das definições e estado de pacotes ANTES de qualquer alteração,
     gerando também um script de restauro reversível em backups/.
     """
-    os.makedirs(BACKUPS_DIR, exist_ok=True)
     clean_ip = adb.host.replace(".", "_")
     timestamp = time.strftime("%Y%m%d_%H%M%S")
     backup_file = os.path.join(BACKUPS_DIR, f"backup_{clean_ip}_{timestamp}.json")
@@ -334,13 +369,10 @@ def create_remediation_backup(adb):
 
     print(f"\n[*] A criar BACKUP de segurança reversível em backups/...")
 
-    # Guardar definições originais
     orig_user_consent = adb.run("settings get global package_verifier_user_consent").strip()
     orig_verifier_enable = adb.run("settings get global package_verifier_enable").strip()
     orig_dns_mode = adb.run("settings get global private_dns_mode").strip()
     orig_dns_spec = adb.run("settings get global private_dns_specifier").strip()
-
-    # Guardar lista de pacotes desativados anteriormente
     disabled_pkgs = adb.run("pm list packages -d").splitlines()
 
     backup_data = {
@@ -432,7 +464,6 @@ def step_remediate_device(adb):
     if not adb.specs:
         adb.load_specs()
 
-    # Criar Backup de Segurança Reversível
     backup_file, backup_data, restore_script = create_remediation_backup(adb)
 
     # 1. Reativar e Trancar o Google Play Protect
@@ -472,7 +503,6 @@ def step_remediate_device(adb):
     else:
         print(f"    [✓] Total de pacotes maliciosos neutralizados: {neutralized_count}")
 
-    # Atualizar backup com os pacotes desativados
     with open(backup_file, "w", encoding="utf-8") as f:
         json.dump(backup_data, f, indent=2)
 
@@ -494,11 +524,11 @@ def step_remediate_device(adb):
     print(f"    - Servidor Seguro:  {dns_host}")
     print("    [✓] Proteção de DNS ativa: pedidos para servidores C2 serão bloqueados na fonte.")
 
-    # Gerar o script de reversão no fim
     generate_restore_script(adb, backup_data, restore_script)
 
     print("\n================================================================================")
     print("  REMEDIAÇÃO CONCLUÍDA: A TV foi limpa e o tráfego de botnet bloqueado!")
+    print(f"  Log da sessão gravado em: {CURRENT_LOGGER.log_path}")
     print(f"  Para reverter a qualquer momento, execute: backups/{os.path.basename(restore_script)}")
     print("================================================================================\n")
 
@@ -525,7 +555,6 @@ def step_restore_device(adb):
     with open(latest_backup, "r", encoding="utf-8") as f:
         backup_data = json.load(f)
 
-    # 1. Repor definições
     settings = backup_data.get("settings", {})
     print("\n[1/2] A repor definições globais originais...")
     if "package_verifier_user_consent" in settings:
@@ -542,7 +571,6 @@ def step_restore_device(adb):
         adb.run(f"settings put global private_dns_specifier {dns_spec}")
     print("    [✓] Definições restauradas.")
 
-    # 2. Reativar pacotes
     disabled = backup_data.get("disabled_during_remediation", [])
     print("\n[2/2] A reativar pacotes desativados durante a remediação...")
     for pkg in disabled:
@@ -769,6 +797,7 @@ def step_automated_pipeline(adb, vpn_duration=20, force_recompile=False):
 
     print("\n================================================================================")
     print(f"  PIPELINE CONCLUÍDO COM SUCESSO: Veredito = {verdict}")
+    print(f"  Registo integral da auditoria guardado em: {CURRENT_LOGGER.log_path}")
     print("================================================================================\n")
 
 

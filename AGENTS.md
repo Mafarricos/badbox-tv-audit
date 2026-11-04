@@ -9,10 +9,11 @@ Instructions for AI coding agents (Claude Code, Gemini CLI, Cursor, Copilot, Ant
 This repository contains an autonomous, dual-layer forensic and remediation suite specifically designed to audit and sanitize Android TV, Google TV, and Android TV Box streaming devices compromised by supply-chain malware and botnet backdoors, with primary focus on **BadBox**, **XCPE**, **Fuyao**, and **Videostrong/SZBBOYS**.
 
 It delivers:
-1. **Remote ADB Layer**: Read-only fast triage across 5 forensic layers.
+1. **Remote ADB Layer**: Read-only fast triage across 5 forensic layers with live console reporting.
 2. **On-Device TV App (`com.scanner.tv`)**: Native Leanback UI + local loopback VPN packet sentinel to detect hidden proxy botnet traffic and silent C2 callbacks.
 3. **Deterministic Scoring Engine (`audit_security.py`)**: Zero-AI rule evaluation yielding mathematically backed verdicts (`INFETADO - CRÍTICO`, `SUSPEITO`, `LIMPO / SEGURO`).
-4. **Host-Independent Reversible Remediation (`--remediate` & `--restore`)**: Autonomous cleanup of infected TV boxes applying OS-level countermeasures with mandatory prior backup and 100% reversible scripts in `backups/`.
+4. **Complete Execution Logs (`logs/session_<timestamp>.log`)**: Automatic mirroring of all console output and operational telemetry for post-run agent reasoning and user reporting.
+5. **Host-Independent Reversible Remediation (`--remediate` & `--restore`)**: Autonomous cleanup of infected TV boxes applying OS-level countermeasures with mandatory prior backup and 100% reversible scripts in `backups/`.
 
 ---
 
@@ -28,7 +29,16 @@ Before running any forensic task, agents **must ensure the Python environment is
 
 ---
 
-## 3. APK Compatibility & Autonomous On-Demand Recompilation Protocol
+## 3. Real-Time Telemetry & Log Inspection Protocol
+
+Every execution of `audit_security.py` records full transcripts to `logs/session_<timestamp>.log`.
+Agents can:
+1. Stream stdout during execution for live user visibility.
+2. Read `logs/` or `last_scan_report.json` and `vpn_events.log` upon completion to extract exact forensic proofs and formulate detailed findings to the user.
+
+---
+
+## 4. APK Compatibility & Autonomous On-Demand Recompilation Protocol
 
 The repository ships with an optimized precompiled universal APK in `tools/xcpe-scanner-tv.apk` (supports SDK 21 to SDK 34).
 
@@ -49,7 +59,7 @@ However, **if the target device is legacy, exotic, or reports an install error**
 
 ---
 
-## 4. Remediation & Reversibility Protocol (Backup First)
+## 5. Remediation & Reversibility Protocol (Backup First)
 
 **Rule: Never remediate without backup.**
 When a device is verified as `INFETADO - CRÍTICO` or `SUSPEITO`, running `--remediate` **automatically performs a snapshot backup first**:
@@ -73,7 +83,7 @@ The remediation cycle operates completely inside Android:
 
 ---
 
-## 5. Non-Negotiable Operational Rules for Agents
+## 6. Non-Negotiable Operational Rules for Agents
 
 - **Zero-Damage & Reversibility**: Never disable critical core system packages (`com.android.systemui`, `com.android.settings`, Bluetooth/Wi-Fi stack).
 - **Mandatory Backup Before Change**: Every modifying operation must save original state to `backups/`.
@@ -83,7 +93,7 @@ The remediation cycle operates completely inside Android:
 
 ---
 
-## 6. CLI Agent Usage Matrix
+## 7. CLI Agent Usage Matrix
 
 When executing autonomous forensic audits, invoke `tools/audit_security.py` directly using flags:
 
@@ -101,11 +111,12 @@ When executing autonomous forensic audits, invoke `tools/audit_security.py` dire
 
 ---
 
-## 7. Repository Map
+## 8. Repository Map
 
 ```
 badbox-tv-audit/
 ├── backups/              # Reversible device snapshots and restore_<IP>.ps1 scripts
+├── logs/                 # Comprehensive real-time execution transcripts (session_<timestamp>.log)
 ├── setup.bat             # One-click Windows prerequisite installer (Python + JDK/SDK option)
 ├── setup.sh              # One-click Linux/macOS prerequisite installer
 ├── app/                  # Full Android Studio project for com.scanner.tv (SDK 34, Java 17)
@@ -123,7 +134,7 @@ badbox-tv-audit/
 
 ---
 
-## 8. Decision Logic and Thresholds
+## 9. Decision Logic and Thresholds
 
 The deterministic rule engine evaluates risks without cloud AI calls:
 
