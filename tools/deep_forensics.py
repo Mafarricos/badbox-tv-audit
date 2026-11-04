@@ -41,6 +41,24 @@ def inspect_package(adb, package_name):
         if any(k in line for k in ["Receiver", "Service", "BOOT_COMPLETED", "UpgradeService", "BootReceiver"]):
             print(f"    {line.strip()}")
 
+    print("\n--- ESTADO DE ATIVACAO (pm list packages -d / -e) ---")
+    d_list = adb.run("pm list packages -d")
+    e_list = adb.run("pm list packages -e")
+    is_disabled = any(l.strip() == f"package:{package_name}" for l in d_list.splitlines())
+    is_enabled = any(l.strip() == f"package:{package_name}" for l in e_list.splitlines())
+    print(f"    - Desativado (disabled-user / disabled): {is_disabled}")
+    print(f"    - Ativo (enabled): {is_enabled}")
+
+    print("\n--- BLOCO USER STATE (Dumpsys Package) ---")
+    in_user_block = False
+    for line in dumpsys.splitlines():
+        if "User 0:" in line or "User " in line:
+            in_user_block = True
+        if in_user_block:
+            print(f"    {line.strip()}")
+            if "hidden=" in line or "stopped=" in line or "enabled=" in line:
+                break
+
 
 def pull_and_analyze_apk(adb, remote_apk_path, local_dest=None):
     if not local_dest:

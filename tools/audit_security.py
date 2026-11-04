@@ -317,15 +317,22 @@ def step_quick_audit(adb):
 
     print("\n[Camada 2/5] A analisar pacotes instalados contra lista de IoCs...")
     pkgs = adb.run("pm list packages").splitlines()
+    disabled_pkgs = [p.replace("package:", "").strip().lower() for p in adb.run("pm list packages -d").splitlines()]
     found_ioc_pkgs = []
+    neutralized_ioc_pkgs = []
     for p in pkgs:
         p_name = p.replace("package:", "").strip().lower()
         for ioc in IOC_PACKAGES:
             if ioc.lower() in p_name:
-                found_ioc_pkgs.append(p_name)
+                if p_name in disabled_pkgs:
+                    neutralized_ioc_pkgs.append(p_name)
+                else:
+                    found_ioc_pkgs.append(p_name)
     if found_ioc_pkgs:
-        print(f"    [!] Pacotes maliciosos detetados: {found_ioc_pkgs}")
-    else:
+        print(f"    [!] Pacotes maliciosos ATIVOS detetados: {found_ioc_pkgs}")
+    if neutralized_ioc_pkgs:
+        print(f"    [✓] Pacotes suspeitos identificados mas NEUTRALIZADOS / CONGELADOS: {neutralized_ioc_pkgs}")
+    if not found_ioc_pkgs and not neutralized_ioc_pkgs:
         print(f"    [✓] Nenhum pacote conhecido de botnet detetado ({len(pkgs)} pacotes analisados).")
 
     print("\n[Camada 3/5] A verificar propriedades do sistema (Build Props)...")
