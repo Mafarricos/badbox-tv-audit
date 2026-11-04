@@ -69,13 +69,17 @@ Pode especificar o idioma pretendido através de `--lang pt` ou `--lang en`:
 # 1. Pipeline 100% Automatizado (Instala APK, scan 5 camadas, sentinela VPN 20s, scoring e limpeza)
 python tools/audit_security.py <TV_IP> --auto-pipeline --lang pt
 
-# 2. Diagnóstico Rápido ADB (Apenas Leitura)
+# 2. Diagnóstico Rápido ADB (Apenas Leitura - Normal ou Modo JSON para Agentes)
 python tools/audit_security.py <TV_IP> --quick-scan --lang pt
+python tools/audit_security.py <TV_IP> --quick-scan --json
 
-# 3. Remediação Autónoma (Tranca Play Protect, desativa droppers, ativa DNS DoT seguro)
+# 3. Descobrir e Auditar todas as Android TVs na Rede Local (Sub-rede)
+python tools/audit_security.py --scan-subnet 192.168.1.0/24
+
+# 4. Remediação Autónoma (Tranca Play Protect, desativa droppers, ativa DNS DoT seguro)
 python tools/audit_security.py <TV_IP> --remediate --lang pt
 
-# 4. Restauro Reversível Imediato
+# 5. Restauro Reversível Imediato
 python tools/audit_security.py <TV_IP> --restore --lang pt
 ```
 

@@ -463,6 +463,43 @@ def step_quick_audit(adb, json_output=False):
     return result_data
 
 
+def discover_subnet_tvs(cidr_or_base, port=5555, timeout=0.8):
+    """
+    Descobre rapidamente dispositivos Android TV na rede com a porta ADB 5555 aberta.
+    Suporta formatos: '192.168.1.0/24' ou '192.168.1.'
+    """
+    import socket
+    from concurrent.futures import ThreadPoolExecutor
+
+    base_ip = cidr_or_base.split("/")[0]
+    parts = base_ip.split(".")
+    prefix = f"{parts[0]}.{parts[1]}.{parts[2]}."
+
+    print(f"[*] A pesquisar dispositivos Android TV na sub-rede {prefix}0/24 (porta {port})...")
+    active_tvs = []
+
+    def check_ip(ip):
+        try:
+            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            s.settimeout(timeout)
+            res = s.connect_ex((ip, port))
+            s.close()
+            if res == 0:
+                return ip
+        except Exception:
+            pass
+        return None
+
+    with ThreadPoolExecutor(max_workers=50) as executor:
+        futures = [executor.submit(check_ip, f"{prefix}{i}") for i in range(1, 255)]
+        for f in futures:
+            ip = f.result()
+            if ip:
+                active_tvs.append(ip)
+
+    return active_tvs
+
+
 def create_remediation_backup(adb):
     """
     Cria um backup completo das definições e estado de pacotes ANTES de qualquer alteração,
@@ -1009,6 +1046,7 @@ if __name__ == "__main__":
     parser.add_argument("target", nargs="?", default=None, help="IP da Android TV / Target IP")
     parser.add_argument("--json", action="store_true", help="Gera apenas saída compacta em formato JSON para leitura rápida por agentes de IA (poupa tokens)")
     parser.add_argument("--lang", choices=["en", "pt"], default="pt", help="Idioma das mensagens / Interface language (pt ou en)")
+    parser.add_argument("--scan-subnet", metavar="CIDR", help="Descobre e audita automaticamente todas as Android TVs na sub-rede (ex: 192.168.1.0/24)")
     parser.add_argument("--auto-pipeline", action="store_true", help="Executa pipeline completo: instala, scan estatico, VPN 20s, recolhe logs e desinstala")
     parser.add_argument("--quick-scan", action="store_true", help="Executa o diagnóstico rápido das 5 camadas via ADB")
     parser.add_argument("--remediate", action="store_true", help="Neutraliza a box com backup prévio: repõe Play Protect, remove/desativa apps da botnet e ativa DNS seguro")
@@ -1042,30 +1080,72 @@ if __name__ == "__main__":
             setup_env.interactive_installer_menu()
         sys.exit(0)
 
+    if args.scan_subnet:
+        targets = discover_subnet_tvs(args.scan_subnet)
+        if not targets:
+            print(f"[!] Nenhum dispositivo com ADB ativo (porta 5555) encontrado na sub-rede {args.scan_subnet}.")
+            sys.exit(0)
+        print(f"\n[✓] Foram encontrados {len(targets)} dispositivo(s) com ADB: {targets}")
+        batch_results = []
+        for t_ip in targets:
+            dev = AdbDevice(t_ip)
+            dev.load_specs(silent=True)
+            res = step_quick_audit(dev, json_output=False)
+            batch_results.append(res)
+        if args.json:
+            print("\n--- BATCH JSON SUMMARY ---")
+            print(json.dumps(batch_results, indent=2, ensure_ascii=False))
+        sys.exit(0)
+
     if args.target and (args.quick_scan or args.auto_pipeline or args.remediate or args.restore or args.install_app or args.recompile_for_device or args.launch_app or args.pull_report or args.remove_app):
         adb = AdbDevice(args.target)
+        if not adb.device:
+            print(f"[!] Falha de conexao com {args.target}")
+            sys.exit(3)
+
         if args.auto_pipeline:
-            step_automated_pipeline(adb, vpn_duration=20, force_recompile=args.recompile_for_device)
+            verdict = step_automated_pipeline(adb, vpn_duration=20, force_recompile=args.recompile_for_device)
+            if "CRÍTICO" in verdict or "CRITICAL" in verdict: sys.exit(1)
+            elif "SUSP" in verdict: sys.exit(2)
+            else: sys.exit(0)
         elif args.remediate:
             step_remediate_device(adb)
+            sys.exit(0)
         elif args.restore:
-            step_restore_device(adb)
+            success = step_restore_device(adb)
+            sys.exit(0 if success else 1)
         elif args.quick_scan:
             adb.load_specs(silent=args.json)
-            step_quick_audit(adb, json_output=args.json)
+            res = step_quick_audit(adb, json_output=args.json)
+            v = res.get("verdict", "")
+            if "CRÍTICO" in v or "CRITICAL" in v: sys.exit(1)
+            elif "SUSP" in v: sys.exit(2)
+            else: sys.exit(0)
         elif args.recompile_for_device or args.install_app:
             adb.load_specs()
             step_install_custom_app(adb, force_recompile=args.recompile_for_device)
+            sys.exit(0)
         elif args.launch_app:
             step_launch_app(adb)
+            sys.exit(0)
         elif args.pull_report:
-            step_pull_report(adb)
+            verdict = step_pull_report(adb)
+            if "CRÍTICO" in verdict or "CRITICAL" in verdict: sys.exit(1)
+            elif "SUSP" in verdict: sys.exit(2)
+            else: sys.exit(0)
         elif args.remove_app:
             step_remove_app(adb)
+            sys.exit(0)
     elif args.target and not any([args.quick_scan, args.install_app, args.remediate, args.restore, args.recompile_for_device, args.launch_app, args.pull_report, args.remove_app]):
         adb = AdbDevice(args.target)
+        if not adb.device:
+            sys.exit(3)
         adb.load_specs()
-        step_quick_audit(adb)
+        res = step_quick_audit(adb)
+        v = res.get("verdict", "")
+        if "CRÍTICO" in v or "CRITICAL" in v: sys.exit(1)
+        elif "SUSP" in v: sys.exit(2)
+        else: sys.exit(0)
     else:
         default_ip = os.environ.get("TV_HOST", "192.168.1.127")
         interactive_menu(default_ip)

@@ -122,6 +122,7 @@ When executing autonomous forensic audits, invoke `tools/audit_security.py` dire
 | **Full Automated Pipeline** | `python tools/audit_security.py <IP> --auto-pipeline` | Installs APK, grants VPN silent, runs 5-layer scan, monitors network for 20s, pulls logs, evaluates scoring rules, uninstalls APK. |
 | **Fast 5-Layer ADB Scan** | `python tools/audit_security.py <IP> --quick-scan` | 100% read-only scan via ADB (checks Play Protect, C2 sockets, IoC packages, props). |
 | **Token-Optimized AI Scan (JSON)** | `python tools/audit_security.py <IP> --quick-scan --json` | **Recommended for AI Agents**: Outputs a compact, machine-readable JSON structure with exact findings, saving context tokens. |
+| **Subnet TV Discovery & Batch Audit** | `python tools/audit_security.py --scan-subnet 192.168.1.0/24` | Scans local subnet for active Android TV ADB ports (5555) and audits all found devices in parallel. |
 | **Remediate / Clean Box** | `python tools/audit_security.py <IP> --remediate` | Creates backup, re-enables Play Protect, uninstalls bots, freezes backdoors, enables secure DNS, and creates restore script. |
 | **Restore Previous State** | `python tools/audit_security.py <IP> --restore` | Restores original settings and re-enables disabled apps from the latest backup. |
 | **Automated with Custom Recompilation** | `python tools/audit_security.py <IP> --auto-pipeline --recompile-for-device` | Gathers device SoC/SDK specs, recompiles tailored APK, runs full pipeline and cleans up. |
@@ -160,13 +161,16 @@ badbox-tv-audit/
 
 ---
 
-## 10. Decision Logic and Thresholds
+## 10. Decision Logic, Thresholds & Semantic Exit Codes
 
 The deterministic rule engine evaluates risks without cloud AI calls:
 
-- **Score >= 8 OR Critical Signature found** -> `INFETADO - CRÍTICO` (>99% certainty).
+- **Score >= 8 OR Critical Signature found** -> `INFETADO - CRÍTICO` (>99% certainty). Process exit code: `1`.
   - Triggers: `package_verifier_user_consent = -1`, direct C2 IP connections (`219.134.163.210`, `:3885-3887`), or known botnet packages (`x.cpe`, `traffmonetizer`).
-- **Score >= 3 OR >=2 Anomalies** -> `SUSPEITO` (~80% certainty).
+- **Score >= 3 OR >=2 Anomalies** -> `SUSPEITO` (~80% certainty). Process exit code: `2`.
   - Triggers: Unprotected package verification (`enable = 0`), abnormal UDP/TCP outbound packets in quiet state.
-- **Score < 3** -> `LIMPO / SEGURO` (>98% certainty).
+- **Score < 3** -> `LIMPO / SEGURO` (>98% certainty). Process exit code: `0`.
   - Normal clean devices (e.g. system APK permission warnings without signatures).
+- **Target Unreachable / ADB Refused** -> Process exit code: `3`.
+
+Agents and automated CI/CD runners can inspect the shell exit code (`$LASTEXITCODE` or `$?`) immediately without parsing prose.
