@@ -17,7 +17,27 @@ It delivers:
 
 ---
 
-## 2. Environment Prerequisites & Setup (Agent Protocol)
+## 2. Agent Guiding Protocol: Preparing the Device (Developer Options & ADB)
+
+Before running any remote ADB command, agents **MUST verify connection**. If the connection fails, times out, or the user asks how to prepare the TV, the agent must clearly instruct the user on how to enable Developer Options and ADB debugging:
+
+### Standard Android TV (Android 9, 10, 11, e.g. Xiaomi, Strong, generic boxes):
+1. Navigate to **Settings (Definições)** -> **Device Preferences (Preferências do Dispositivo)** -> **About (Acerca de)**.
+2. Scroll down to **Build (Número de Compilação)** and press the remote's **OK / Center button 7 times** until the message *"You are now a developer!" ("É agora um programador!")* appears.
+3. Press Back, enter **Developer Options (Opções do Programador)**.
+4. Turn ON **USB Debugging (Depuração USB)** and **Network Debugging (Depuração de Rede)** (if available).
+5. When the prompt *"Allow USB debugging from this computer?"* pops up on the TV screen, check *"Always allow from this computer"* and select **OK**.
+
+### Google TV (Android 12, 14, e.g. Chromecast, realme, Thomson, TCL):
+1. Navigate to the top profile icon -> **Settings (Definições)** -> **System (Sistema)** -> **About (Acerca de)**.
+2. Scroll to **Android TV OS build (Versão do SO Android TV)** and click **7 times**.
+3. Press Back, go to **System (Sistema)** -> **Developer Options (Opções do Programador)**.
+4. Enable **USB Debugging (Depuração USB)**.
+5. Confirm the computer's authorization dialog on the TV screen.
+
+---
+
+## 3. Environment Prerequisites & Setup (Agent Protocol)
 
 Before running any forensic task, agents **must ensure the Python environment is ready**:
 - Python 3.9+ runtime.
@@ -29,7 +49,7 @@ Before running any forensic task, agents **must ensure the Python environment is
 
 ---
 
-## 3. Real-Time Telemetry & Log Inspection Protocol
+## 4. Real-Time Telemetry & Log Inspection Protocol
 
 Every execution of `audit_security.py` records full transcripts to `logs/session_<timestamp>.log`.
 Agents can:
@@ -38,7 +58,7 @@ Agents can:
 
 ---
 
-## 4. APK Compatibility & Autonomous On-Demand Recompilation Protocol
+## 5. APK Compatibility & Autonomous On-Demand Recompilation Protocol
 
 The repository ships with an optimized precompiled universal APK in `tools/xcpe-scanner-tv.apk` (supports SDK 21 to SDK 34).
 
@@ -59,7 +79,7 @@ However, **if the target device is legacy, exotic, or reports an install error**
 
 ---
 
-## 5. Remediation & Reversibility Protocol (Backup First)
+## 6. Remediation & Reversibility Protocol (Backup First)
 
 **Rule: Never remediate without backup.**
 When a device is verified as `INFETADO - CRÍTICO` or `SUSPEITO`, running `--remediate` **automatically performs a snapshot backup first**:
@@ -83,7 +103,7 @@ The remediation cycle operates completely inside Android:
 
 ---
 
-## 6. Non-Negotiable Operational Rules for Agents
+## 7. Non-Negotiable Operational Rules for Agents
 
 - **Zero-Damage & Reversibility**: Never disable critical core system packages (`com.android.systemui`, `com.android.settings`, Bluetooth/Wi-Fi stack).
 - **Mandatory Backup Before Change**: Every modifying operation must save original state to `backups/`.
@@ -93,7 +113,7 @@ The remediation cycle operates completely inside Android:
 
 ---
 
-## 7. CLI Agent Usage Matrix
+## 8. CLI Agent Usage Matrix
 
 When executing autonomous forensic audits, invoke `tools/audit_security.py` directly using flags:
 
@@ -111,7 +131,7 @@ When executing autonomous forensic audits, invoke `tools/audit_security.py` dire
 
 ---
 
-## 8. Repository Map
+## 9. Repository Map
 
 ```
 badbox-tv-audit/
@@ -134,7 +154,7 @@ badbox-tv-audit/
 
 ---
 
-## 9. Decision Logic and Thresholds
+## 10. Decision Logic and Thresholds
 
 The deterministic rule engine evaluates risks without cloud AI calls:
 

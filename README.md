@@ -24,6 +24,35 @@ Esta ferramenta fornece dois métodos completos para auditar e limpar a sua TV:
 
 ---
 
+## 📱 Como Preparar a TV (Ativar Modo de Programador & ADB)
+
+Para que a ferramenta via PC ou um Agente de IA consiga comunicar com a sua Android TV / Google TV através da rede Wi-Fi, necessita de ativar a **Depuração ADB**:
+
+### A. Em Android TV Padrão (Android 9, 10, 11 - ex: Xiaomi, Strong, boxes genéricas):
+1. No comando da TV, vá a **Definições (Settings)** (ícone da roda dentada) -> **Preferências do Dispositivo (Device Preferences)** -> **Acerca de (About)**.
+2. Desça até à opção **Número de Compilação (Build)**.
+3. Carregue **7 vezes seguidas no botão OK / Central do comando**, até aparecer a mensagem no ecrã: *"É agora um programador!"*.
+4. Volte atrás com o comando e entre no novo menu **Opções do Programador (Developer Options)**.
+5. Ative a opção **Depuração USB (USB Debugging)** e, se existir, **Depuração de Rede (Network Debugging)**.
+6. Na primeira ligação, irá surgir um pop-up na TV a perguntar *"Permitir depuração USB a partir deste computador?"*. Marque *"Permitir sempre"* e selecione **OK**.
+
+---
+
+### B. Em Google TV (Android 12, 14 - ex: Chromecast, realme, Thomson, TCL):
+1. No canto superior direito da TV, clique na sua foto/perfil -> **Definições (Settings)**.
+2. Selecione **Sistema (System)** -> **Acerca de (About)**.
+3. Desça até **Versão do SO Android TV (Android TV OS build)**.
+4. Carregue **7 vezes seguidas no botão OK do comando** até desbloquear o modo de programador.
+5. Volte atrás para **Sistema (System)** -> **Opções do Programador (Developer Options)**.
+6. Ative a **Depuração USB (USB Debugging)**.
+7. Confirme o pop-up de autorização na TV quando o computador se conectar.
+
+> [!TIP]
+> **Como ver o IP da sua TV:**
+> Vá a **Definições** -> **Rede e Internet** -> Clique na sua rede Wi-Fi ligada -> Veja o endereço no campo **Endereço IP** (ex: `192.168.1.127`).
+
+---
+
 ## 📺 A App Nativa Android TV (`app/`)
 
 A aplicação para Android TV foi desenhada especificamente para controlo por comando (D-Pad):
