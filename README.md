@@ -26,6 +26,31 @@ This suite provides two complete audit & cleanup paths:
 
 ---
 
+## 🤖 Using with AI Agents (Antigravity, Claude Code, Grok, Cursor, Copilot)
+
+This repository is optimized for autonomous AI coding agents. You don't need to manually run Python scripts — your agent can audit and sanitize your TV autonomously:
+
+### 1. Clone the repository
+```bash
+git clone https://github.com/Mafarricos/badbox-tv-audit.git
+cd badbox-tv-audit
+```
+
+### 2. Launch your AI Agent in the folder
+Open your favorite agent in the cloned workspace (e.g. Antigravity IDE, Claude Code CLI `claude`, Cursor, Windsurf, or Copilot).
+
+### 3. Copy & paste this prompt to your agent:
+```text
+Please read AGENTS.md and audit my Android TV box at IP <TV_IP>. 
+Check for BadBox, XCPE, Vo1d trojans, and proxyware. 
+If any threat is detected, present the findings and remediate it safely with full backup.
+```
+*(Tip: If you don't know your TV's IP address, ask the agent: `Please discover all Android TV devices on my local subnet 192.168.1.0/24 using --scan-subnet and audit them.`)*
+
+The agent will read [`AGENTS.md`](AGENTS.md), set up dependencies (`requirements.txt`), execute the deterministic zero-token-waste pipeline (`--quick-scan --json`), parse the 5 forensic layers, and apply reversible counter-measures with automatic backup snapshots.
+
+---
+
 ## 📱 Preparing Your TV (Enable Developer Options & ADB)
 
 To allow PC tools or AI agents to communicate with your TV over Wi-Fi, enable **ADB Debugging**:

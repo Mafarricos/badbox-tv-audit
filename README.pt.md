@@ -23,6 +23,31 @@ Esta ferramenta fornece dois métodos completos para auditar e limpar a sua TV:
 
 ---
 
+## 🤖 Como Usar com Agentes de IA (Antigravity, Claude Code, Grok, Cursor, Copilot)
+
+Este repositório foi expressamente otimizado para agentes de programação autónomos de IA. Não precisa de correr comandos Python manualmente — o agente faz o diagnóstico e a limpeza por si:
+
+### 1. Clonar o repositório
+```bash
+git clone https://github.com/Mafarricos/badbox-tv-audit.git
+cd badbox-tv-audit
+```
+
+### 2. Abrir o seu Agente de IA na pasta do projeto
+Abra o seu agente favorito na pasta clonada (ex: Antigravity IDE, Claude Code CLI `claude`, Cursor, Windsurf, Copilot ou Grok).
+
+### 3. Copiar e colar esta prompt para o agente:
+```text
+Lê o ficheiro AGENTS.md e faz uma auditoria à minha Android TV box no IP <IP_DA_TV>. 
+Verifica a presença de BadBox, XCPE, trojans Vo1d e proxyware. 
+Se detetares ameaças, apresenta o relatório e aplica a remediação segura com backup completo.
+```
+*(Dica: Se não souber o IP da sua TV, pode simplesmente pedir ao agente: `Descobre todos os aparelhos Android TV na minha rede local 192.168.1.0/24 através de --scan-subnet e analisa-os.`)*
+
+O agente consultará automaticamente as instruções em [`AGENTS.md`](AGENTS.md), instalará as dependências (`requirements.txt`), executará o diagnóstico com máxima poupança de tokens (`--quick-scan --json`) e aplicará a remediação com backup reversível.
+
+---
+
 ## 📱 Como Preparar a TV (Ativar Modo de Programador & ADB)
 
 Para que a ferramenta via PC ou um Agente de IA consiga comunicar com a sua Android TV / Google TV através da rede Wi-Fi, necessita de ativar a **Depuração ADB**:
