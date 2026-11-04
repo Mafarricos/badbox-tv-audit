@@ -12,7 +12,7 @@ Devices audited with 0 anomalies, valid Google certifications, untampered Play P
 
 | Brand / Model | SoC / Hardware | Android / API | Audit Status | Remediation Required? | Notes |
 |---|---|---|---|---|---|
-| *(Pending community additions)* | | | | | Submit your scan logs via GitHub Issues! |
+| **THOMSON Thomson 140G** | SEI Robotics / `YZF` (`amlogic`) | Android 12 (API 31) | **CLEAN / SAFE** (`risk_score: 0`) | **NO** | Genuine Google TV certified device built by SEI Robotics (Tier-1 ODM). No factory droppers (`com.oemservice` not present), untampered Play Protect, zero botnet indicators. |
 
 ---
 
