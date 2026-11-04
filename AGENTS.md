@@ -115,7 +115,7 @@ The remediation cycle operates completely inside Android:
 
 ## 8. CLI Agent Usage Matrix
 
-When executing autonomous forensic audits, invoke `tools/audit_security.py` directly using flags:
+When executing autonomous forensic audits, invoke `tools/audit_security.py` directly using flags. The CLI automatically detects the host OS locale (defaulting to English for international environments) and can be forced with `--lang en` or `--lang pt`:
 
 | Goal | Command | Description |
 |---|---|---|

@@ -81,26 +81,26 @@ The application is localized automatically (Portuguese if device is set to Portu
 
 ## 🚀 CLI & AI Agent Usage
 
-Both English and Portuguese are supported via `--lang en` or `--lang pt`:
+The suite **automatically detects your system language** (defaults to **English** for international users, or **Portuguese** if your operating system is in Portuguese). You can also explicitly force a language with `--lang en` or `--lang pt`:
 
 ```bash
 # 1. 100% Automated Pipeline (Install APK, 5-layer scan, 20s VPN sentinel, score, and cleanup)
-python tools/audit_security.py <TV_IP> --auto-pipeline --lang en
+python tools/audit_security.py <TV_IP> --auto-pipeline
 
 # 2. Fast 5-Layer ADB Read-Only Scan (Standard or Token-Saving JSON)
-python tools/audit_security.py <TV_IP> --quick-scan --lang en
+python tools/audit_security.py <TV_IP> --quick-scan
 python tools/audit_security.py <TV_IP> --quick-scan --json
 
 # 3. Discover and Audit all Android TVs across the Home Subnet
 python tools/audit_security.py --scan-subnet 192.168.1.0/24
 
-# 4. Autonomous Remediation (Locks Play Protect, freezes dropper, activates Private DNS DoT)
-python tools/audit_security.py <TV_IP> --remediate --lang en
+# 4. Autonomous Remediation (Locks Play Protect, freezes droppers, activates Private DNS DoT)
+python tools/audit_security.py <TV_IP> --remediate
 
 # 5. Instant Reversible Restore / Rollback
-python tools/audit_security.py <TV_IP> --restore --lang en
+python tools/audit_security.py <TV_IP> --restore
 
-# 6. Deep Forensics / Package Inspector
+# 6. Deep Forensics / Package Inspector (Supports --lang en / --lang pt)
 python tools/deep_forensics.py <TV_IP> --inspect-package <PACKAGE_NAME>
 python tools/deep_forensics.py <TV_IP> --pull-and-analyze <REMOTE_APK_PATH>
 ```

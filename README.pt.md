@@ -78,24 +78,27 @@ A aplicação deteta o idioma da box automaticamente (em Português se a TV esti
 
 ## 🚀 Utilização da Linha de Comandos (CLI) & Agentes
 
-Pode especificar o idioma pretendido através de `--lang pt` ou `--lang en`:
+A suite **deteta automaticamente o idioma do seu sistema operativo** (assume **Português** em sistemas em português, e **Inglês** por omissão internacional). Pode também forçar o idioma desejado com `--lang pt` ou `--lang en`:
 
 ```bash
 # 1. Pipeline 100% Automatizado (Instala APK, scan 5 camadas, sentinela VPN 20s, scoring e limpeza)
-python tools/audit_security.py <TV_IP> --auto-pipeline --lang pt
+python tools/audit_security.py <TV_IP> --auto-pipeline
 
 # 2. Diagnóstico Rápido ADB (Apenas Leitura - Normal ou Modo JSON para Agentes)
-python tools/audit_security.py <TV_IP> --quick-scan --lang pt
+python tools/audit_security.py <TV_IP> --quick-scan
 python tools/audit_security.py <TV_IP> --quick-scan --json
 
 # 3. Descobrir e Auditar todas as Android TVs na Rede Local (Sub-rede)
 python tools/audit_security.py --scan-subnet 192.168.1.0/24
 
 # 4. Remediação Autónoma (Tranca Play Protect, desativa droppers, ativa DNS DoT seguro)
-python tools/audit_security.py <TV_IP> --remediate --lang pt
+python tools/audit_security.py <TV_IP> --remediate
 
 # 5. Restauro Reversível Imediato
-python tools/audit_security.py <TV_IP> --restore --lang pt
+python tools/audit_security.py <TV_IP> --restore
+
+# 6. Forense Avançada / Inspeção de Pacotes (Suporta --lang pt / --lang en)
+python tools/deep_forensics.py <TV_IP> --inspect-package <NOME_DO_PACOTE>
 ```
 
 ---
