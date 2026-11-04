@@ -120,7 +120,10 @@ IOC_PACKAGES = [
     "android-grass", "com.grass", "appdnschange", "SmartPrivilege", "SmartEntertainment",
     "SmartThroughput", "EcoSaverDaemon", "titannet", "yokatv",
     "com.adups.fota", "com.adups.market", "com.charon.rocketfly", "com.ftest", "com.google.android.suite",
-    "com.google.android.services", "vo1d"
+    "com.google.android.services", "vo1d", "com.mozgame.fruitmania", "com.www.intallapp",
+    "com.swe.dgbluancher", "com.hs.app", "com.google.android.gms.stable", "com.rmk.app.AllPlayer",
+    "com.nasa.cook.CookInit", "com.sun.galaxy.lib.OceanInit", "com.goog1e.apps",
+    "com.honeygain", "com.iproyal", "pawns.app", "packetstream", "peer2profit", "repocket", "earnapp", "bitping"
 ]
 
 # 3. Ficheiros binários e scripts de persistência de malware no sistema (Vo1d, Corejava, etc.)
@@ -128,20 +131,28 @@ IOC_BINARY_PATHS = [
     "/system/xbin/vo1d",
     "/system/xbin/wd",
     "/data/google/daemon",
+    "/data/google/rild",
+    "/data/google",
     "/data/system/Corejava",
+    "/data/system/Corejava/node",
+    "/data/system/installd",
+    "/data/system/startup",
+    "/data/secondstage",
+    "/cache/secondstage",
     "/system/etc/install-recovery.sh"
 ]
 
-# 3. IPs e Portas Críticas de C2 da botnet
+# 4. IPs e Portas Críticas de C2 da botnet
 C2_IPS_PORTS = [
     "219.134.163.210", "121.4.8.146", "38.145.197.135", "38.145.197.30", "23.94.49.57",
     ":3885", ":3886", ":3887", ":22345", ":16000", ":12000", ":9992", ":9994", ":2375", ":2095", ":2082"
 ]
 
-# 4. Modelos de dispositivos historicamente visados pela botnet (Apenas Informativo - Requer Evidências)
+# 5. Modelos de dispositivos historicamente visados pela botnet (Apenas Informativo - Requer Evidências)
 TARGETED_HARDWARE_MODELS = [
     "km9", "km2", "km6", "km7", "km1", "km3", "km8", "m8s", "tx3", "h616", "h618", "t95", "q96", "leap-s1",
-    "videostrong", "mecool", "uhd google tv stb", "rmq"
+    "videostrong", "mecool", "uhd google tv stb", "rmq", "x88", "x96", "tx3mini", "t95max", "transpeed",
+    "x12-plus", "tv98", "mx10pro", "mxq9pro"
 ]
 
 
