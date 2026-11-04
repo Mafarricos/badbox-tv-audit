@@ -36,6 +36,7 @@ PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 APP_PROJECT_DIR = os.path.join(PROJECT_ROOT, "app")
 PACKAGE_NAME = "com.scanner.tv"
 
+# 1. Assinaturas de C2, Backdoors, SDKs e Infraestrutura Videostrong / Badbox
 TARGET_STRINGS = [
     b"disablePackageVerify",
     b"package_verifier_user_consent",
@@ -44,22 +45,45 @@ TARGET_STRINGS = [
     b"ott.szbboys.com",
     b"anyevonline",
     b"extstb.anyevonline.com",
+    b"mcstb.anyevonline.com",
+    b"router.anyevonline.com",
     b"Aviciiii/ott",
+    b"ktpeng2026/ott_release",
     b"lw_android_agent_special_ndk",
     b"com.abc.nexus",
     b"219.134.163.210",
-    b"filemail.com"
+    b"filemail.com",
+    b"videostrong",
+    b"yokatvonline",
+    b"titannet.io",
+    b"getgrass.io",
+    b"traffmonetizer.com",
+    b"painet.work",
+    b"dgjm.online",
+    b"uota.club",
+    b"uota.xyz"
 ]
 
+# 2. Pacotes maliciosos, backdoors OEM e proxies residenciais da campanha
 IOC_PACKAGES = [
     "x.cpe", "com.oemservice", "com.abc.nexus", "io.popanet", "gaganode",
-    "linkfog", "appsalt", "traffmonetizer", "cboxtv", "hiddenview", "moyu", "spirit"
+    "linkfog", "appsalt", "traffmonetizer", "cboxtv", "hiddenview", "moyu", "spirit",
+    "android-grass", "com.grass", "appdnschange", "SmartPrivilege", "SmartEntertainment",
+    "SmartThroughput", "EcoSaverDaemon", "titannet", "yokatv"
 ]
 
+# 3. IPs e Portas Críticas de C2 da botnet
 C2_IPS_PORTS = [
-    "219.134.163.210",
-    ":3885", ":3886", ":3887"
+    "219.134.163.210", "121.4.8.146", "38.145.197.135", "38.145.197.30", "23.94.49.57",
+    ":3885", ":3886", ":3887", ":22345", ":16000", ":12000", ":9992", ":9994", ":2375", ":2095", ":2082"
 ]
+
+# 4. Modelos de dispositivos historicamente visados pela botnet (Apenas Informativo - Requer Evidências)
+TARGETED_HARDWARE_MODELS = [
+    "km9", "km2", "km6", "km7", "km1", "km3", "km8", "m8s", "tx3", "h616", "q96", "leap-s1",
+    "videostrong", "mecool", "uhd google tv stb", "rmq"
+]
+
 
 class AdbDevice:
     def __init__(self, host):
@@ -112,6 +136,7 @@ class AdbDevice:
         print(f"[*] A carregar especificações do dispositivo {self.host}...")
         brand = self.run("getprop ro.product.brand").strip()
         model = self.run("getprop ro.product.model").strip()
+        manufacturer = self.run("getprop ro.product.manufacturer").strip()
         android_ver = self.run("getprop ro.build.version.release").strip()
         security_patch = self.run("getprop ro.build.version.security_patch").strip()
         board = self.run("getprop ro.product.board").strip()
@@ -121,6 +146,7 @@ class AdbDevice:
         self.specs = {
             "brand": brand,
             "model": model,
+            "manufacturer": manufacturer,
             "android_version": android_ver,
             "security_patch": security_patch,
             "board": board,
@@ -128,12 +154,12 @@ class AdbDevice:
             "sdk": sdk
         }
         print(f"    - Modelo: {brand} {model} (Android {android_ver}, API {sdk})")
-        print(f"    - Board/Hardware: {board} / {hardware}")
+        print(f"    - Fabricante/SoC: {manufacturer} | {board} / {hardware}")
         print(f"    - Patch de Segurança: {security_patch}")
         return self.specs
 
 
-def evaluate_forensic_results(json_data, vpn_log_lines):
+def evaluate_forensic_results(json_data, vpn_log_lines, device_specs=None):
     """
     Motor determinístico de decisão baseado em regras e pontuação ponderada.
     Sem dependência de modelos de IA.
@@ -145,6 +171,7 @@ def evaluate_forensic_results(json_data, vpn_log_lines):
     score = 0
     critical_reasons = []
     suspicious_reasons = []
+    info_warnings = []
 
     # 1. Avaliação do Relatório Estático (last_scan.json)
     if json_data:
@@ -160,9 +187,11 @@ def evaluate_forensic_results(json_data, vpn_log_lines):
             if "[CRÍTICO]" in f:
                 critical_reasons.append(f)
                 score += 8
-            elif "[SUSPEITO]" in f or "[AVISO]" in f:
+            elif "[SUSPEITO]" in f or "[ALERTA]" in f:
                 suspicious_reasons.append(f)
                 score += 2
+            elif "[AVISO INFORMATIVO]" in f:
+                info_warnings.append(f)
 
     # 2. Avaliação dos Eventos de Rede da VPN (vpn_events.log)
     if vpn_log_lines:
@@ -174,14 +203,22 @@ def evaluate_forensic_results(json_data, vpn_log_lines):
                 suspicious_reasons.append("Rede: " + line.strip())
                 score += 3
 
-    # 3. Veredito com Limiares de Decisão Exatos
+    # 3. Verificação do Modelo de Hardware (Informativo - Não conta pontos sozinho)
+    if device_specs:
+        model_str = (device_specs.get("model", "") + " " + device_specs.get("brand", "") + " " + device_specs.get("manufacturer", "")).lower()
+        for targeted in TARGETED_HARDWARE_MODELS:
+            if targeted in model_str:
+                info_warnings.append(f"Dispositivo pertence à família '{targeted}' (linha visada pela campanha Videostrong/BadBox). Veredito depende estritamente das evidências técnicas.")
+                break
+
+    # 4. Veredito com Limiares de Decisão Exatos
     print(f"Pontuação de Risco Total: {score} pontos\n")
 
     if score >= 8 or len(critical_reasons) > 0:
         verdict = "INFETADO - CRÍTICO"
         color_code = "[!]"
         confidence = ">99%"
-        desc = "Foram identificadas assinaturas irrefutáveis de malware/botnet (XCPE/BadBox)."
+        desc = "Foram identificadas evidências irrefutáveis de malware/botnet (XCPE/BadBox)."
     elif score >= 3 or len(suspicious_reasons) >= 2:
         verdict = "SUSPEITO"
         color_code = "[?]"
@@ -191,7 +228,7 @@ def evaluate_forensic_results(json_data, vpn_log_lines):
         verdict = "LIMPO / SEGURO"
         color_code = "[✓]"
         confidence = ">98%"
-        desc = "Nenhuma anomalia, código malicioso ou tentativa de conexão a botnet detetada."
+        desc = "Nenhuma evidência maliciosa ou conexão à botnet detetada."
 
     print(f"{color_code} VEREDITO FINAL: {verdict} (Grau de Certeza: {confidence})")
     print(f"    {desc}")
@@ -206,6 +243,11 @@ def evaluate_forensic_results(json_data, vpn_log_lines):
         for sr in set(suspicious_reasons):
             print(f"  * {sr}")
 
+    if info_warnings:
+        print("\nAvisos de Contexto do Hardware:")
+        for iw in set(info_warnings):
+            print(f"  * {iw}")
+
     print("================================================================================\n")
     return verdict
 
@@ -215,6 +257,17 @@ def step_quick_audit(adb):
     print(f"           DIAGNÓSTICO RÁPIDO VIA ADB (5 CAMADAS FORENSES)                      ")
     print("================================================================================")
     
+    if not adb.specs:
+        adb.load_specs()
+
+    # Verificação de Contexto de Hardware
+    model_str = (adb.specs.get("model", "") + " " + adb.specs.get("brand", "")).lower()
+    for targeted in TARGETED_HARDWARE_MODELS:
+        if targeted in model_str:
+            print(f"\n[AVISO DE CONTEXTO] Este modelo ('{adb.specs.get('model')}') coincide com linhas documentadas no relatório Synthient.")
+            print("                   Será feita uma verificação rigorosa de evidências técnicas.")
+            break
+
     print("\n[Camada 1/5] A verificar integridade do Play Protect...")
     settings_out = adb.run("settings get global package_verifier_user_consent")
     print(f"    - package_verifier_user_consent: {settings_out.strip()}")
@@ -227,9 +280,9 @@ def step_quick_audit(adb):
     pkgs = adb.run("pm list packages").splitlines()
     found_ioc_pkgs = []
     for p in pkgs:
-        p_name = p.replace("package:", "").strip()
+        p_name = p.replace("package:", "").strip().lower()
         for ioc in IOC_PACKAGES:
-            if ioc in p_name:
+            if ioc.lower() in p_name:
                 found_ioc_pkgs.append(p_name)
     if found_ioc_pkgs:
         print(f"    [!] Pacotes maliciosos detetados: {found_ioc_pkgs}")
@@ -241,7 +294,7 @@ def step_quick_audit(adb):
     found_suspicious_props = []
     for prop in props:
         for target in TARGET_STRINGS:
-            if target.decode("utf-8", errors="ignore") in prop:
+            if target.decode("utf-8", errors="ignore").lower() in prop.lower():
                 found_suspicious_props.append(prop)
     if found_suspicious_props:
         print(f"    [!] Propriedades suspeitas: {found_suspicious_props}")
@@ -424,7 +477,10 @@ def step_pull_report(adb):
         except Exception as e:
             print(f"[!] Erro ao ler log de VPN: {e}")
 
-    return evaluate_forensic_results(json_data, vpn_lines)
+    if not adb.specs:
+        adb.load_specs()
+
+    return evaluate_forensic_results(json_data, vpn_lines, device_specs=adb.specs)
 
 
 def step_remove_app(adb):
@@ -476,7 +532,7 @@ def step_automated_pipeline(adb, vpn_duration=20, force_recompile=False):
 
     print("\n================================================================================")
     print(f"  PIPELINE CONCLUÍDO COM SUCESSO: Veredito = {verdict}")
-    print("================================================================================")
+    print("================================================================================\n")
 
 
 def interactive_menu(default_ip):

@@ -20,16 +20,28 @@ public class PacketMonitorVpnService extends VpnService implements Runnable {
     private ParcelFileDescriptor mInterface;
     private boolean isRunning = false;
 
-    // 1. Portas CRÍTICAS de Malware Conhecido (XCPE, BadBox, SOCKS5 Proxies, Botnets) -> VERMELHO
+    // 1. Portas CRÍTICAS de C2, Proxies e PCDN conhecidos (XCPE, Videostrong, Airship, Linkfog, TitanNet) -> VERMELHO
     private static final Set<Integer> CRITICAL_MALWARE_PORTS = new HashSet<>(Arrays.asList(
             3885, 3886, 3887,       // Portas MQTT C2 do XCPE / szbboys
             1080, 8080, 9050, 4145, // Proxies SOCKS5 comuns em bots residenciais
-            8888, 7777, 9999, 6667  // Botnets / IRC / Troianos
+            8888, 7777, 9999, 6667, // Botnets / IRC / Troianos
+            22345,                  // Airship PCDN Overseer controller (121.4.8.146 / painet.work)
+            16000,                  // APSolo Proxy relay (bmw.bestipip.com)
+            12000,                  // Jaguar cleartext controller
+            9992, 9994,             // Linkfog agent deployment channels (bkdomain.cn)
+            2375,                   // VS/SOFT backup router (router.anyevonline.com)
+            2095, 2082              // UOTA updater endpoints (uota.club / uota.xyz)
     ));
 
-    private static final String CRITICAL_C2_IP = "219.134.163.210";
+    private static final Set<String> CRITICAL_C2_IPS = new HashSet<>(Arrays.asList(
+            "219.134.163.210",
+            "121.4.8.146",
+            "38.145.197.135",
+            "38.145.197.30",
+            "23.94.49.57"
+    ));
 
-    // 2. Portas Legítimas Habituaiss de uma Android TV em Repouso -> IGNORADAS
+    // 2. Portas Legítimas Habituais de uma Android TV em Repouso -> IGNORADAS
     private static final Set<Integer> STANDARD_PORTS = new HashSet<>(Arrays.asList(
             80, 443,                 // Web / HTTPS padrão
             53,                      // DNS
@@ -73,26 +85,31 @@ public class PacketMonitorVpnService extends VpnService implements Runnable {
 
     private void stopVpn() {
         isRunning = false;
-        try {
-            if (mInterface != null) {
+        if (mThread != null) {
+            mThread.interrupt();
+            mThread = null;
+        }
+        if (mInterface != null) {
+            try {
                 mInterface.close();
-                mInterface = null;
-            }
-        } catch (IOException ignored) {}
-        AuditLogger.log("INFO", "VPN", "Interface de monitorização VPN terminada.");
+            } catch (IOException ignored) {}
+            mInterface = null;
+        }
+        AuditLogger.log("INFO", "VPN", "Interface de monitorização VPN encerrada.");
     }
 
     @Override
     public void run() {
         try {
             Builder builder = new Builder();
-            builder.setSession("Sentinela Global TV");
-            builder.addAddress("10.0.0.2", 24);
+            builder.setSession("XCPE Sentinel VPN");
+            builder.addAddress("10.10.10.2", 32);
             builder.addRoute("0.0.0.0", 0);
+            builder.addDnsServer("8.8.8.8");
 
             mInterface = builder.establish();
             if (mInterface == null) {
-                Log.e(TAG, "Falha ao estabelecer TUN.");
+                Log.e(TAG, "Falha ao estabelecer interface VPN.");
                 return;
             }
 
@@ -100,15 +117,14 @@ public class PacketMonitorVpnService extends VpnService implements Runnable {
             FileOutputStream out = new FileOutputStream(mInterface.getFileDescriptor());
             byte[] packet = new byte[32767];
 
-            while (isRunning) {
+            while (isRunning && !Thread.currentThread().isInterrupted()) {
                 int length = in.read(packet);
                 if (length > 0) {
                     inspectPacket(packet, length);
-                    out.write(packet, 0, length);
                 }
             }
         } catch (Exception e) {
-            Log.e(TAG, "Erro na VPN: " + e.getMessage());
+            Log.e(TAG, "Erro no loop da VPN: " + e.getMessage());
         } finally {
             stopVpn();
         }
@@ -116,19 +132,17 @@ public class PacketMonitorVpnService extends VpnService implements Runnable {
 
     private void inspectPacket(byte[] data, int length) {
         if (length < 20) return;
-        int version = (data[0] >> 4) & 0x0F;
-        if (version != 4) return;
 
-        int protocol = data[9] & 0xFF; // 6 = TCP, 17 = UDP
-        int destIpOffset = 16;
-        String destIp = String.format("%d.%d.%d.%d",
-                data[destIpOffset] & 0xFF,
-                data[destIpOffset + 1] & 0xFF,
-                data[destIpOffset + 2] & 0xFF,
-                data[destIpOffset + 3] & 0xFF);
+        int version = (data[0] >> 4) & 0x0F;
+        if (version != 4) return; // Foco em IPv4
+
+        int headerLength = (data[0] & 0x0F) * 4;
+        int protocol = data[9] & 0xFF;
+
+        String destIp = (data[16] & 0xFF) + "." + (data[17] & 0xFF) + "." + (data[18] & 0xFF) + "." + (data[19] & 0xFF);
 
         int destPort = 0;
-        int headerLength = (data[0] & 0x0F) * 4;
+        String protoStr = (protocol == 6) ? "TCP" : (protocol == 17) ? "UDP" : "PROTO-" + protocol;
 
         if (protocol == 6 || protocol == 17) {
             if (length >= headerLength + 4) {
@@ -136,47 +150,46 @@ public class PacketMonitorVpnService extends VpnService implements Runnable {
             }
         }
 
-        // Ignorar tráfego local da LAN (192.168.x.x, 10.x.x.x, 127.0.0.1, 224.0.0.x multicast)
-        if (destIp.startsWith("192.168.") || destIp.startsWith("10.") || destIp.startsWith("127.") || destIp.startsWith("224.") || destIp.startsWith("239.")) {
-            return;
-        }
+        // === CASO A: AMEAÇAS CRÍTICAS DE BOTNET / C2 (VERMELHO) ===
 
-        String protoStr = (protocol == 6) ? "TCP" : "UDP";
-
-        // === CASO A: AMEAÇAS CRÍTICAS CONHECIDAS (VERMELHO) ===
-        if (CRITICAL_C2_IP.equals(destIp)) {
-            String msg = "PERIGO [CRÍTICO]: Conexão direta ao IP C2 BadBox: " + destIp + ":" + destPort + " (" + protoStr + ")";
+        // 1. Conexão direta a IP de C2 conhecido
+        if (CRITICAL_C2_IPS.contains(destIp)) {
+            String msg = "PERIGO [CRÍTICO]: Tentativa de ligação direta a IP C2 da Botnet: " + destIp + ":" + destPort + " (" + protoStr + ")";
             notifyEvent("CRITICO", msg);
             return;
         }
 
+        // 2. Conexão a portas de C2 / Proxies conhecidos
         if (CRITICAL_MALWARE_PORTS.contains(destPort)) {
             String msg = "PERIGO [CRÍTICO]: Tentativa de conexão a Porta de Botnet/Proxy: " + destIp + ":" + destPort + " (" + protoStr + ")";
             notifyEvent("CRITICO", msg);
             return;
         }
 
-        // Inspeção de DNS (Porta 53 UDP) para domínios C2 conhecidos
+        // 3. Inspeção de DNS (Porta 53 UDP) para domínios de C2 e Proxy SDKs
         if (destPort == 53 && protocol == 17 && length > headerLength + 12) {
-            String payload = new String(data, headerLength + 8, length - (headerLength + 8), StandardCharsets.ISO_8859_1);
-            if (payload.contains("szbboys") || payload.contains("anyevonline") || payload.contains("nexus")) {
-                String msg = "PERIGO [CRÍTICO DNS]: Pedido de resolução para domínio C2 malicioso: " + destIp;
+            String payload = new String(data, headerLength + 8, length - (headerLength + 8), StandardCharsets.ISO_8859_1).toLowerCase();
+            
+            if (payload.contains("szbboys") || payload.contains("anyevonline") || payload.contains("nexus")
+                    || payload.contains("titannet") || payload.contains("painet") || payload.contains("paigod")
+                    || payload.contains("getgrass") || payload.contains("traffmonetizer") || payload.contains("linkfog")
+                    || payload.contains("yokatv") || payload.contains("uota") || payload.contains("amhib")
+                    || payload.contains("creapslpinut") || payload.contains("gapslpinch") || payload.contains("bestipip")) {
+                String msg = "PERIGO [CRÍTICO DNS]: Pedido de resolução para domínio malicioso de C2/Botnet!";
                 notifyEvent("CRITICO", msg);
                 return;
             }
         }
 
         // === CASO B: ANOMALIAS DE REDE / PORTAS NÃO HABITUAIS (AMARELO) ===
-        // Se não for uma das portas padrão e legítimas de TV em repouso
         if (!STANDARD_PORTS.contains(destPort)) {
-            String msg = "ALERTA [ANOMALIA]: Tráfego em porta não habitual: " + destIp + ":" + destPort + " (" + protoStr + ")";
+            String msg = "ALERTA [ANOMALIA]: Tráfego em porta não habitual em repouso: " + destIp + ":" + destPort + " (" + protoStr + ")";
             notifyEvent("ANOMALIA", msg);
         }
     }
 
     private void notifyEvent(String level, String msg) {
         Log.w(TAG, "[" + level + "] " + msg);
-        // Grava no log permanente da box que depois é extraído pelo script
         AuditLogger.log(level, "SENTINELA_VPN", msg);
         if (sListener != null) {
             sListener.onPacketEvent(level, msg);
