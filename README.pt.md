@@ -85,6 +85,16 @@ python tools/audit_security.py <TV_IP> --restore --lang pt
 
 ---
 
+## ⚠️ Isenção de Responsabilidade (Disclaimer)
+
+Este software e ferramentas são disponibilizados estritamente para fins educativos, forenses e de investigação de cibersegurança.
+
+Realizei os testes e validações em **aparelhos pessoais meus**: as ferramentas detetaram com precisão os problemas, neutralizaram as ameaças/backdoors e os aparelhos continuaram a funcionar perfeitamente e sem qualquer anomalia. No entanto, perante a enorme diversidade de fabricantes, firmwares proprietários de operadores e versões modificadas de Android existentes no mercado, **não posso garantir a 100% a eficácia ou compatibilidade total em aparelhos que não tenham sido testados diretamente por mim**.
+
+A utilização desta ferramenta é da exclusiva responsabilidade de quem a executa. Nem o autor nem eventuais colaboradores poderão ser responsabilizados por qualquer comportamento inesperado ou instabilidade decorrente do seu uso. Recomenda-se sempre a salvaguarda dos backups gerados automaticamente na pasta `backups/`.
+
+---
+
 ## 👨‍💻 Sobre Mim & Agradecimentos
 
 Olá, sou o **Carlos Correia**! Sou um entusiasta geek e programador que sempre acompanhou e adorou o mundo das TV boxes Android. Ao longo dos anos sempre recomendei ativamente aparelhos certificados Google TV e Android TV pela sua segurança e qualidade.

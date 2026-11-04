@@ -98,6 +98,16 @@ Every remediation action creates an exact JSON snapshot under `backups/backup_<I
 
 ---
 
+## ⚠️ Disclaimer / Isenção de Responsabilidade
+
+This software is provided for educational, forensic, and security research purposes only. 
+
+I have personally tested these tools and remediation scripts on my own hardware devices: they accurately identified threats, remediated the backdoors, and all devices continued to operate normally without any loss of core streaming functionality. However, given the vast diversity of Android TV hardware, proprietary OEM firmware builds, and customized Android partitions across the market, **I cannot guarantee 100% effectiveness or complete compatibility with devices I have not directly tested**.
+
+Use this tool at your own discretion and risk. Neither the author nor contributors shall be held liable for any unexpected behavior, unintended system state, or issues resulting from the use of these scripts or application. Always keep the automatic backups generated in `backups/` handy.
+
+---
+
 ## 👨‍💻 About Me & Acknowledgments
 
 Hi, I'm **Carlos Correia**! I'm a tech enthusiast, geek, and developer who has always been passionate about the Android TV box ecosystem. For years, I have actively advocated for and recommended certified Google TV and Android TV devices to friends, family, and the community.
