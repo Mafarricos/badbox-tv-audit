@@ -10,6 +10,11 @@ local.properties
 .DS_Store
 Thumbs.db
 
-# Relatórios gerados em auditorias locais
+# Relatórios e telemetria gerados em auditorias locais
 last_scan_report.json
 vpn_events.log
+backups/
+logs/
+scratch/
+tools/adbkey/
+
