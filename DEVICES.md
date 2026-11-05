@@ -14,6 +14,8 @@ Devices audited with 0 anomalies, valid Google certifications, untampered Play P
 |---|---|---|---|---|---|
 | **THOMSON Thomson 140G** | SEI Robotics / `YZF` (`amlogic`) | Android 12 (API 31) | **CLEAN / SAFE** (`risk_score: 0`) | **NO** | Genuine Google TV certified device built by SEI Robotics (Tier-1 ODM). No factory droppers (`com.oemservice` not present), untampered Play Protect, zero botnet indicators. |
 | **Nokia Streaming Box 8000** | SEI Robotics / `HND` (`amlogic`) | Android 12 (API 31) | **CLEAN / SAFE** (`risk_score: 0`) | **NO** | Genuine Google TV / Android TV certified device built by SEI Robotics (Tier-1 ODM). No factory droppers, untampered Play Protect, zero botnet indicators (`risk_score: 0`). |
+| **Homatics Dongle G 4K** | SEI Robotics / `YQX` (`amlogic`) | Android 11 (API 30) | **CLEAN / SAFE** (`risk_score: 0`) | **NO** | Genuine Google TV certified device built by SEI Robotics (Tier-1 ODM). Verified clean of OEM droppers, untampered Play Protect, zero botnet indicators (`risk_score: 0`). |
+| **realme 4K Google TV Stick** (`HP4607_realme`) | SkyworthDigital / `HP46BY4` / `YYT` | Android 14 (API 34) | **CLEAN / SAFE** (`risk_score: 0`) | **NO** | Google TV certified build for realme by SkyworthDigital. Unlike other Skyworth-based sticks, verified free from `com.oemservice` / preset XCPE droppers, clean system image. |
 
 ---
 
