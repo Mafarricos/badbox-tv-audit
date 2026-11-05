@@ -183,11 +183,35 @@ public class PacketMonitorVpnService extends VpnService implements Runnable {
             }
         }
 
-        // === CASO B: ANOMALIAS DE REDE / PORTAS NÃO HABITUAIS (AMARELO) ===
-        if (!STANDARD_PORTS.contains(destPort)) {
-            String msg = "ALERTA [ANOMALIA]: Tráfego em porta não habitual em repouso: " + destIp + ":" + destPort + " (" + protoStr + ")";
-            notifyEvent("ANOMALIA", msg);
+        // === FILTRAGEM DE TRÁFEGO LEGÍTIMO (IGNORADO SILENCIOSAMENTE) ===
+        // 1. Tráfego de rede interna (RFC 1918, Multicast, Broadcast local, Router/Gateway)
+        boolean isLocalOrInternal = destIp.startsWith("192.168.") || destIp.startsWith("10.") || destIp.startsWith("172.16.")
+                || destIp.startsWith("172.17.") || destIp.startsWith("172.18.") || destIp.startsWith("172.19.")
+                || destIp.startsWith("172.2") || destIp.startsWith("172.3")
+                || destIp.startsWith("224.") || destIp.startsWith("239.") || destIp.equals("255.255.255.255")
+                || destIp.startsWith("127.") || destIp.startsWith("169.254.");
+
+        if (isLocalOrInternal) {
+            return; // Filtra e ignora totalmente tráfego interno/router
         }
+
+        // 2. Tráfego de infraestrutura oficial Google / Android TV (8.8.8.8, 8.8.4.4, ranges ASN Google)
+        boolean isGoogleInfra = destIp.equals("8.8.8.8") || destIp.equals("8.8.4.4")
+                || destIp.startsWith("142.250.") || destIp.startsWith("172.217.")
+                || destIp.startsWith("216.58.") || destIp.startsWith("74.125.");
+
+        if (isGoogleInfra) {
+            return; // Filtra e ignora tráfego legítimo de serviços Google/DoT
+        }
+
+        // 3. Portas padrão de internet já autorizadas
+        if (STANDARD_PORTS.contains(destPort)) {
+            return;
+        }
+
+        // === CASO B: ANOMALIA SUSPEITA REAL (EXTERNA, NÃO GOOGLE, NÃO HABITUAL) ===
+        String msg = "ALERTA [ANOMALIA]: Tráfego suspeito externo não habitual: " + destIp + ":" + destPort + " (" + protoStr + ")";
+        notifyEvent("ANOMALIA", msg);
     }
 
     private void notifyEvent(String level, String msg) {
