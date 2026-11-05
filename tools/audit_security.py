@@ -952,6 +952,7 @@ def step_automated_pipeline(adb, vpn_duration=20, force_recompile=False):
     print(f"  PIPELINE CONCLUÍDO COM SUCESSO: Veredito = {verdict}")
     print(f"  Registo integral da auditoria guardado em: {CURRENT_LOGGER.log_path}")
     print("================================================================================\n")
+    return verdict
 
 
 def interactive_menu(default_ip):
