@@ -175,30 +175,30 @@ class AdbDevice:
             print(f"[!] Erro ao inicializar conexão ADB pura: {e}")
             self.device = None
 
-    def run(self, cmd):
+    def run(self, cmd, timeout=30):
         if not self.device:
             return ""
         try:
-            res = self.device.shell(cmd)
+            res = self.device.shell(cmd, read_timeout_s=timeout)
             return res.decode("utf-8", errors="replace") if isinstance(res, bytes) else str(res)
         except Exception as e:
             return f"Erro ADB: {e}"
 
-    def push(self, local_path, remote_path):
+    def push(self, local_path, remote_path, timeout=60):
         if not self.device:
             return False
         try:
-            self.device.push(local_path, remote_path)
+            self.device.push(local_path, remote_path, transport_timeout_s=timeout, read_timeout_s=timeout)
             return True
         except Exception as e:
             print(f"[!] Erro ao enviar ficheiro via ADB: {e}")
             return False
 
-    def pull(self, remote_path, local_path):
+    def pull(self, remote_path, local_path, timeout=60):
         if not self.device:
             return False
         try:
-            self.device.pull(remote_path, local_path)
+            self.device.pull(remote_path, local_path, transport_timeout_s=timeout, read_timeout_s=timeout)
             return True
         except Exception as e:
             print(f"[!] Erro ao descarregar ficheiro via ADB: {e}")
@@ -923,11 +923,18 @@ def step_automated_pipeline(adb, vpn_duration=20, force_recompile=False):
     adb.run(f"appops set {PACKAGE_NAME} SYSTEM_ALERT_WINDOW allow")
 
     step_launch_app(adb)
-    time.sleep(2)
+    
+    # Aguarda ativamente que a app esteja aberta e em foco no ecrã da TV antes de enviar comandos de tecla
+    print("[*] A verificar foco da App no ecrã da TV...")
+    for _ in range(10):
+        top_app = adb.run("dumpsys activity activities")
+        if PACKAGE_NAME in top_app:
+            break
+        time.sleep(1)
 
     print("\n[*] A disparar Análise Estática profunda (5 Camadas)...")
     adb.run("input keyevent KEYCODE_DPAD_CENTER")
-    time.sleep(4)
+    time.sleep(5)
 
     print(f"\n[*] A ativar Sentinela VPN em tempo real (à escuta durante {vpn_duration}s)...")
     adb.run("input keyevent KEYCODE_DPAD_DOWN")
