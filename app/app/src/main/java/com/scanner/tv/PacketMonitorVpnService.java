@@ -44,11 +44,13 @@ public class PacketMonitorVpnService extends VpnService implements Runnable {
     // 2. Portas Legítimas Habituais de uma Android TV em Repouso -> IGNORADAS
     private static final Set<Integer> STANDARD_PORTS = new HashSet<>(Arrays.asList(
             80, 443,                 // Web / HTTPS padrão
-            53,                      // DNS
+            53,                      // DNS padrão
+            853,                     // DNS over TLS (DoT - Google Private DNS / Cloudflare)
             123,                     // NTP (Acerto de relógio do sistema)
             5228, 5229, 5230,        // Google Play Services / MTalk Push notifications
             8008, 8009,              // Google Cast / Chromecast local
-            5353                     // mDNS local
+            5353,                    // mDNS local
+            1900                     // SSDP / UPnP local
     ));
 
     public interface PacketListener {

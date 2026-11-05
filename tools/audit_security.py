@@ -866,18 +866,26 @@ def step_launch_app(adb):
 
 def step_pull_report(adb):
     print("\n[*] A transferir os relatórios da box para o computador...")
+    # 1. Tenta cópia a partir do armazenamento externo da app (/sdcard/Android/data/com.scanner.tv/files/)
+    # acessível diretamente sem privilégios de root nem run-as em Android 11 a 15
+    ext_base = f"/sdcard/Android/data/{PACKAGE_NAME}/files"
+    adb.run(f"cp {ext_base}/last_scan.json /data/local/tmp/report.json 2>/dev/null")
+    adb.run(f"cp {ext_base}/audit_events.log /data/local/tmp/audit_events.log 2>/dev/null")
+
+    # 2. Em fallback, tenta via run-as caso o build seja debuggable
     adb.run(f"run-as {PACKAGE_NAME} cp files/last_scan.json /data/local/tmp/report.json 2>/dev/null")
-    adb.run("chmod 666 /data/local/tmp/report.json 2>/dev/null")
-    local_json = os.path.join(PROJECT_ROOT, "last_scan_report.json")
-    
     adb.run(f"run-as {PACKAGE_NAME} cp files/audit_events.log /data/local/tmp/audit_events.log 2>/dev/null")
-    adb.run("chmod 666 /data/local/tmp/audit_events.log 2>/dev/null")
+    
+    adb.run("chmod 666 /data/local/tmp/report.json /data/local/tmp/audit_events.log 2>/dev/null")
+    local_json = os.path.join(PROJECT_ROOT, "last_scan_report.json")
     local_log = os.path.join(PROJECT_ROOT, "vpn_events.log")
 
     json_data = None
     vpn_lines = []
 
-    if adb.pull("/data/local/tmp/report.json", local_json):
+    # Tenta pull de /data/local/tmp ou diretamente do storage
+    pulled_json = adb.pull("/data/local/tmp/report.json", local_json) or adb.pull(f"{ext_base}/last_scan.json", local_json)
+    if pulled_json:
         adb.run("rm -f /data/local/tmp/report.json")
         try:
             with open(local_json, "r", encoding="utf-8") as f:
@@ -886,8 +894,15 @@ def step_pull_report(adb):
         except Exception as e:
             print(f"[!] Erro ao analisar JSON: {e}")
 
-    if adb.pull("/data/local/tmp/audit_events.log", local_log):
+    pulled_log = adb.pull("/data/local/tmp/audit_events.log", local_log) or adb.pull(f"{ext_base}/audit_events.log", local_log)
+    if pulled_log:
         adb.run("rm -f /data/local/tmp/audit_events.log")
+        try:
+            with open(local_log, "r", encoding="utf-8") as f:
+                vpn_lines = f.readlines()
+            print(f"    [✓] Registo de tráfego VPN guardado em: {local_log}")
+        except Exception as e:
+            print(f"[!] Erro ao ler log de VPN: {e}")
         try:
             with open(local_log, "r", encoding="utf-8") as f:
                 vpn_lines = f.readlines()

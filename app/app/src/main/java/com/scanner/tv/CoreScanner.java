@@ -238,7 +238,6 @@ public class CoreScanner {
 
     private static void saveScanReport(Context context, ScanResult result) {
         try {
-            File file = new File(context.getFilesDir(), "last_scan.json");
             StringBuilder sb = new StringBuilder();
             sb.append("{\n");
             sb.append("  \"timestamp\": ").append(System.currentTimeMillis()).append(",\n");
@@ -256,8 +255,15 @@ public class CoreScanner {
             sb.append("  ]\n");
             sb.append("}\n");
 
-            try (FileOutputStream fos = new FileOutputStream(file)) {
-                fos.write(sb.toString().getBytes(StandardCharsets.UTF_8));
+            byte[] bytes = sb.toString().getBytes(StandardCharsets.UTF_8);
+            try (FileOutputStream fos = new FileOutputStream(new File(context.getFilesDir(), "last_scan.json"))) {
+                fos.write(bytes);
+            }
+            File extDir = context.getExternalFilesDir(null);
+            if (extDir != null) {
+                try (FileOutputStream fos = new FileOutputStream(new File(extDir, "last_scan.json"))) {
+                    fos.write(bytes);
+                }
             }
         } catch (Exception ignored) {
         }
