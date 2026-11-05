@@ -78,13 +78,17 @@ A aplicação deteta o idioma da box automaticamente (em Português se a TV esti
 
 ## 🚀 Utilização da Linha de Comandos (CLI) & Agentes
 
-A suite **deteta automaticamente o idioma do seu sistema operativo** (assume **Português** em sistemas em português, e **Inglês** por omissão internacional). Pode também forçar o idioma desejado com `--lang pt` ou `--lang en`:
+A suite **deteta automaticamente o idioma do seu sistema operativo** (assume **Português** em sistemas em português, e **Inglês** por omissão internacional). Pode também forçar o idioma desejado com `--lang pt` ou `--lang en`.
+
+### Dois Modos de Auditoria Disponíveis:
+- **Diagnóstico Rápido ADB (`--quick-scan`)**: 100% apenas de leitura, demora 5-10 segundos, não instala nada no aparelho. Verifica todas as famílias de ameaças conhecidas (XCPE, BadBox, Vo1d, droppers, sockets C2 e integridade do Play Protect).
+- **Diagnóstico Intensivo Sentinela (`--auto-pipeline`)**: Instala a app nativa (`com.scanner.tv`), levanta uma VPN loopback local durante 20-60 segundos para inspecionar tráfego dinâmico de rede/DNS à procura de ameaças desconhecidas ou adormecidas, recolhe relatórios, avalia regras e desinstala automaticamente a app no fim.
 
 ```bash
-# 1. Pipeline 100% Automatizado (Instala APK, scan 5 camadas, sentinela VPN 20s, scoring e limpeza)
+# 1. Diagnóstico Intensivo com App (Instala APK, sentinela VPN 20s para tráfego desconhecido e limpa a box)
 python tools/audit_security.py <TV_IP> --auto-pipeline
 
-# 2. Diagnóstico Rápido ADB (Apenas Leitura - Normal ou Modo JSON para Agentes)
+# 2. Diagnóstico Rápido ADB (Ameaças conhecidas - Normal ou Modo JSON para Agentes)
 python tools/audit_security.py <TV_IP> --quick-scan
 python tools/audit_security.py <TV_IP> --quick-scan --json
 

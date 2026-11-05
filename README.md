@@ -81,13 +81,17 @@ The application is localized automatically (Portuguese if device is set to Portu
 
 ## 🚀 CLI & AI Agent Usage
 
-The suite **automatically detects your system language** (defaults to **English** for international users, or **Portuguese** if your operating system is in Portuguese). You can also explicitly force a language with `--lang en` or `--lang pt`:
+The suite **automatically detects your system language** (defaults to **English** for international users, or **Portuguese** if your operating system is in Portuguese). You can also explicitly force a language with `--lang en` or `--lang pt`.
+
+### Two Audit Modes Available:
+- **Fast 5-Layer ADB Scan (`--quick-scan`)**: 100% read-only, takes 5-10 seconds, installs nothing on the device. Audits all known threat families (XCPE, BadBox, Vo1d, droppers, active C2 sockets, and Play Protect status).
+- **Intensive Dynamic Sentinel (`--auto-pipeline`)**: Deploys the on-device TV app (`com.scanner.tv`), raises a local VPN loopback for 20-60 seconds to inspect live DNS/IP traffic looking for unknown or dormant botnets, pulls reports, evaluates rules, and automatically uninstalls the app cleanly.
 
 ```bash
-# 1. 100% Automated Pipeline (Install APK, 5-layer scan, 20s VPN sentinel, score, and cleanup)
+# 1. Intensive Dynamic Audit (Installs APK, runs 20s VPN sentinel for unknown threats, and cleans up)
 python tools/audit_security.py <TV_IP> --auto-pipeline
 
-# 2. Fast 5-Layer ADB Read-Only Scan (Standard or Token-Saving JSON)
+# 2. Fast 5-Layer ADB Read-Only Scan (Known threats triage - Standard or Token-Saving JSON)
 python tools/audit_security.py <TV_IP> --quick-scan
 python tools/audit_security.py <TV_IP> --quick-scan --json
 

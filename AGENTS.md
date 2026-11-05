@@ -105,6 +105,9 @@ The remediation cycle operates completely inside Android:
 
 ## 7. Non-Negotiable Operational Rules for Agents
 
+- **Audit Strategy: Ask User (Fast vs Intensive Sentinel)**: When asked by a user to audit or inspect a TV box for malware without specifying the mode, the agent **MUST present the choice** to the user (unless the user has a standing rule or preference configured):
+  1. **Fast 5-Layer ADB Scan (`--quick-scan`)**: Instant (5-10s), zero installation on TV, checks all known malware families (XCPE, BadBox, Vo1d, droppers, C2 sockets, Play Protect tampering).
+  2. **Intensive Dynamic Sentinel (`--auto-pipeline`)**: Deploys the native TV APK (`com.scanner.tv`), runs a local VPN sentinel to intercept live network/DNS traffic looking for unknown or novel threats, pulls reports, and automatically uninstalls the APK.
 - **Zero-Damage & Reversibility**: Never disable critical core system packages (`com.android.systemui`, `com.android.settings`, Bluetooth/Wi-Fi stack).
 - **Mandatory Backup Before Change**: Every modifying operation must save original state to `backups/`.
 - **Strict Read-Only Diagnostics by Default**: Diagnostics must never modify system properties unless `--remediate` or `--restore` is explicitly invoked.
