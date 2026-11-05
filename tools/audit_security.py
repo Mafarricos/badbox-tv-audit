@@ -934,11 +934,31 @@ def step_automated_pipeline(adb, vpn_duration=20, force_recompile=False):
 
     print("\n[*] A disparar Análise Estática profunda (5 Camadas)...")
     adb.run("input keyevent KEYCODE_DPAD_CENTER")
-    time.sleep(5)
+    
+    # Aguarda ativamente que a análise estática conclua (botão 'Neutralizar' surge quando há ameaças)
+    print("    -> A aguardar conclusão da análise estática na TV...")
+    time.sleep(7)
 
     print(f"\n[*] A ativar Sentinela VPN em tempo real (à escuta durante {vpn_duration}s)...")
+    # Quando o scan estático termina, o foco pode ir para o scrollview de logs ou manter-se no topo.
+    # Garantimos foco no botão btnVpnMonitor indo para a esquerda e descendo.
+    adb.run("input keyevent KEYCODE_DPAD_LEFT")
+    time.sleep(0.3)
     adb.run("input keyevent KEYCODE_DPAD_DOWN")
+    time.sleep(0.3)
     adb.run("input keyevent KEYCODE_DPAD_CENTER")
+    time.sleep(1.5)
+    
+    # Se surgir o diálogo nativo do sistema Android 'Pedido de ligação VPN' (com.android.vpndialogs)
+    top_window = adb.run("dumpsys window | grep -E mCurrentFocus")
+    if "vpndialogs" in top_window:
+        print("    -> A aprovar diálogo de autorização de VPN do Android...")
+        adb.run("input keyevent KEYCODE_DPAD_DOWN")
+        time.sleep(0.2)
+        adb.run("input keyevent KEYCODE_DPAD_LEFT")
+        time.sleep(0.2)
+        adb.run("input keyevent KEYCODE_DPAD_CENTER")
+        time.sleep(1.5)
     
     for remaining in range(vpn_duration, 0, -1):
         print(f"    -> Sentinela ativo a monitorizar portas e tráfego... {remaining}s restantes", end="\r")
