@@ -16,6 +16,7 @@ Devices audited with 0 anomalies, valid Google certifications, untampered Play P
 | **Nokia Streaming Box 8000** | SEI Robotics / `HND` (`amlogic`) | Android 12 (API 31) | **CLEAN / SAFE** (`risk_score: 0`) | **NO** | Genuine Google TV / Android TV certified device built by SEI Robotics (Tier-1 ODM). No factory droppers, untampered Play Protect, zero botnet indicators (`risk_score: 0`). |
 | **Homatics Dongle G 4K** | SEI Robotics / `YQX` (`amlogic`) | Android 11 (API 30) | **CLEAN / SAFE** (`risk_score: 0`) | **NO** | Genuine Google TV certified device built by SEI Robotics (Tier-1 ODM). Verified clean of OEM droppers, untampered Play Protect, zero botnet indicators (`risk_score: 0`). |
 | **realme 4K Google TV Stick** (`HP4607_realme`) | SkyworthDigital / `HP46BY4` / `YYT` | Android 14 (API 34) | **CLEAN / SAFE** (`risk_score: 0`) | **NO** | Google TV certified build for realme by SkyworthDigital. Unlike other Skyworth-based sticks, verified free from `com.oemservice` / preset XCPE droppers, clean system image. |
+| **MECOOL UHD Google TV STB** (`HP4CQ`) | SkyworthDigital / `HP4CQ` (`amlogic`) | Android 14 (API 34, Patch 2025-12-01) | **CLEAN / SAFE** (`risk_score: 0`) | **NO** | Full standalone set-top-box build by SkyworthDigital. Certified Google TV with Play Protect active (`user_consent=1`). No `com.oemservice` dropper found, 0 botnet processes, and 0 suspicious C2 connections during live VPN monitor. OEM system packages (`com.sdt.*`) verified free of backdoors. |
 
 ---
 
