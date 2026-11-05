@@ -13,6 +13,7 @@ Devices audited with 0 anomalies, valid Google certifications, untampered Play P
 | Brand / Model | SoC / Hardware | Android / API | Audit Status | Remediation Required? | Notes |
 |---|---|---|---|---|---|
 | **THOMSON Thomson 140G** | SEI Robotics / `YZF` (`amlogic`) | Android 12 (API 31) | **CLEAN / SAFE** (`risk_score: 0`) | **NO** | Genuine Google TV certified device built by SEI Robotics (Tier-1 ODM). No factory droppers (`com.oemservice` not present), untampered Play Protect, zero botnet indicators. |
+| **Nokia Streaming Box 8000** | SEI Robotics / `HND` (`amlogic`) | Android 12 (API 31) | **CLEAN / SAFE** (`risk_score: 0`) | **NO** | Genuine Google TV / Android TV certified device built by SEI Robotics (Tier-1 ODM). No factory droppers, untampered Play Protect, zero botnet indicators (`risk_score: 0`). |
 
 ---
 
