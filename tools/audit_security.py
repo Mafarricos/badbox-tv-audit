@@ -286,14 +286,15 @@ def evaluate_forensic_results(json_data, vpn_log_lines, device_specs=None):
                 break
 
     # 4. Veredito com Limiares de Decisão Exatos
+    # Só é INFETADO - CRÍTICO se houver evidências críticas comprovadas (Backdoor, C2, Play Protect desativado)
     print(f"Pontuação de Risco Total: {score} pontos\n" if get_language() == "pt" else f"Total Risk Score: {score} points\n")
 
-    if score >= 8 or len(critical_reasons) > 0:
+    if len(critical_reasons) > 0:
         verdict = "INFETADO - CRÍTICO" if get_language() == "pt" else "INFECTED - CRITICAL"
         color_code = "[!]"
         confidence = ">99%"
         desc = t("verdict_crit_desc")
-    elif score >= 3 or len(suspicious_reasons) >= 2:
+    elif len(suspicious_reasons) > 0 or score >= 4:
         verdict = "SUSPEITO" if get_language() == "pt" else "SUSPICIOUS"
         color_code = "[?]"
         confidence = "80%"
@@ -858,9 +859,10 @@ def step_install_custom_app(adb, force_recompile=False):
     return False
 
 
-def step_launch_app(adb):
+def step_launch_app(adb, auto_start=False):
     print("\n[*] A abrir a App no ecrã da TV...")
-    adb.run(f"am start -n {PACKAGE_NAME}/.MainActivity")
+    extra = " --ez auto_start true" if auto_start else ""
+    adb.run(f"am start -n {PACKAGE_NAME}/.MainActivity{extra}")
     print("    [✓] A App está aberta no ecrã da TV.")
 
 
@@ -937,9 +939,9 @@ def step_automated_pipeline(adb, vpn_duration=20, force_recompile=False):
     adb.run(f"appops set {PACKAGE_NAME} ACTIVATE_VPN allow")
     adb.run(f"appops set {PACKAGE_NAME} SYSTEM_ALERT_WINDOW allow")
 
-    step_launch_app(adb)
+    step_launch_app(adb, auto_start=True)
     
-    # Aguarda ativamente que a app esteja aberta e em foco no ecrã da TV antes de enviar comandos de tecla
+    # Aguarda ativamente que a app esteja aberta e em foco no ecrã da TV
     print("[*] A verificar foco da App no ecrã da TV...")
     for _ in range(10):
         top_app = adb.run("dumpsys activity activities")
@@ -947,24 +949,24 @@ def step_automated_pipeline(adb, vpn_duration=20, force_recompile=False):
             break
         time.sleep(1)
 
-    print("\n[*] A disparar Análise Estática profunda (5 Camadas)...")
-    adb.run("input keyevent KEYCODE_DPAD_CENTER")
-    
-    # Aguarda ativamente que a análise estática conclua (botão 'Neutralizar' surge quando há ameaças)
+    print("\n[*] Análise Estática profunda iniciada nativamente pelo ciclo de vida da App...")
+    # Aguarda que o scan estático nativo termine (a app escreve 'SCAN_ESTATICO_CONCLUIDO' nos logs)
     print("    -> A aguardar conclusão da análise estática na TV...")
-    time.sleep(7)
+    scan_done = False
+    for _ in range(25):
+        time.sleep(1)
+        ext_log = adb.run(f"cat /sdcard/Android/data/{PACKAGE_NAME}/files/audit_events.log 2>/dev/null")
+        if "SCAN_ESTATICO_CONCLUIDO" in ext_log:
+            scan_done = True
+            break
+    if not scan_done:
+        time.sleep(3)
+    print("    [✓] Análise estática concluída com sucesso.")
 
-    print(f"\n[*] A ativar Sentinela VPN em tempo real (à escuta durante {vpn_duration}s)...")
-    # Quando o scan estático termina, o foco pode ir para o scrollview de logs ou manter-se no topo.
-    # Garantimos foco no botão btnVpnMonitor indo para a esquerda e descendo.
-    adb.run("input keyevent KEYCODE_DPAD_LEFT")
-    time.sleep(0.3)
-    adb.run("input keyevent KEYCODE_DPAD_DOWN")
-    time.sleep(0.3)
-    adb.run("input keyevent KEYCODE_DPAD_CENTER")
+    print(f"\n[*] A monitorizar Sentinela VPN em tempo real (à escuta durante {vpn_duration}s)...")
+    # A app já acionou o toggleVpnMonitor() nativamente ao terminar o scan.
+    # Verificamos se surgiu o diálogo de permissão do sistema Android (com.android.vpndialogs)
     time.sleep(1.5)
-    
-    # Se surgir o diálogo nativo do sistema Android 'Pedido de ligação VPN' (com.android.vpndialogs)
     top_window = adb.run("dumpsys window | grep -E mCurrentFocus")
     if "vpndialogs" in top_window:
         print("    -> A aprovar diálogo de autorização de VPN do Android...")
@@ -981,7 +983,8 @@ def step_automated_pipeline(adb, vpn_duration=20, force_recompile=False):
     print("\n    [✓] Janela de monitorização de tráfego concluída.")
 
     print("\n[*] A desligar Sentinela VPN...")
-    adb.run("input keyevent KEYCODE_DPAD_CENTER")
+    # Para o serviço de VPN de forma limpa
+    adb.run(f"am startservice -a STOP {PACKAGE_NAME}/.PacketMonitorVpnService")
     time.sleep(1)
 
     print("\n[*] A extrair relatórios para o computador...")

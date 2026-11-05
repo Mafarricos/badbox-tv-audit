@@ -70,6 +70,12 @@ public class MainActivity extends AppCompatActivity {
         PacketMonitorVpnService.setPacketListener(this::handlePacketEvent);
 
         btnScan.requestFocus();
+
+        // Se a app for aberta através do pipeline automatizado (--auto-pipeline ou extra auto_start)
+        boolean autoStart = getIntent().getBooleanExtra("auto_start", false);
+        if (autoStart) {
+            mainHandler.postDelayed(this::startAudit, 800);
+        }
     }
 
     private void appendColoredLog(String text, int color) {
@@ -167,8 +173,17 @@ public class MainActivity extends AppCompatActivity {
                         tvSubStatus.setText(getString(R.string.substatus_infected));
                         btnRemediate.setVisibility(View.VISIBLE);
                         btnVpnMonitor.setNextFocusDownId(R.id.btnRemediate);
-                        btnRemediate.requestFocus();
                         break;
+                }
+
+                // Notifica o sistema de que a primeira fase estática terminou
+                AuditLogger.log("INFO", "STATUS", "SCAN_ESTATICO_CONCLUIDO");
+
+                // Transição sequencial inteligente: se foi chamada pelo pipeline ou auto-start,
+                // inicia de imediato a segunda fase (monitorização de rede VPN)
+                boolean autoStart = getIntent().getBooleanExtra("auto_start", false);
+                if (autoStart && !isVpnRunning) {
+                    mainHandler.postDelayed(this::toggleVpnMonitor, 1000);
                 }
             });
         });
