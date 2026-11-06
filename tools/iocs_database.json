@@ -8134,7 +8134,14 @@
   "c2_domains": [
     "bestipip.com",
     "bmw.bestipip.com",
+    "cloudbrokerapi.xyz",
+    "floporin.com",
     "rao.bestipip.com",
-    "song.bestipip.com"
+    "song.bestipip.com",
+    "zorapslwsnic.com"
+  ],
+  "botnet_packages": [
+    "com.videostrong.debugtool",
+    "x.cpe"
   ]
 }

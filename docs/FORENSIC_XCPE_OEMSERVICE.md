@@ -106,10 +106,21 @@ A descompilação de `app_xcpe_ext_sign` revelou uma estrutura avançada com mai
 |---|---|---|
 | **Domínio / Porta C2** | `bmw.bestipip.com:16000` | Relay de tráfego proxy e comando C2 |
 | **Domínios Relacionados** | `rao.bestipip.com`, `song.bestipip.com`, `bestipip.com` | Infraestrutura secundária APSolo / XCPE |
-| **Pacote Android** | `com.oemservice` | Identificador do dropper e do payload |
+| **Domínios C2 (Google GTIG)** | `zorapslwsnic.com`, `cloudbrokerapi.xyz`, `floporin.com` | Operação global desmontada pela Google Cloud |
+| **Pacote Android** | `com.oemservice`, `x.cpe` | Identificador do dropper e do payload |
 | **Ficheiro de Fábrica** | `/system/priv-app/app_xcpe_preset/app_xcpe_preset.apk` | Dropper Stage 1 (v1.2.1) |
 | **Ficheiro OEM Embutido** | `/oem/app_xcpe_ext_sign` | Payload Stage 2 pré-carregado |
 | **UID de Execução** | `1000` (`android.uid.system`) | Privilégios elevados de sistema |
+
+---
+
+## 5. Alinhamento com a Investigação Global da Google Cloud (GTIG)
+
+Esta investigação corrobora diretamente o relatório global publicado pela **Google Cloud Threat Intelligence (GTIG)** em cooperação com a Mandiant, Human Security e a Polícia Nacional do Japão:
+* **Relatório Oficial:** [Shutting the Door on the XCPE Botnet (Google Cloud)](https://cloud.google.com/blog/topics/threat-intelligence/shutting-the-door-on-the-xcpe-botnet)
+* **Atribuição:** A Google atribuiu formalmente com alta confiança o desenvolvimento e monetização da botnet XCPE à fabricante chinesa **Videostrong Technology Co.** (e respetivas subsidiárias ODM como a Skyworth/MECOOL), que embutiu deliberadamente este backdoor de fábrica em mais de 1,3 milhões de boxes em 200 países.
+* **Proibição Google:** Na sequência deste ataque à cadeia de fornecimento, a Google revogou as certificações e baniu a fabricante de produzir novos equipamentos com os serviços móveis Google (GMS).
+* **Nossa Verificação Local:** A nossa engenharia reversa sobre a versão `v6.5.0` comprova a presença dos mesmos mecanismos documentados pela Google: o uso de túneis reversos (FRP/NIO), cliente MQTT persistente, fraude de anúncios e a transformação da TV num nó proxy residencial clandestino através de `bestipip.com`.
 
 ---
 

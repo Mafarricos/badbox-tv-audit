@@ -106,10 +106,21 @@ Decompiling `app_xcpe_ext_sign` uncovered a full-featured botnet client consisti
 |---|---|---|
 | **C2 Domain / Port** | `bmw.bestipip.com:16000` | Proxy relay & command server |
 | **Associated C2 Domains** | `rao.bestipip.com`, `song.bestipip.com`, `bestipip.com` | Secondary APSolo / XCPE botnet nodes |
-| **Android Package** | `com.oemservice` | Package identity for dropper and payload |
+| **Google GTIG Disrupted C2s** | `zorapslwsnic.com`, `cloudbrokerapi.xyz`, `floporin.com` | Global infrastructure dismantled by Google Cloud |
+| **Android Package** | `com.oemservice`, `x.cpe` | Package identity for dropper and payload |
 | **Factory ROM Path** | `/system/priv-app/app_xcpe_preset/app_xcpe_preset.apk` | Stage 1 Dropper (v1.2.1) |
 | **OEM Partition Binary** | `/oem/app_xcpe_ext_sign` | Pre-staged Stage 2 Payload |
 | **Execution UID** | `1000` (`android.uid.system`) | Shared system identity |
+
+---
+
+## 5. Alignment with Google Cloud Threat Intelligence (GTIG) Takedown
+
+Our findings directly corroborate the international security advisory released by **Google Cloud Threat Intelligence (GTIG)** in partnership with Mandiant, HUMAN Security, and Japan's National Police Agency:
+* **Official Report:** [Shutting the Door on the XCPE Botnet (Google Cloud)](https://cloud.google.com/blog/topics/threat-intelligence/shutting-the-door-on-the-xcpe-botnet)
+* **Threat Actor Attribution:** Google officially concluded with high confidence that the XCPE backdoor was intentionally developed, preloaded, and monetized by Chinese ODM **Videostrong Technology Co.** (and associated ODM supply chains producing MECOOL hardware), impacting more than 1.3 million devices across 200 countries.
+* **Google Enforcement:** Google revoked ecosystem certifications and banned Videostrong and its affiliates from manufacturing new devices with Google apps/GMS.
+* **Local Validation:** Our reverse engineering of payload `v6.5.0` confirms the exact architecture documented by Google: reverse proxy tunneling (FRP/Java NIO), persistent MQTT command channels, background ad-fraud, and residential IP bandwidth theft routed via `bestipip.com:16000`.
 
 ---
 
