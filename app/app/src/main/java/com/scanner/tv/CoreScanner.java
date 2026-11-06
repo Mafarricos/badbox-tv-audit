@@ -148,13 +148,15 @@ public class CoreScanner {
             }
         }
 
-        // 5. Inspeção Estática de APKs em /oem, /system e busca por bibliotecas nativas
-        if (listener != null) listener.onProgress("[5/6] A analisar APKs e bibliotecas nativas (/oem, /vendor, /system)...");
+        // 5. Inspeção Estática de APKs em /oem, /vendor, /system/priv-app (Filtrado para otimização de I/O em eMMC e respeito a SELinux)
+        if (listener != null) listener.onProgress("[5/6] A analisar APKs e bibliotecas nativas (/oem, /vendor, /system/priv-app)...");
         for (PackageInfo pkg : installedPackages) {
             ApplicationInfo appInfo = pkg.applicationInfo;
             if (appInfo != null && appInfo.sourceDir != null) {
                 String src = appInfo.sourceDir;
-                if (src.startsWith("/oem") || src.startsWith("/vendor") || src.startsWith("/custom") || src.contains("oem")) {
+                // Respeita SELinux: usa appInfo.sourceDir que só requer permissão de travessia (x)
+                // Otimização I/O: foca em diretórios com privilégios de fábrica / droppers
+                if (src.startsWith("/oem") || src.startsWith("/vendor") || src.startsWith("/system/priv-app") || src.startsWith("/custom") || src.contains("oem")) {
                     result.scannedApks.add(src);
                     scanApkFile(src, result, listener);
                 }
@@ -238,6 +240,8 @@ public class CoreScanner {
         }
     }
 
+    private static final long MAX_DEX_SCAN_SIZE_BYTES = 15 * 1024 * 1024; // Limite de 15 MB para evitar gargalos em eMMC lentos
+
     private static void scanApkFile(String apkPath, ScanResult result, ScanProgressListener listener) {
         File apkFile = new File(apkPath);
         if (!apkFile.exists() || !apkFile.canRead()) return;
@@ -257,11 +261,30 @@ public class CoreScanner {
                 }
 
                 if (entryName.endsWith(".dex")) {
+                    // Proteção contra ficheiros DEX gigantescos que degradam eMMC
+                    long uncompressedSize = entry.getSize();
+                    if (uncompressedSize > MAX_DEX_SCAN_SIZE_BYTES) {
+                        zis.closeEntry();
+                        continue;
+                    }
+
                     ByteArrayOutputStream byteStream = new ByteArrayOutputStream();
                     int len;
+                    long totalRead = 0;
+                    boolean exceeded = false;
                     while ((len = zis.read(buffer)) > 0) {
+                        totalRead += len;
+                        if (totalRead > MAX_DEX_SCAN_SIZE_BYTES) {
+                            exceeded = true;
+                            break;
+                        }
                         byteStream.write(buffer, 0, len);
                     }
+                    if (exceeded) {
+                        zis.closeEntry();
+                        continue;
+                    }
+
                     byte[] dexBytes = byteStream.toByteArray();
 
                     for (byte[] pattern : TARGET_PATTERNS) {
