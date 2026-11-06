@@ -5754,7 +5754,7 @@
       "type": "domain",
       "value": "m3rnbvs5d.eth",
       "family": "jackskid",
-      "note": "c2_method: ens_xor | first_seen: 2026-03-23 | status: active | notes: ENS C2; text record key 'k1er4n'; IPv6\u2192IPv4 XOR 0xA5; 5 IPs (194.87.198.x + 194.58.38.x); all live 2026-03-24; 'kieran ellison' string in msg+location fields; ETH addr 0x699a...0001",
+      "note": "c2_method: ens_xor | first_seen: 2026-03-23 | status: active | notes: ENS C2; text record key 'k1er4n'; IPv6→IPv4 XOR 0xA5; 5 IPs (194.87.198.x + 194.58.38.x); all live 2026-03-24; 'kieran ellison' string in msg+location fields; ETH addr 0x699a...0001",
       "source": "github.com/deepfield/public-research jackskid/iocs"
     },
     {
@@ -7238,42 +7238,42 @@
       "type": "domain",
       "value": "empty-violet-63e1.maskify.workers.dev",
       "family": "maskify",
-      "note": "role: staging | description: v2 loader \u2014 Cloudflare Workers",
+      "note": "role: staging | description: v2 loader — Cloudflare Workers",
       "source": "github.com/deepfield/public-research maskify/iocs"
     },
     {
       "type": "domain",
       "value": "russianaltushkawantsdickinside.eth",
       "family": "maskify",
-      "note": "role: c2 | description: v2/v3 ENS name \u2014 text records 'proof' (C2 + IPFS CIDs, ChaCha20-Poly1305) and 'ZR' (mesh seed); shared by the SDK and earnify-client",
+      "note": "role: c2 | description: v2/v3 ENS name — text records 'proof' (C2 + IPFS CIDs, ChaCha20-Poly1305) and 'ZR' (mesh seed); shared by the SDK and earnify-client",
       "source": "github.com/deepfield/public-research maskify/iocs"
     },
     {
       "type": "ip",
       "value": "84.21.189.244",
       "family": "maskify",
-      "note": "role: staging+c2 | hosting: QWINS (DE) | description: v2 loader :6969 and SDK/C2 :4433 \u2014 dark since ~2026-04-23",
+      "note": "role: staging+c2 | hosting: QWINS (DE) | description: v2 loader :6969 and SDK/C2 :4433 — dark since ~2026-04-23",
       "source": "github.com/deepfield/public-research maskify/iocs"
     },
     {
       "type": "ip",
       "value": "158.94.208.131",
       "family": "maskify",
-      "note": "role: c2 | description: v2/v3 C2 :4433 (QUIC) still live; :6969 template/nc staging now dark \u2014 from ENS announcement",
+      "note": "role: c2 | description: v2/v3 C2 :4433 (QUIC) still live; :6969 template/nc staging now dark — from ENS announcement",
       "source": "github.com/deepfield/public-research maskify/iocs"
     },
     {
       "type": "ip",
       "value": "45.194.92.2",
       "family": "maskify",
-      "note": "role: staging | hosting: VPSVAULT.HOST | description: staging host \u2014 dark since ~2026-04-23 (now nginx 404)",
+      "note": "role: staging | hosting: VPSVAULT.HOST | description: staging host — dark since ~2026-04-23 (now nginx 404)",
       "source": "github.com/deepfield/public-research maskify/iocs"
     },
     {
       "type": "ip",
       "value": "162.249.125.147",
       "family": "maskify",
-      "note": "role: delivery | description: v3 cross-family APK served from :8097 (Jackskid loader infra) \u2014 host gone",
+      "note": "role: delivery | description: v3 cross-family APK served from :8097 (Jackskid loader infra) — host gone",
       "source": "github.com/deepfield/public-research maskify/iocs"
     },
     {
@@ -7308,7 +7308,7 @@
       "type": "ip",
       "value": "130.78.217.194",
       "family": "maskify",
-      "note": "role: delivery | hosting: AS204044 (Packet Star Networks, GB) | description: earnify-client delivery host \u2014 dropper 609ecf41; nc ports by arch + HTTP :8888/bot.$ARCH; same 130.78.216.0/22 block as mesh peers; 2026-07-02",
+      "note": "role: delivery | hosting: AS204044 (Packet Star Networks, GB) | description: earnify-client delivery host — dropper 609ecf41; nc ports by arch + HTTP :8888/bot.$ARCH; same 130.78.216.0/22 block as mesh peers; 2026-07-02",
       "source": "github.com/deepfield/public-research maskify/iocs"
     },
     {
@@ -7525,7 +7525,7 @@
       "type": "sha256",
       "value": "c02cee5216d15af52e63b3c4bf4d1353ba760b0301d3cf456a08f287943ac534",
       "family": "mossadproxy",
-      "note": "type: apk | size: 101813 | description: com.android.door APK wrapper (v2.4.9 versionCode 74 \u2014 older build) | malwarebazaar: not found",
+      "note": "type: apk | size: 101813 | description: com.android.door APK wrapper (v2.4.9 versionCode 74 — older build) | malwarebazaar: not found",
       "source": "github.com/deepfield/public-research mossadproxy/iocs"
     },
     {
@@ -8129,23 +8129,445 @@
       "family": "vibenet",
       "note": "arch: x86_64 | first_seen: 2026-06-23 | description: Vibenet standalone Linux build (latest generation, x86_64); no-libc/static/stripped, clang/LLD, syscalls inline; ENS dead-drop C2 (alextyler.eth/description) read via ETH RPC over HTTPS with RPC hostnames resolved via DoH; embedded hand-rolled ...",
       "source": "github.com/deepfield/public-research vibenet/iocs"
+    },
+    {
+      "type": "package",
+      "value": "x.cpe",
+      "family": "XCPE",
+      "note": "Stage 1 - Firmware Stub (comunica via MQTT e desativa Play Protect)",
+      "source": "Google GTIG / Mandiant / Human Security / BadBox 2.0 Report"
+    },
+    {
+      "type": "package",
+      "value": "com.oemservice",
+      "family": "XCPE",
+      "note": "Stage 1 - Firmware Stub alternativo assinado pela Skyworth/Videostrong",
+      "source": "Google GTIG / Mandiant / Human Security / BadBox 2.0 Report"
+    },
+    {
+      "type": "package",
+      "value": "com.abc.nexus",
+      "family": "XCPE",
+      "note": "Stage 2 - Modular Proxy Loader que recebe instrucoes via IPC para correr SDKs",
+      "source": "Google GTIG / Mandiant / Human Security / BadBox 2.0 Report"
+    },
+    {
+      "type": "package",
+      "value": "sso.authHandler",
+      "family": "XCPE",
+      "note": "Stage 2 - Privilege Escalation Dropper com binario libexploit.so",
+      "source": "Google GTIG / Mandiant / Human Security / BadBox 2.0 Report"
+    },
+    {
+      "type": "package",
+      "value": "com.ota.service",
+      "family": "XCPE",
+      "note": "Stage 3 - HiddenView AdFraud com overlays transparentes e WebViews ocultas",
+      "source": "Google GTIG / Mandiant / Human Security / BadBox 2.0 Report"
+    },
+    {
+      "type": "package",
+      "value": "newtv.cboxtv",
+      "family": "XCPE",
+      "note": "Stage 3 - CBOXTV AdFraud distribuido via XCPE",
+      "source": "Google GTIG / Mandiant / Human Security / BadBox 2.0 Report"
+    },
+    {
+      "type": "package",
+      "value": "com.vs.tvonline2",
+      "family": "XCPE",
+      "note": "Videostrong Telemetry/Config em equipamentos OEM",
+      "source": "Google GTIG / Mandiant / Human Security / BadBox 2.0 Report"
+    },
+    {
+      "type": "package",
+      "value": "com.release.debug.provider",
+      "family": "XCPE",
+      "note": "Content provider que fornece o private_url do C2",
+      "source": "Google GTIG / Mandiant / Human Security / BadBox 2.0 Report"
+    },
+    {
+      "type": "package",
+      "value": "com.mz.sdk",
+      "family": "BadBox 2.0",
+      "note": "Stage 3 - H5 WebView AdFraud descarregado pos-ativacao",
+      "source": "Google GTIG / Mandiant / Human Security / BadBox 2.0 Report"
+    },
+    {
+      "type": "package",
+      "value": "com.debby.devour",
+      "family": "BadBox",
+      "note": "Stage 2 - Residential Proxy Node configuration",
+      "source": "Google GTIG / Mandiant / Human Security / BadBox 2.0 Report"
+    },
+    {
+      "type": "package",
+      "value": "io.popanet",
+      "family": "XCPE",
+      "note": "NetNut / PopaNet proxyware residencial (iniciado pelo GaGaNode)",
+      "source": "Google GTIG / Mandiant / Human Security / BadBox 2.0 Report"
+    },
+    {
+      "type": "package",
+      "value": "gaganode",
+      "family": "XCPE",
+      "note": "GaGaNode / IPCola proxy node",
+      "source": "Google GTIG / Mandiant / Human Security / BadBox 2.0 Report"
+    },
+    {
+      "type": "package",
+      "value": "linkfog",
+      "family": "XCPE",
+      "note": "Linkfog PCDN Go proxyware node",
+      "source": "Google GTIG / Mandiant / Human Security / BadBox 2.0 Report"
+    },
+    {
+      "type": "package",
+      "value": "appsalt",
+      "family": "XCPE",
+      "note": "AppSalt proxyware residencial",
+      "source": "Google GTIG / Mandiant / Human Security / BadBox 2.0 Report"
+    },
+    {
+      "type": "file_path",
+      "value": "libanl.so",
+      "family": "BadBox 2.0",
+      "note": "Biblioteca nativa modificada carregada por com.hs.app",
+      "source": "Google GTIG / Satori Threat Intelligence"
+    },
+    {
+      "type": "file_path",
+      "value": "libexploit.so",
+      "family": "XCPE",
+      "note": "Biblioteca de escalada de privilegios com nativeAdbRoot()",
+      "source": "Google GTIG / Satori Threat Intelligence"
+    },
+    {
+      "type": "file_path",
+      "value": "libnative_keys.so",
+      "family": "XCPE",
+      "note": "Guarda chaves de API dos SDKs de proxy residencial",
+      "source": "Google GTIG / Satori Threat Intelligence"
+    },
+    {
+      "type": "file_path",
+      "value": "libjaguar.so",
+      "family": "XCPE",
+      "note": "Binario ELF 32-bit com ARM NEON SIMD para derivar ChaCha20 e loop proxy",
+      "source": "Google GTIG / Satori Threat Intelligence"
+    },
+    {
+      "type": "file_path",
+      "value": "libtraceroute.so",
+      "family": "XCPE",
+      "note": "Binario embebido para reconhecimento de rede local e rotas ASN",
+      "source": "Google GTIG / Satori Threat Intelligence"
+    },
+    {
+      "type": "file_path",
+      "value": "lw_android_agent",
+      "family": "XCPE",
+      "note": "Binario escrito em Go para proxy PCDN/FRP (Linkfog)",
+      "source": "Google GTIG / Satori Threat Intelligence"
+    },
+    {
+      "type": "file_path",
+      "value": "lw_android_agent_special_ndk_64",
+      "family": "XCPE",
+      "note": "Binario Go arm64-v8a Linkfog proxy",
+      "source": "Google GTIG / Satori Threat Intelligence"
+    },
+    {
+      "type": "file_path",
+      "value": "p.jar",
+      "family": "BadBox 2.0",
+      "note": "JAR com classe com.hs.cld.Main para descarregar novos modulos de fraude",
+      "source": "Google GTIG / Satori Threat Intelligence"
+    },
+    {
+      "type": "file_path",
+      "value": "q.jar",
+      "family": "BadBox 2.0",
+      "note": "JAR que bloqueia a remocao do backdoor",
+      "source": "Google GTIG / Satori Threat Intelligence"
+    },
+    {
+      "type": "sha256",
+      "value": "42be8f18d6006ca092de191331d38e70a0d8383db701a759466dec59a0986135",
+      "family": "XCPE",
+      "note": "XCPE - libexploit.so (Root escalation)",
+      "source": "Google GTIG / Mandiant"
+    },
+    {
+      "type": "sha256",
+      "value": "7830ce3c3222dd9b25a77a16116dcf832a24b4b9a0bc998501e12415a828fb42",
+      "family": "XCPE",
+      "note": "XCPE - libnative_keys.so (Proxy SDK keys)",
+      "source": "Google GTIG / Mandiant"
+    },
+    {
+      "type": "sha256",
+      "value": "3768f470934a111f1c3e3d098eb1392a3cb6f3e298ef5fd2a6309e6a98ee1e18",
+      "family": "XCPE",
+      "note": "XCPE - x.cpe APK sample 1",
+      "source": "Google GTIG / Mandiant"
+    },
+    {
+      "type": "sha256",
+      "value": "4f860efa8d8b9b8f35f343d524500181607a0cdc9fac35394cf16b71ff4ad1d0",
+      "family": "XCPE",
+      "note": "XCPE - x.cpe APK sample 2",
+      "source": "Google GTIG / Mandiant"
+    },
+    {
+      "type": "md5",
+      "value": "abd0b6de6fdf78234f5dab098d5dd229",
+      "family": "XCPE",
+      "note": "XCPE - lw_android_agent_special_ndk_64 (Linkfog Go Proxy)",
+      "source": "Google GTIG / Mandiant"
+    },
+    {
+      "type": "domain",
+      "value": "mqtt.szbboys.com",
+      "family": "XCPE / BadBox 2.0",
+      "note": "C2 Domain / Proxy relay",
+      "source": "Google GTIG / Mandiant / ThreatFox"
+    },
+    {
+      "type": "domain",
+      "value": "ott.szbboys.com",
+      "family": "XCPE / BadBox 2.0",
+      "note": "C2 Domain / Proxy relay",
+      "source": "Google GTIG / Mandiant / ThreatFox"
+    },
+    {
+      "type": "domain",
+      "value": "mcstb.anyevonline.com",
+      "family": "XCPE / BadBox 2.0",
+      "note": "C2 Domain / Proxy relay",
+      "source": "Google GTIG / Mandiant / ThreatFox"
+    },
+    {
+      "type": "domain",
+      "value": "extstb.anyevonline.com",
+      "family": "XCPE / BadBox 2.0",
+      "note": "C2 Domain / Proxy relay",
+      "source": "Google GTIG / Mandiant / ThreatFox"
+    },
+    {
+      "type": "domain",
+      "value": "mqtt.anyevonline.com",
+      "family": "XCPE / BadBox 2.0",
+      "note": "C2 Domain / Proxy relay",
+      "source": "Google GTIG / Mandiant / ThreatFox"
+    },
+    {
+      "type": "domain",
+      "value": "file.anyevonline.com",
+      "family": "XCPE / BadBox 2.0",
+      "note": "C2 Domain / Proxy relay",
+      "source": "Google GTIG / Mandiant / ThreatFox"
+    },
+    {
+      "type": "domain",
+      "value": "stb9gms.anyevonline.com",
+      "family": "XCPE / BadBox 2.0",
+      "note": "C2 Domain / Proxy relay",
+      "source": "Google GTIG / Mandiant / ThreatFox"
+    },
+    {
+      "type": "domain",
+      "value": "config.intermedia-arts.tv",
+      "family": "XCPE / BadBox 2.0",
+      "note": "C2 Domain / Proxy relay",
+      "source": "Google GTIG / Mandiant / ThreatFox"
+    },
+    {
+      "type": "domain",
+      "value": "feedback.intermedia-arts.tv",
+      "family": "XCPE / BadBox 2.0",
+      "note": "C2 Domain / Proxy relay",
+      "source": "Google GTIG / Mandiant / ThreatFox"
+    },
+    {
+      "type": "domain",
+      "value": "jaguar-distributor.syslogcollector.com",
+      "family": "XCPE / BadBox 2.0",
+      "note": "C2 Domain / Proxy relay",
+      "source": "Google GTIG / Mandiant / ThreatFox"
+    },
+    {
+      "type": "domain",
+      "value": "jaguar-distributor.logreporter.com",
+      "family": "XCPE / BadBox 2.0",
+      "note": "C2 Domain / Proxy relay",
+      "source": "Google GTIG / Mandiant / ThreatFox"
+    },
+    {
+      "type": "domain",
+      "value": "ipmoyu.xyz",
+      "family": "XCPE / BadBox 2.0",
+      "note": "C2 Domain / Proxy relay",
+      "source": "Google GTIG / Mandiant / ThreatFox"
+    },
+    {
+      "type": "domain",
+      "value": "file.long.tv",
+      "family": "XCPE / BadBox 2.0",
+      "note": "C2 Domain / Proxy relay",
+      "source": "Google GTIG / Mandiant / ThreatFox"
+    },
+    {
+      "type": "domain",
+      "value": "bestipip.com",
+      "family": "XCPE / BadBox 2.0",
+      "note": "C2 Domain / Proxy relay",
+      "source": "Google GTIG / Mandiant / ThreatFox"
+    },
+    {
+      "type": "domain",
+      "value": "bmw.bestipip.com",
+      "family": "XCPE / BadBox 2.0",
+      "note": "C2 Domain / Proxy relay",
+      "source": "Google GTIG / Mandiant / ThreatFox"
+    },
+    {
+      "type": "domain",
+      "value": "rao.bestipip.com",
+      "family": "XCPE / BadBox 2.0",
+      "note": "C2 Domain / Proxy relay",
+      "source": "Google GTIG / Mandiant / ThreatFox"
+    },
+    {
+      "type": "domain",
+      "value": "song.bestipip.com",
+      "family": "XCPE / BadBox 2.0",
+      "note": "C2 Domain / Proxy relay",
+      "source": "Google GTIG / Mandiant / ThreatFox"
+    },
+    {
+      "type": "domain",
+      "value": "zorapslwsnic.com",
+      "family": "XCPE / BadBox 2.0",
+      "note": "C2 Domain / Proxy relay",
+      "source": "Google GTIG / Mandiant / ThreatFox"
+    },
+    {
+      "type": "domain",
+      "value": "cloudbrokerapi.xyz",
+      "family": "XCPE / BadBox 2.0",
+      "note": "C2 Domain / Proxy relay",
+      "source": "Google GTIG / Mandiant / ThreatFox"
+    },
+    {
+      "type": "domain",
+      "value": "floporin.com",
+      "family": "XCPE / BadBox 2.0",
+      "note": "C2 Domain / Proxy relay",
+      "source": "Google GTIG / Mandiant / ThreatFox"
+    },
+    {
+      "type": "ip",
+      "value": "219.134.163.210",
+      "family": "XCPE / BadBox 2.0",
+      "note": "IP Broker MQTT C2 (XCPE / Videostrong)",
+      "source": "Google GTIG / Mandiant"
+    },
+    {
+      "type": "ip",
+      "value": "219.134.163.211",
+      "family": "XCPE / BadBox 2.0",
+      "note": "IP Broker MQTT C2 secundario",
+      "source": "Google GTIG / Mandiant"
+    },
+    {
+      "type": "ip",
+      "value": "23.94.49.57",
+      "family": "XCPE / BadBox 2.0",
+      "note": "IP Broker MQTT / C2 BadBox",
+      "source": "Google GTIG / Mandiant"
     }
   ],
   "c2_domains": [
     "anyevonline.com",
     "bestipip.com",
     "bmw.bestipip.com",
+    "catmore88.com",
     "cloudbrokerapi.xyz",
+    "config.intermedia-arts.tv",
     "extstb.anyevonline.com",
+    "feedback.intermedia-arts.tv",
+    "file.anyevonline.com",
+    "file.long.tv",
     "floporin.com",
+    "ipmoyu.com",
+    "ipmoyu.xyz",
+    "jaguar-distributor.logreporter.com",
+    "jaguar-distributor.syslogcollector.com",
     "mcstb.anyevonline.com",
+    "mqtt.anyevonline.com",
+    "mqtt.szbboys.com",
+    "ott.szbboys.com",
     "rao.bestipip.com",
     "router.anyevonline.com",
     "song.bestipip.com",
+    "stb9gms.anyevonline.com",
     "zorapslwsnic.com"
   ],
   "botnet_packages": [
+    "appsalt",
+    "com.abc.nexus",
+    "com.debby.devour",
+    "com.hs.app",
+    "com.mz.sdk",
+    "com.oemservice",
+    "com.ota.service",
+    "com.release.debug.provider",
     "com.videostrong.debugtool",
+    "com.vs.tvonline2",
+    "gaganode",
+    "io.popanet",
+    "linkfog",
+    "newtv.cboxtv",
+    "sso.authHandler",
+    "traffmonetizer",
     "x.cpe"
+  ],
+  "suspicious_ports": [
+    3885,
+    3886,
+    3887,
+    8082,
+    8083,
+    16000,
+    18083
+  ],
+  "suspicious_properties": [
+    "persist.networkstack.uninstall",
+    "persist.networkstack.skip_system_install",
+    "persist.networkstack.install_time",
+    "ro.mecool.device"
+  ],
+  "content_providers": [
+    "com.release.debug.provider"
+  ],
+  "dex_signatures": [
+    "x.cpe.util.RunCmds",
+    "x.cpe.util.ExtraReadUtils",
+    "disablePackageVerify",
+    "com.abc.nexus.service.CoreService",
+    "com.abc.nexus.service.BwmService",
+    "com.abc.nexus.service.SN4Service",
+    "LinkfogService",
+    "AdtimeService",
+    "lb102Service",
+    "com.gaganode.sdk.node.endpoint",
+    "io.popanet.Popa",
+    "com.hs.cld.Main",
+    "getAppsaltKey",
+    "getTraffmonetizerKey",
+    "nativeAdbRoot",
+    "x_ctrl_do_ctrl_msg",
+    "content://com.release.debug.provider/configs"
   ]
 }

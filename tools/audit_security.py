@@ -123,10 +123,11 @@ IOC_PACKAGES = [
     "com.google.android.services", "vo1d", "com.mozgame.fruitmania", "com.www.intallapp",
     "com.swe.dgbluancher", "com.hs.app", "com.google.android.gms.stable", "com.rmk.app.AllPlayer",
     "com.nasa.cook.CookInit", "com.sun.galaxy.lib.OceanInit", "com.goog1e.apps",
-    "com.honeygain", "com.iproyal", "pawns.app", "packetstream", "peer2profit", "repocket", "earnapp", "bitping"
+    "com.honeygain", "com.iproyal", "pawns.app", "packetstream", "peer2profit", "repocket", "earnapp", "bitping",
+    "sso.authHandler", "com.mz.sdk", "com.debby.devour", "com.ota.service", "com.videostrong.debugtool", "com.vs.tvonline2", "newtv.cboxtv"
 ]
 
-# 3. Ficheiros binários e scripts de persistência de malware no sistema (Vo1d, Corejava, etc.)
+# 3. Ficheiros binários e scripts de persistência de malware no sistema (Vo1d, Corejava, ELF/SO)
 IOC_BINARY_PATHS = [
     "/system/xbin/vo1d",
     "/system/xbin/wd",
@@ -139,13 +140,39 @@ IOC_BINARY_PATHS = [
     "/data/system/startup",
     "/data/secondstage",
     "/cache/secondstage",
-    "/system/etc/install-recovery.sh"
+    "/system/etc/install-recovery.sh",
+    "/oem/app_xcpe_ext_sign",
+    "/system/lib/libanl.so",
+    "/system/lib64/libanl.so",
+    "/vendor/lib/libanl.so",
+    "/vendor/lib64/libanl.so",
+    "/system/lib/libexploit.so",
+    "/system/lib64/libexploit.so",
+    "/system/lib/libnative_keys.so",
+    "/system/lib64/libnative_keys.so",
+    "/system/lib/libjaguar.so",
+    "/system/lib64/libjaguar.so"
 ]
 
-# 4. IPs e Portas Críticas de C2 da botnet
+# 4. Propriedades e Kill-switches de Botnet
+SUSPICIOUS_SYSTEM_PROPS = [
+    "persist.networkstack.uninstall",
+    "persist.networkstack.skip_system_install",
+    "persist.networkstack.install_time",
+    "ro.mecool.device.model",
+    "ro.hardware.skyworthdigital.soc.chipid"
+]
+
+# 5. Content Providers ocultos / de depuração de malware
+SUSPICIOUS_CONTENT_PROVIDERS = [
+    "content://com.release.debug.provider/configs"
+]
+
+# 6. IPs e Portas Críticas de C2 da botnet (incluindo MQTT e WebSockets)
 C2_IPS_PORTS = [
     "219.134.163.210", "121.4.8.146", "38.145.197.135", "38.145.197.30", "23.94.49.57",
-    ":3885", ":3886", ":3887", ":22345", ":16000", ":12000", ":9992", ":9994", ":2375", ":2095", ":2082"
+    ":3885", ":3886", ":3887", ":22345", ":16000", ":12000", ":9992", ":9994", ":2375", ":2095", ":2082",
+    ":8082", ":8083", ":18083"
 ]
 
 # 5. Modelos de dispositivos historicamente visados pela botnet (Apenas Informativo - Requer Evidências)
@@ -391,6 +418,10 @@ def step_quick_audit(adb, json_output=False):
         for target in TARGET_STRINGS:
             if target.decode("utf-8", errors="ignore").lower() in prop.lower():
                 found_suspicious_props.append(prop)
+        for sprop in SUSPICIOUS_SYSTEM_PROPS:
+            if sprop.lower() in prop.lower():
+                if prop not in found_suspicious_props:
+                    found_suspicious_props.append(prop)
     if not json_output:
         if found_suspicious_props:
             print(t("layer_3_suspicious", props=found_suspicious_props))
@@ -399,6 +430,20 @@ def step_quick_audit(adb, json_output=False):
 
     if not json_output:
         print(f"\n{t('layer_4_title')}")
+    found_providers = []
+    for prov_uri in SUSPICIOUS_CONTENT_PROVIDERS:
+        prov_out = adb.run(f"content query --uri {prov_uri} 2>&1").strip()
+        # Se retornar dados (Row: 0 ...), significa que o content provider existe e está sem permissões restritas
+        if "Row:" in prov_out or ("Exception" not in prov_out and "SecurityException" not in prov_out and "Error" not in prov_out and len(prov_out) > 0):
+            found_providers.append(f"{prov_uri} -> {prov_out[:80]}")
+    if not json_output:
+        if found_providers:
+            print(t("layer_4_provider_found", uri=found_providers))
+        else:
+            print(t("layer_4_ok"))
+
+    if not json_output:
+        print(f"\n{t('layer_5_title')}")
     netstat_out = adb.run("netstat -n -a 2>/dev/null || ss -tan 2>/dev/null")
     found_conn = []
     for line in netstat_out.splitlines():
@@ -407,17 +452,17 @@ def step_quick_audit(adb, json_output=False):
                 found_conn.append(line)
     if not json_output:
         if found_conn:
-            print(t("layer_4_c2_found", conn=found_conn))
+            print(t("layer_5_c2_found", conn=found_conn))
         else:
-            print(t("layer_4_ok"))
+            print(t("layer_5_ok"))
 
     if not json_output:
-        print(f"\n{t('layer_5_title')}")
+        print(f"\n{t('layer_6_title')}")
     oem_paths = adb.run("pm list packages -f -s").splitlines()
     if not json_output:
-        print(t("layer_5_total", count=len(oem_paths)))
+        print(t("layer_6_total", count=len(oem_paths)))
     
-    # Verificação de binários e pastas conhecidas de malware (Vo1d, Corejava)
+    # Verificação de binários, ELF/SO e pastas conhecidas de malware (Vo1d, Corejava, Stage 2 payload)
     found_binaries = []
     for b_path in IOC_BINARY_PATHS:
         check = adb.run(f"ls -ld {b_path} 2>/dev/null").strip()
@@ -425,9 +470,9 @@ def step_quick_audit(adb, json_output=False):
             found_binaries.append(b_path)
     if not json_output:
         if found_binaries:
-            print(f"    [!] ALERTA CRÍTICO: Ficheiros de persistência detetados (Vo1d/Corejava): {found_binaries}")
+            print(t("layer_6_bin_found", bins=found_binaries))
         else:
-            print(t("layer_5_ok"))
+            print(t("layer_6_ok"))
 
     # Cálculo Determinístico de Risco para saída JSON
     risk_score = 0
@@ -435,6 +480,7 @@ def step_quick_audit(adb, json_output=False):
     if found_ioc_pkgs: risk_score += 10 * len(found_ioc_pkgs)
     if found_conn: risk_score += 10 * len(found_conn)
     if found_binaries: risk_score += 10 * len(found_binaries)
+    if found_providers: risk_score += 10 * len(found_providers)
     if found_suspicious_props: risk_score += 5 * len(found_suspicious_props)
 
     if risk_score >= 8:
@@ -452,6 +498,7 @@ def step_quick_audit(adb, json_output=False):
         "play_protect_tampered": play_protect_disabled,
         "active_ioc_packages": found_ioc_pkgs,
         "neutralized_ioc_packages": neutralized_ioc_pkgs,
+        "exposed_content_providers": found_providers,
         "suspicious_binaries": found_binaries,
         "active_c2_connections": found_conn,
         "suspicious_props": found_suspicious_props,

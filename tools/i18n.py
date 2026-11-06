@@ -44,30 +44,36 @@ MESSAGES = {
         "specs_patch": "    - Security Patch: {patch}",
         
         # Layer 1: Play Protect
-        "layer_1_title": "[Layer 1/5] Checking Google Play Protect integrity...",
+        "layer_1_title": "[Layer 1/6] Checking Google Play Protect integrity...",
         "layer_1_crit": "    [!] CRITICAL ALERT: Play Protect was forced OFF (-1)!",
         "layer_1_ok": "    [✓] Play Protect is not disabled.",
         
         # Layer 2: IoCs & Packages
-        "layer_2_title": "[Layer 2/5] Scanning installed packages against IoC database...",
+        "layer_2_title": "[Layer 2/6] Scanning installed packages against IoC database...",
         "layer_2_active_threat": "    [!] ACTIVE malicious packages detected: {pkgs}",
         "layer_2_frozen": "    [✓] Suspicious packages detected but NEUTRALIZED / FROZEN: {pkgs}",
         "layer_2_clean": "    [✓] No known botnet packages detected ({count} packages scanned).",
         
-        # Layer 3: Build props
-        "layer_3_title": "[Layer 3/5] Verifying system properties (Build Props)...",
-        "layer_3_suspicious": "    [!] Suspicious properties found: {props}",
+        # Layer 3: Build props & Kill Switches
+        "layer_3_title": "[Layer 3/6] Verifying system properties and botnet kill-switches...",
+        "layer_3_suspicious": "    [!] Suspicious properties / kill-switches found: {props}",
         "layer_3_ok": "    [✓] No system properties tampered by BadBox/XCPE.",
+
+        # Layer 4: Content Providers & IPC
+        "layer_4_title": "[Layer 4/6] Probing hidden Content Providers & IPC interfaces...",
+        "layer_4_provider_found": "    [!] UNRESTRICTED Content Provider detected: {uri}",
+        "layer_4_ok": "    [✓] No exposed malicious Content Providers detected.",
         
-        # Layer 4: Sockets
-        "layer_4_title": "[Layer 4/5] Inspecting active network sockets and C2 connections...",
-        "layer_4_c2_found": "    [!] Real-time C2 connection detected: {conn}",
-        "layer_4_ok": "    [✓] No active connections to botnet C2 IPs/ports.",
+        # Layer 5: Sockets & Network
+        "layer_5_title": "[Layer 5/6] Inspecting active network sockets, MQTT and C2 connections...",
+        "layer_5_c2_found": "    [!] Real-time C2 connection detected: {conn}",
+        "layer_5_ok": "    [✓] No active connections to botnet C2 IPs/ports.",
         
-        # Layer 5: OEM
-        "layer_5_title": "[Layer 5/5] Auditing OEM system APK signatures...",
-        "layer_5_total": "    - Total system packages analyzed: {count}",
-        "layer_5_ok": "    [✓] System partition sampling complete.",
+        # Layer 6: Native ELF & Partition Integrity
+        "layer_6_title": "[Layer 6/6] Auditing native ELF binaries (.so), OEM payloads & Vo1d persistence...",
+        "layer_6_bin_found": "    [!] CRITICAL ALERT: Persistence / backdoor binaries detected: {bins}",
+        "layer_6_total": "    - Total system packages analyzed: {count}",
+        "layer_6_ok": "    [✓] System partitions & native libraries verified clean.",
         
         # Remediation
         "remediation_backup": "[*] Creating reversible backup snapshot in backups/...",
@@ -177,30 +183,36 @@ MESSAGES = {
         "specs_patch": "    - Patch de Segurança: {patch}",
         
         # Camada 1: Play Protect
-        "layer_1_title": "[Camada 1/5] A verificar integridade do Play Protect...",
-        "layer_1_crit": "    [!] ALERTA CRÍTICO: O Play Protect foi forçado a DESLIGAR (-1)!",
-        "layer_1_ok": "    [✓] Play Protect não está forçado a desligar.",
+        "layer_1_title": "[Camada 1/6] A verificar integridade do Google Play Protect...",
+        "layer_1_crit": "    [!] ALERTA CRÍTICO: O Play Protect foi forçado a desligar (-1)!",
+        "layer_1_ok": "    [✓] Play Protect não está desativado.",
         
-        # Camada 2: IoCs & Pacotes
-        "layer_2_title": "[Camada 2/5] A analisar pacotes instalados contra lista de IoCs...",
+        # Camada 2: IoCs e Pacotes
+        "layer_2_title": "[Camada 2/6] A verificar pacotes instalados contra a base de IoCs...",
         "layer_2_active_threat": "    [!] Pacotes maliciosos ATIVOS detetados: {pkgs}",
-        "layer_2_frozen": "    [✓] Pacotes suspeitos identificados mas NEUTRALIZADOS / CONGELADOS: {pkgs}",
-        "layer_2_clean": "    [✓] Nenhum pacote de botnet detetado ({count} pacotes analisados).",
+        "layer_2_frozen": "    [✓] Pacotes suspeitos detetados mas CONGELADOS / INATIVOS: {pkgs}",
+        "layer_2_clean": "    [✓] Nenhum pacote conhecido de botnet detetado ({count} analisados).",
         
-        # Camada 3: Build props
-        "layer_3_title": "[Camada 3/5] A verificar propriedades do sistema (Build Props)...",
-        "layer_3_suspicious": "    [!] Propriedades suspeitas encontradas: {props}",
-        "layer_3_ok": "    [✓] Nenhuma propriedade adulterada por BadBox.",
+        # Camada 3: Build props & Kill Switches
+        "layer_3_title": "[Camada 3/6] A verificar propriedades de sistema e kill-switches...",
+        "layer_3_suspicious": "    [!] Propriedades suspeitas / kill-switches detetados: {props}",
+        "layer_3_ok": "    [✓] Nenhuma propriedade adulterada por BadBox/XCPE.",
+
+        # Camada 4: Content Providers & IPC
+        "layer_4_title": "[Camada 4/6] A sondar Content Providers ocultos e canais IPC...",
+        "layer_4_provider_found": "    [!] Content Provider ABERTO detetado: {uri}",
+        "layer_4_ok": "    [✓] Nenhum Content Provider malicioso exposto detetado.",
         
-        # Camada 4: Sockets
-        "layer_4_title": "[Camada 4/5] A verificar sockets de rede ativos e conexões C2...",
-        "layer_4_c2_found": "    [!] Conexão em tempo real ao C2 detetada: {conn}",
-        "layer_4_ok": "    [✓] Nenhuma conexão ativa aos IPs/portas da botnet.",
+        # Camada 5: Sockets & Rede
+        "layer_5_title": "[Camada 5/6] A verificar sockets de rede ativos, MQTT e conexões C2...",
+        "layer_5_c2_found": "    [!] Conexão em tempo real ao C2 detetada: {conn}",
+        "layer_5_ok": "    [✓] Nenhuma conexão ativa aos IPs/portas da botnet.",
         
-        # Camada 5: OEM
-        "layer_5_title": "[Camada 5/5] Amostragem de APKs OEM do sistema...",
-        "layer_5_total": "    - Total de pacotes de sistema encontrados: {count}",
-        "layer_5_ok": "    [✓] Amostragem concluída.",
+        # Camada 6: Binários Nativos ELF & Partições
+        "layer_6_title": "[Camada 6/6] Auditoria a binários nativos ELF (.so), payloads OEM e persistência Vo1d...",
+        "layer_6_bin_found": "    [!] ALERTA CRÍTICO: Ficheiros de persistência / backdoors detetados: {bins}",
+        "layer_6_total": "    - Total de pacotes de sistema encontrados: {count}",
+        "layer_6_ok": "    [✓] Partições de sistema e bibliotecas nativas verificadas limpas.",
         
         # Remediação
         "remediation_backup": "[*] A criar BACKUP de segurança reversível em backups/...",

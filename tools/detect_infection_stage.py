@@ -80,9 +80,13 @@ def analyze_device_infection_stage(host):
         job_out = adb.run(f"dumpsys jobscheduler 2>/dev/null | grep -E 'JOB #.*{pkg}'")
         has_jobs = bool(job_out.strip())
 
-        # 4. Verificação de Payload pré-carregado na partição /oem
+        # 4. Verificação de Payload pré-carregado na partição /oem e bibliotecas nativas ELF (.so)
         oem_payload_out = adb.run("ls -la /oem/app_xcpe_ext_sign 2>/dev/null")
         has_oem_payload = "app_xcpe_ext_sign" in oem_payload_out
+        
+        # Sondagem de Content Provider malicioso
+        prov_out = adb.run("content query --uri content://com.release.debug.provider/configs 2>&1").strip()
+        has_unrestricted_provider = ("Row:" in prov_out or ("Exception" not in prov_out and len(prov_out) > 0 and "Error" not in prov_out))
 
         # Classificação de Estágio
         is_in_data = any("/data/app" in p for p in apk_paths)
@@ -94,6 +98,8 @@ def analyze_device_infection_stage(host):
         print(f"    - Ficheiros no Disco: {', '.join(apk_paths)}")
         if has_oem_payload:
             print("    [📦] PAYLOAD OEM EM DISCO: /oem/app_xcpe_ext_sign detetado (Stage 2 pré-carregado de fábrica!)")
+        if has_unrestricted_provider:
+            print("    [🔓] CONTENT PROVIDER EXPOSTO: content://com.release.debug.provider/configs acessível sem autenticação!")
         
         if is_in_data:
             print("    [🚨] ESTÁGIO 2 (BOTNET ATIVA): Carga descarregada em /data/app!")
