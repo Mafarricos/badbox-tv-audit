@@ -92,16 +92,19 @@ python tools/audit_security.py <TV_IP> --auto-pipeline
 python tools/audit_security.py <TV_IP> --quick-scan
 python tools/audit_security.py <TV_IP> --quick-scan --json
 
-# 3. Descobrir e Auditar todas as Android TVs na Rede Local (Sub-rede)
+# 3. Classificador de Estágio de Infeção (Diferencia Estágio 1 dropper vs Estágio 2 ativo e payload /oem)
+python tools/detect_infection_stage.py <TV_IP>
+
+# 4. Descobrir e Auditar todas as Android TVs na Rede Local (Sub-rede)
 python tools/audit_security.py --scan-subnet 192.168.1.0/24
 
-# 4. Remediação Autónoma (Tranca Play Protect, desativa droppers, ativa DNS DoT seguro)
+# 5. Remediação Autónoma (Tranca Play Protect, desativa droppers, ativa DNS DoT seguro)
 python tools/audit_security.py <TV_IP> --remediate
 
-# 5. Restauro Reversível Imediato
+# 6. Restauro Reversível Imediato
 python tools/audit_security.py <TV_IP> --restore
 
-# 6. Forense Avançada / Inspeção de Pacotes (Suporta --lang pt / --lang en)
+# 7. Forense Avançada / Inspeção de Pacotes (Suporta --lang pt / --lang en)
 python tools/deep_forensics.py <TV_IP> --inspect-package <NOME_DO_PACOTE>
 ```
 

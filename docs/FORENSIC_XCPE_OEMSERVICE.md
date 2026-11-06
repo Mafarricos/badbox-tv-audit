@@ -55,7 +55,9 @@ flowchart TD
 ### Fase 2: O Payload da Botnet Ativa (Stage 2)
 * **Origem:** `/oem/app_xcpe_ext_sign` (ou descarregado remotamente via C2).
 * **Destino de Execução:** `/data/app/~~.../com.oemservice-.../base.apk`
-* **Versão Identificada:** `6.5.0.20230804.alpha` (VersionCode 43)
+* **Versões Identificadas:**
+  * `v6.5.0.20230804.alpha` (VersionCode 43) — MECOOL Stick `.160` (com proxy APSolo hardcoded).
+  * `v6.8.9` (VersionCode 63) — Mecool UHD Stick `.144` (com C2 dinâmico `anyevonline.com`, shell remoto e ransomware de bloqueio de ecrã).
 * **Target SDK:** API 28 (Android 9 Pie) — rebaixamento deliberado de API para evitar restrições modernas de background e privacidade do Android 10+.
 
 ---
@@ -64,7 +66,7 @@ flowchart TD
 
 A descompilação de `app_xcpe_ext_sign` revelou uma estrutura avançada com mais de 7.000 ficheiros e módulos divididos por finalidade:
 
-### 3.1. Proxyware Residencial Clandestino (`APSolo Proxy`)
+### 3.1. Proxyware Residencial Clandestino (`APSolo Proxy` na v6.5.0)
 * **Pacote Obfuscado:** `a.a.a.*`
 * **Identificador de Log:** `solo_ProxyLogger`
 * **C2 / Relay Endpoint:**
@@ -80,7 +82,23 @@ A descompilação de `app_xcpe_ext_sign` revelou uma estrutura avançada com mai
   * Cria conexões TCP assíncronas reversas para o IP/porta do servidor `bestipip.com:16000`.
   * Encaminha conexões externas da Internet através do endereço IP residencial da vítima, transformando a Android TV num nó de rede proxy comercializado na darkweb ou redes de proxy residencial (estilo botnet BadBox / APSolo).
 
-### 3.2. Fraude de Publicidade Invisível (`AdvertiseService`)
+### 3.2. Nova Infraestrutura Dinâmica C2 e RCE (Evolução na v6.8.9)
+Na versão mais recente (`v6.8.9`), a botnet evoluiu significativamente:
+* **Host C2 Principal:** `extstb.anyevonline.com:8000` (`UrlBuilder.java` e `BuildUtils.java`).
+* **Endpoints de Provisionamento Dinâmico:**
+  * `/router/config/mqtt`: Descarrega as credenciais dinâmicas do broker MQTT.
+  * `/router/config/acs`: Configurações de gestão e telemetria remota.
+  * `/router/config/app`: Lista de aplicações a serem instaladas furtivamente na TV.
+* **Módulo de Shell Remoto Arbitrário (`x.cpe.shell.*`):**
+  * Inclui `CommandExecutor.java` e `ShellUtils.java` com métodos `execCommand("echo root", true)` para execução arbitrária de comandos `sh` ou `su`.
+* **Capacidade de Ransomware / Bloqueio Físico (`LockedDialog`):**
+  * Cria uma janela do tipo `TYPE_APPLICATION_OVERLAY` / `TYPE_SYSTEM_ERROR` (Type 2038) não cancelável (`setCancelable(false)`):
+    ```text
+    "The device is locked, please contact the administrator"
+    ```
+  * Bloqueia completamente o ecrã da TV e anula a interação com o comando físico da televisão.
+
+### 3.3. Fraude de Publicidade Invisível (`AdvertiseService`)
 * **Componente:** `x.cpe.service.AdvertiseService`
 * **Configuração:** `x.cpe.ServerConfig.java`
 * **Campos Extraídos:**
@@ -91,8 +109,8 @@ A descompilação de `app_xcpe_ext_sign` revelou uma estrutura avançada com mai
 * **Técnica Anti-Crash:**
   * Implementa um `ANRWatchDog` interno de 10 segundos: se a renderização oculta de anúncios bloquear o sistema da TV, o serviço termina-se a si próprio silenciosamente para a Google TV não exibir a mensagem *"Aplicação não responde"*.
 
-### 3.3. Comando e Controlo Remoto Persistente via MQTT
-* **Componente:** `org.eclipse.paho.android.service.MqttService`
+### 3.4. Comando e Controlo Remoto Persistente via MQTT
+* **Componente:** `org.eclipse.paho.android.service.MqttService` / `x.cpe.mqtt.MqttUtils`
 * **Certificado Criptográfico:** `res/raw/cacert.pem`
 * **Mecanismo:**
   * Mantém um canal bidirecional TLS permanente com a infraestrutura C2.

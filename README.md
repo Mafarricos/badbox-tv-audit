@@ -95,16 +95,19 @@ python tools/audit_security.py <TV_IP> --auto-pipeline
 python tools/audit_security.py <TV_IP> --quick-scan
 python tools/audit_security.py <TV_IP> --quick-scan --json
 
-# 3. Discover and Audit all Android TVs across the Home Subnet
+# 3. Infection Stage Classifier (Distinguish Stage 1 factory dropper vs Stage 2 active payload & /oem check)
+python tools/detect_infection_stage.py <TV_IP>
+
+# 4. Discover and Audit all Android TVs across the Home Subnet
 python tools/audit_security.py --scan-subnet 192.168.1.0/24
 
-# 4. Autonomous Remediation (Locks Play Protect, freezes droppers, activates Private DNS DoT)
+# 5. Autonomous Remediation (Locks Play Protect, freezes droppers, activates Private DNS DoT)
 python tools/audit_security.py <TV_IP> --remediate
 
-# 5. Instant Reversible Restore / Rollback
+# 6. Instant Reversible Restore / Rollback
 python tools/audit_security.py <TV_IP> --restore
 
-# 6. Deep Forensics / Package Inspector (Supports --lang en / --lang pt)
+# 7. Deep Forensics / Package Inspector (Supports --lang en / --lang pt)
 python tools/deep_forensics.py <TV_IP> --inspect-package <PACKAGE_NAME>
 python tools/deep_forensics.py <TV_IP> --pull-and-analyze <REMOTE_APK_PATH>
 ```

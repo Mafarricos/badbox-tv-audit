@@ -135,6 +135,7 @@ When executing autonomous forensic audits, invoke `tools/audit_security.py` dire
 | **Pull & Score Reports** | `python tools/audit_security.py <IP> --pull-report` | Extracts `last_scan.json` and `vpn_events.log`, executes the rule engine, prints verdict. |
 | **Clean Up / Uninstall** | `python tools/audit_security.py <IP> --remove-app` | Removes `com.scanner.tv` from the device. |
 | **Deep Reverse Engineering / Inspection** | `python tools/deep_forensics.py <IP> --inspect-package <PKG>` | Extracts package details, UID 1000 system permissions, and declared receivers. |
+| **Infection Stage Classification (Stage 1 vs 2)** | `python tools/detect_infection_stage.py <IP>` | Differentiates Stage 1 factory dropper vs Stage 2 `/data/app` or `/oem` active botnet payload, verifies memory processes and alarms. |
 | **Pull & Analyze Remote APK Dex Strings** | `python tools/deep_forensics.py <IP> --pull-and-analyze <REMOTE_PATH>` | Pulls APK to `scratch/pulled/` and reverse-engineers classes, URLs, and dropper strings. |
 | **Scan System Partitions for Droppers** | `python tools/deep_forensics.py <IP> --scan-oem-droppers` | Fast deep hunt for XCPE, Titan, Grass, Yoka files in `/system`, `/vendor`, `/oem`. |
 | **Dump TV Network Sockets** | `python tools/deep_forensics.py <IP> --dump-network-state` | Dumps active TCP/UDP sockets and listening ports directly from the TV. |
@@ -154,6 +155,7 @@ badbox-tv-audit/
 │   └── gradlew / build   # Gradle build system
 ├── tools/
 │   ├── audit_security.py # Main forensic orchestrator, remediation & restore engine
+│   ├── detect_infection_stage.py # Stage 1 dropper vs Stage 2 active payload classifier & OEM hunter
 │   ├── deep_forensics.py # Specialized reverse-engineering, package inspector & string analyzer
 │   ├── setup_env.py      # Python environment and SDK toolchain configurator
 │   ├── tv.py             # Pure Python ADB protocol client (no system adb required)

@@ -55,7 +55,9 @@ flowchart TD
 ### Stage 2: The Active Botnet Payload
 * **Source:** `/oem/app_xcpe_ext_sign` (or downloaded dynamically from C2).
 * **Execution Path:** `/data/app/~~.../com.oemservice-.../base.apk`
-* **Identified Version:** `6.5.0.20230804.alpha` (VersionCode 43)
+* **Identified Versions:**
+  * `v6.5.0.20230804.alpha` (VersionCode 43) — Recovered from MECOOL Stick `.160` (features hardcoded APSolo proxy).
+  * `v6.8.9` (VersionCode 63) — Recovered from Mecool UHD Stick `.144` (features dynamic C2 `anyevonline.com`, remote shell execution, and screen-lock ransomware).
 * **Target SDK:** API 28 (Android 9 Pie) — deliberately targeted to bypass modern background execution limits and privacy restrictions enforced in Android 10+.
 
 ---
@@ -64,7 +66,7 @@ flowchart TD
 
 Decompiling `app_xcpe_ext_sign` uncovered a full-featured botnet client consisting of over 7,000 files organized into distinct functional modules:
 
-### 3.1. Covert Residential Proxyware (`APSolo Proxy`)
+### 3.1. Covert Residential Proxyware (`APSolo Proxy` in v6.5.0)
 * **Obfuscated Package:** `a.a.a.*`
 * **Internal Log Tag:** `solo_ProxyLogger`
 * **Hardcoded C2 / Relay Endpoint:**
@@ -80,7 +82,23 @@ Decompiling `app_xcpe_ext_sign` uncovered a full-featured botnet client consisti
   * Establishes outbound reverse TCP tunnels to `bestipip.com:16000`.
   * Forwards inbound internet traffic from paying clients through the victim's residential connection, effectively monetizing home bandwidth on residential proxy markets (linked to BadBox / APSolo syndicates).
 
-### 3.2. Background Ad & Click Fraud (`AdvertiseService`)
+### 3.2. Dynamic C2 Infrastructure, Remote Shell & Ransomware (Evolution in v6.8.9)
+In the latest variant (`v6.8.9`), the threat actor evolved beyond static proxy relays:
+* **Primary C2 Host:** `extstb.anyevonline.com:8000` (`UrlBuilder.java` & `BuildUtils.java`).
+* **Dynamic Provisioning Endpoints:**
+  * `/router/config/mqtt`: Fetches dynamic MQTT broker connection details on the fly.
+  * `/router/config/acs`: Remote management, diagnostics, and telemetry endpoints.
+  * `/router/config/app`: Target lists for silent background APK installations.
+* **Remote Arbitrary Shell Execution (`x.cpe.shell.*`):**
+  * Bundles `CommandExecutor.java` and `ShellUtils.java` with commands like `execCommand("echo root", true)`, providing an interactive remote shell terminal (`sh` / `su`).
+* **Screen Locking / Ransomware Mechanism (`LockedDialog`):**
+  * Instantiates a system overlay dialog with `TYPE_APPLICATION_OVERLAY` / `TYPE_SYSTEM_ERROR` (Window Type 2038) marked `setCancelable(false)`:
+    ```text
+    "The device is locked, please contact the administrator"
+    ```
+  * Hijacks the entire screen, suppresses TV remote inputs, and displays a lock countdown.
+
+### 3.3. Background Ad & Click Fraud (`AdvertiseService`)
 * **Component:** `x.cpe.service.AdvertiseService`
 * **Configuration:** `x.cpe.ServerConfig.java`
 * **Key Parameters Discovered:**
@@ -91,8 +109,8 @@ Decompiling `app_xcpe_ext_sign` uncovered a full-featured botnet client consisti
 * **Anti-Crash Watchdog:**
   * Embeds an internal 10-second `ANRWatchDog`: if invisible ad rendering hangs the TV system, the service self-terminates to prevent Android from displaying the visible *"App isn't responding"* error dialog.
 
-### 3.3. Persistent Remote Command & Control via MQTT
-* **Component:** `org.eclipse.paho.android.service.MqttService`
+### 3.4. Persistent Remote Command & Control via MQTT
+* **Component:** `org.eclipse.paho.android.service.MqttService` / `x.cpe.mqtt.MqttUtils`
 * **Cryptographic Anchor:** Bundled CA certificate `res/raw/cacert.pem`
 * **Mechanism:**
   * Maintains an always-on encrypted TLS link to the C2 backend.
