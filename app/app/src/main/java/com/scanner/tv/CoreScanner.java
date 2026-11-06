@@ -96,6 +96,10 @@ public class CoreScanner {
     }
 
     public static ScanResult scan(Context context, ScanProgressListener listener) {
+        return executeScan(context, listener);
+    }
+
+    public static ScanResult executeScan(Context context, ScanProgressListener listener) {
         ScanResult result = new ScanResult();
         result.deviceDetails = Build.MANUFACTURER + " " + Build.MODEL + " (Android " + Build.VERSION.RELEASE + ", API " + Build.VERSION.SDK_INT + ")";
 
