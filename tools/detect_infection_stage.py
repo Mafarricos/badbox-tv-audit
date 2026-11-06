@@ -76,7 +76,8 @@ def analyze_device_infection_stage(host):
         alarm_out = adb.run(f"dumpsys alarm 2>/dev/null | grep -i {pkg}")
         has_alarms = bool(alarm_out.strip())
         
-        job_out = adb.run(f"dumpsys jobscheduler 2>/dev/null | grep -i {pkg}")
+        # Inspeciona se existem tarefas agendadas específicas (JOB #... pacote)
+        job_out = adb.run(f"dumpsys jobscheduler 2>/dev/null | grep -E 'JOB #.*{pkg}'")
         has_jobs = bool(job_out.strip())
 
         # Classificação de Estágio
