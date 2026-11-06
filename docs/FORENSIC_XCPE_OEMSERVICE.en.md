@@ -109,12 +109,43 @@ In the latest variant (`v6.8.9`), the threat actor evolved beyond static proxy r
 * **Anti-Crash Watchdog:**
   * Embeds an internal 10-second `ANRWatchDog`: if invisible ad rendering hangs the TV system, the service self-terminates to prevent Android from displaying the visible *"App isn't responding"* error dialog.
 
-### 3.4. Persistent Remote Command & Control via MQTT
-* **Component:** `org.eclipse.paho.android.service.MqttService` / `x.cpe.mqtt.MqttUtils`
-* **Cryptographic Anchor:** Bundled CA certificate `res/raw/cacert.pem`
-* **Mechanism:**
-  * Maintains an always-on encrypted TLS link to the C2 backend.
-  * Allows operators to push commands on demand, toggle proxy nodes, and trigger arbitrary background APK installations via `InstallForAndroiP$InstallResultReceiver`.
+### 3.5. Evidence of Internal OEM Origin (MECOOL / Skyworth / Videostrong)
+Decompilation of the payload sources provided irrefutable proof that this backdoor was an in-house engineering development created directly by the manufacturer:
+
+1. **Proprietary MECOOL System Properties (`BuildUtils.java`):**
+   ```java
+   private static final String MECOOL_MODEL = "ro.mecool.device.model";
+
+   public static String getManufacturer() {
+       return "ext-MECOOL";
+   }
+
+   public static String getModelName() {
+       String customModel = SystemPropUtils.getString(MECOOL_MODEL, "");
+       LogUtils.i(String.format(Locale.ENGLISH, "%s: %s", MECOOL_MODEL, customModel));
+       ...
+   }
+   ```
+   * The malware explicitly queries the custom system property `ro.mecool.device.model` and hardcodes its telemetry identity as `"ext-MECOOL"`.
+
+2. **Integration with SkyworthDigital Hardware Telemetry (`DeviceUtils.java`):**
+   ```java
+   public static String getCPUSerial() {
+       ...
+       if (isInValidChipId(cpuAddress)) {
+           LogUtils.i("read chipid by ro.hardware.skyworthdigital.soc.chipid");
+           cpuAddress = SystemPropUtils.getString(
+               "ro.hardware.skyworthdigital.soc.chipid", 
+               EnvironmentCompat.MEDIA_UNKNOWN
+           );
+       }
+       return cpuAddress;
+   }
+   ```
+   * The binary queries `ro.hardware.skyworthdigital.soc.chipid`, a private hardware property unique to SkyworthDigital board builds, to fingerprint and register infected units on the C2 server.
+
+3. **Cryptographic System Platform Signing (`android.uid.system`):**
+   * Running under `UID 1000` requires signing with the factory's private platform release key (`platform.pk8`). A third-party external actor could not have embedded or upgraded this APK with root-level system permissions without direct access to the OEM's firmware build infrastructure.
 
 ---
 
