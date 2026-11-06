@@ -104,7 +104,8 @@ A descompilação de `app_xcpe_ext_sign` revelou uma estrutura avançada com mai
 
 | Tipo | Indicador | Função |
 |---|---|---|
-| **Domínio / Porta C2** | `bmw.bestipip.com:16000` | Relay de tráfego proxy e comando C2 |
+| **Domínio / Porta C2** | `bmw.bestipip.com:16000` | Relay de tráfego proxy e comando C2 (v6.5) |
+| **Domínios C2 (v6.8.9)** | `extstb.anyevonline.com:8000`, `mcstb.anyevonline.com`, `router.anyevonline.com` | C2 HTTP/MQTT dinâmico descoberto no Stick .144 |
 | **Domínios Relacionados** | `rao.bestipip.com`, `song.bestipip.com`, `bestipip.com` | Infraestrutura secundária APSolo / XCPE |
 | **Domínios C2 (Google GTIG)** | `zorapslwsnic.com`, `cloudbrokerapi.xyz`, `floporin.com` | Operação global desmontada pela Google Cloud |
 | **Pacote Android** | `com.oemservice`, `x.cpe` | Identificador do dropper e do payload |

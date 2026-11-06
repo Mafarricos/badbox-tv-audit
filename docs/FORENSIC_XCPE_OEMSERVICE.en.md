@@ -104,7 +104,8 @@ Decompiling `app_xcpe_ext_sign` uncovered a full-featured botnet client consisti
 
 | Type | Indicator | Function |
 |---|---|---|
-| **C2 Domain / Port** | `bmw.bestipip.com:16000` | Proxy relay & command server |
+| **C2 Domain / Port** | `bmw.bestipip.com:16000` | Proxy relay & command server (v6.5) |
+| **C2 Domains (v6.8.9)** | `extstb.anyevonline.com:8000`, `mcstb.anyevonline.com`, `router.anyevonline.com` | Dynamic HTTP/MQTT C2 discovered in Stick .144 |
 | **Associated C2 Domains** | `rao.bestipip.com`, `song.bestipip.com`, `bestipip.com` | Secondary APSolo / XCPE botnet nodes |
 | **Google GTIG Disrupted C2s** | `zorapslwsnic.com`, `cloudbrokerapi.xyz`, `floporin.com` | Global infrastructure dismantled by Google Cloud |
 | **Android Package** | `com.oemservice`, `x.cpe` | Package identity for dropper and payload |
