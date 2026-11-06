@@ -1,5 +1,9 @@
 # Relatório Forense: Análise do Malware de Cadeia de Fornecimento XCPE / BadBox (`com.oemservice`)
 
+> **Language / Idioma:** Português (PT-PT) | [For English version, see FORENSIC_XCPE_OEMSERVICE.en.md](FORENSIC_XCPE_OEMSERVICE.en.md)
+
+---
+
 ## 1. Sumário Executivo
 Durante as auditorias de segurança a dispositivos Android TV / Google TV fabricados com firmwares SkyworthDigital (notavelmente os modelos MECOOL e derivados), foi identificada e analisada uma cadeia de infeção furtiva do tipo **Supply-Chain Attack** (Ataque à Cadeia de Fornecimento).
 
@@ -13,20 +17,20 @@ A ameaça opera através de uma arquitetura modular de **duas fases** para conto
 
 ```mermaid
 flowchart TD
-    subgraph Stage 1: Dropper de Fábrica (Partição /system)
+    subgraph stage1["Stage 1: Dropper de Fabrica (Particao /system)"]
         A["Boot da TV (BOOT_COMPLETED)"] --> B["BootReceiver (com.oemservice v1.2.1)"]
         B --> C{"Verifica /oem/app_xcpe_ext_sign ou Servidor C2"}
     end
 
-    subgraph Instalação Silenciosa
-        C -->|Binário presente| D["UpgradeService (UID 1000)"]
-        D -->|PackageInstaller Session| E["Instalação em /data/app sem aviso"]
+    subgraph stage_install["Instalacao Silenciosa"]
+        C -->|"Binario presente"| D["UpgradeService (UID 1000)"]
+        D -->|"PackageInstaller Session"| E["Instalacao em /data/app sem aviso"]
     end
 
-    subgraph Stage 2: Botnet Ativa em Memória (v6.5.0 / v6.8.4)
-        E --> F["WorkService (Coordenação Central)"]
+    subgraph stage2["Stage 2: Botnet Ativa em Memoria (v6.5.0 / v6.8.4)"]
+        E --> F["WorkService (Coordenacao Central)"]
         F --> G["APSolo Proxy (a.a.a.*) -> C2 bmw.bestipip.com:16000"]
-        F --> H["AdvertiseService (Fraude de Anúncios e Cliques)"]
+        F --> H["AdvertiseService (Fraude de Anuncios e Cliques)"]
         F --> I["MqttService (Canal de Comando Persistente TLS)"]
     end
 ```
@@ -42,7 +46,7 @@ flowchart TD
     ```java
     File file = new File("oem");
     if (file.exists() && file.listFiles() != null) {
-        // Encontra o payload pré-embutido /oem/app_xcpe_ext_sign
+        // Encontra o payload pre-embutido /oem/app_xcpe_ext_sign
         enterInstallService(context, file2);
     }
     ```
@@ -68,7 +72,7 @@ A descompilação de `app_xcpe_ext_sign` revelou uma estrutura avançada com mai
   package a.a.a;
   public class a {
       public static final String[] f0a = {"bmw.bestipip.com:16000"};
-      public static long b = 24032810102L; // Timestamp de compilação: 28/03/2024
+      public static long b = 24032810102L; // Timestamp de compilacao: 28/03/2024
   }
   ```
 * **Mecanismo Técnico (`ae.java`, `c.java`):**
