@@ -9,7 +9,7 @@
 
 An autonomous, dual-layer forensic, malware removal, and reversible remediation suite (CLI + native Android TV app with local loopback VPN sentinel) engineered to audit, detect, verify, neutralize, and restore Android TV, Google TV, and generic streaming devices compromised by supply-chain trojans, botnets, and malware (**BadBox**, **XCPE**, **Vo1d**, **Fuyao**, **Videostrong/SZBBOYS**, and **Residential Proxyware**).
 
-> **Language:** English (Default) | [Para a versão em Português (PT-PT), consulte README.pt.md](README.pt.md) | [📱 Tested Devices Registry](DEVICES.md)
+> **Language:** English (Default) | [Para a versão em Português (PT-PT), consulte README.pt.md](README.pt.md) | [📱 Tested Devices Registry](DEVICES.md) | [🔬 Forensic Case Study (XCPE/com.oemservice)](docs/FORENSIC_XCPE_OEMSERVICE.md)
 
 ---
 

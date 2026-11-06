@@ -6,7 +6,7 @@
 
 Suite forense, de remoção de malware e de remediação reversível completa e autónoma (CLI + App nativa Android TV com Sentinela VPN) projetada para auditoria, deteção, verificação, neutralização e restauro de trojans de supply-chain, botnets residenciais e malware (**BadBox**, **XCPE**, **Vo1d**, **Fuyao**, **Videostrong/SZBBOYS** e **Proxyware Residencial**) em dispositivos Android TV, Google TV e TV Boxes genéricas.
 
-> **Idioma:** Português (PT-PT) | [For English version, see README.md](README.md) | [📱 Registo de Aparelhos Testados](DEVICES.md)
+> **Idioma:** Português (PT-PT) | [For English version, see README.md](README.md) | [📱 Registo de Aparelhos Testados](DEVICES.md) | [🔬 Estudo Forense (XCPE/com.oemservice)](docs/FORENSIC_XCPE_OEMSERVICE.md)
 
 ---
 
