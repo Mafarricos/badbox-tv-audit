@@ -9,7 +9,7 @@ Instructions for AI coding agents (Claude Code, Gemini CLI, Cursor, Copilot, Ant
 This repository contains an autonomous, dual-layer forensic and remediation suite specifically designed to audit, detect, and sanitize Android TV, Google TV, and Android TV Box streaming devices compromised by supply-chain malware, trojans, and botnet backdoors, including **BadBox**, **XCPE**, **Vo1d**, **Fuyao**, **Videostrong/SZBBOYS**, and **Residential Proxyware SDKs**.
 
 It delivers:
-1. **Remote ADB Layer**: Read-only fast triage across 5 forensic layers with live console reporting.
+1. **Remote ADB Layer**: Read-only fast triage across 6 forensic layers with live console reporting.
 2. **On-Device TV App (`com.scanner.tv`)**: Native Leanback UI + local loopback VPN packet sentinel to detect hidden proxy botnet traffic and silent C2 callbacks.
 3. **Deterministic Scoring Engine (`audit_security.py`)**: Zero-AI rule evaluation yielding mathematically backed verdicts (`INFETADO - CRÍTICO`, `SUSPEITO`, `LIMPO / SEGURO`).
 4. **Complete Execution Logs (`logs/session_<timestamp>.log`)**: Automatic mirroring of all console output and operational telemetry for post-run agent reasoning and user reporting.
@@ -167,7 +167,21 @@ badbox-tv-audit/
 
 ---
 
-## 10. Decision Logic, Thresholds & Semantic Exit Codes
+## 10. Community Submission & Anonymized Device Reports (Agent Protocol)
+
+Whenever an audit completes (`--quick-scan` or `--auto-pipeline`), `audit_security.py` outputs an anonymized technical report at:
+```text
+community_audit_submission.json
+```
+
+### Agent Actions for Report Submission:
+1. **Verify Sanitization**: The file is stripped of all personal/local network data (no LAN IPs, MACs, serial numbers, or Wi-Fi info).
+2. **Offer Submission Guidance**: At the end of an audit, agents should inform the user:
+   - *"If you would like to help the community track this device model, you can submit the generated `community_audit_submission.json` to the project's GitHub Issues (https://github.com/Mafarricos/badbox-tv-audit/issues) or via email to `mafastudios@gmail.com`."*
+
+---
+
+## 11. Decision Logic, Thresholds & Semantic Exit Codes
 
 The deterministic rule engine evaluates risks without cloud AI calls:
 

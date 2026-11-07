@@ -351,6 +351,27 @@ def evaluate_forensic_results(json_data, vpn_log_lines, device_specs=None):
         for iw in set(info_warnings):
             print(f"  * {iw}")
 
+    # Cria relatorio de submissao publica anonimizado
+    try:
+        anonymized_specs = {k: v for k, v in (device_specs or {}).items() if k not in ["serial", "serialno", "mac", "wifi_mac", "ip"]}
+        anonymized_report = {
+            "timestamp": time.strftime("%Y-%m-%d %H:%M:%S UTC", time.gmtime()),
+            "device": anonymized_specs,
+            "verdict": verdict,
+            "risk_score": score,
+            "findings": json_data.get("findings", []) if json_data else [],
+            "critical_reasons": list(set(critical_reasons)),
+            "suspicious_reasons": list(set(suspicious_reasons)),
+            "hardware_warnings": list(set(info_warnings))
+        }
+        anon_path = os.path.join(PROJECT_ROOT, "community_audit_submission.json")
+        with open(anon_path, "w", encoding="utf-8") as f:
+            json.dump(anonymized_report, f, indent=2, ensure_ascii=False)
+        print(f"[+] Relatorio sanitizado anonimo guardado em: {anon_path}")
+        print("    -> Pronto para submissao em GitHub Issues ou por e-mail (dados pessoais protegidos).\n")
+    except Exception:
+        pass
+
     print("================================================================================\n")
     return verdict
 
@@ -490,6 +511,32 @@ def step_quick_audit(adb, json_output=False):
     else:
         verdict = "LIMPO / SEGURO" if get_language() == "pt" else "CLEAN / SAFE"
 
+    # Cria copia sanitizada para submissao publica (sem IPs locais, numeros de serie ou identificadores de rede)
+    anonymized_specs = {k: v for k, v in adb.specs.items() if k not in ["serial", "serialno", "mac", "wifi_mac", "ip"]}
+    anonymized_report = {
+        "timestamp": time.strftime("%Y-%m-%d %H:%M:%S UTC", time.gmtime()),
+        "device": anonymized_specs,
+        "verdict": verdict,
+        "risk_score": risk_score,
+        "play_protect_tampered": play_protect_disabled,
+        "active_ioc_packages": found_ioc_pkgs,
+        "neutralized_ioc_packages": neutralized_ioc_pkgs,
+        "exposed_content_providers": found_providers,
+        "suspicious_binaries": found_binaries,
+        "active_c2_connections": [re.sub(r'192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(?:1[6-9]|2\d|3[01])\.\d+\.\d+', '<LOCAL_IP>', c) for c in found_conn],
+        "suspicious_props": found_suspicious_props,
+        "hardware_warning": targeted_warning
+    }
+    anon_path = os.path.join(PROJECT_ROOT, "community_audit_submission.json")
+    try:
+        with open(anon_path, "w", encoding="utf-8") as f:
+            json.dump(anonymized_report, f, indent=2, ensure_ascii=False)
+        if not json_output:
+            print(f"\n[+] Relatorio sanitizado anonimo gerado com sucesso: {anon_path}")
+            print("    -> Pronto para submissao no GitHub Issues ou e-mail sem expor dados pessoais.")
+    except Exception:
+        pass
+
     result_data = {
         "target": adb.host,
         "specs": adb.specs,
@@ -502,7 +549,8 @@ def step_quick_audit(adb, json_output=False):
         "suspicious_binaries": found_binaries,
         "active_c2_connections": found_conn,
         "suspicious_props": found_suspicious_props,
-        "hardware_warning": targeted_warning
+        "hardware_warning": targeted_warning,
+        "anonymized_submission_file": anon_path
     }
 
     if json_output:

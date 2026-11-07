@@ -23,24 +23,9 @@ Esta ferramenta fornece dois métodos completos para auditar e limpar a sua TV:
 
 ---
 
-## 🤖 Como Usar com Agentes de IA (Antigravity, Claude Code, Grok, Cursor, Copilot)
+## 📱 1. Como Preparar a TV (Ativar Modo de Programador & ADB)
 
-Este repositório inclui instruções completas em [`AGENTS.md`](AGENTS.md) que os agentes de IA leem e seguem de forma autónoma. Não precisa de correr scripts Python nem executar comandos no terminal manualmente:
-
-Basta abrir o seu Agente de IA favorito (Antigravity, Claude Code, Cursor, Copilot, Grok CLI, etc.) e dar-lhe esta simples instrução:
-
-```text
-Faz o clone de https://github.com/Mafarricos/badbox-tv-audit.git e audita a minha Android TV box no IP <IP_DA_TV>.
-```
-*(Dica: Se não souber o IP da sua TV, substitua `<IP_DA_TV>` por: `...descobre as Android TVs na minha sub-rede 192.168.1.0/24 e audita-as.`)*
-
-O agente tratará de clonar o repositório, ler o ficheiro [`AGENTS.md`](AGENTS.md), preparar o ambiente, executar o diagnóstico rápido e económico (`--quick-scan --json`) e aplicar a remediação segura com backup automático se forem detetadas anomalias.
-
----
-
-## 📱 Como Preparar a TV (Ativar Modo de Programador & ADB)
-
-Para que a ferramenta via PC ou um Agente de IA consiga comunicar com a sua Android TV / Google TV através da rede Wi-Fi, necessita de ativar a **Depuração ADB**:
+Antes de iniciar ferramentas ou pedir a um Agente de IA para analisar o aparelho, necessita de ativar a **Depuração ADB** na TV para permitir a ligação via Wi-Fi:
 
 ### A. Em Android TV Padrão (Android 9, 10, 11 - ex: Xiaomi, Strong, boxes genéricas):
 1. No comando da TV, vá a **Definições (Settings)** (ícone da roda dentada) -> **Preferências do Dispositivo (Device Preferences)** -> **Acerca de (About)**.
@@ -58,6 +43,25 @@ Para que a ferramenta via PC ou um Agente de IA consiga comunicar com a sua Andr
 5. Volte atrás para **Sistema (System)** -> **Opções do Programador (Developer Options)**.
 6. Ative a **Depuração USB (USB Debugging)**.
 7. Confirme o pop-up de autorização na TV quando o computador se conectar.
+
+---
+
+## 🤖 2. Como Usar com Agentes de IA (Antigravity, Claude Code, Grok, Cursor, Copilot)
+
+Este repositório inclui instruções autónomas completas no ficheiro [`AGENTS.md`](AGENTS.md) que os agentes de IA leem e seguem de forma transparente. **Não precisa de configurar Python manualmente, instalar drivers ou escrever comandos.**
+
+Basta abrir o seu Agente de IA favorito e enviar-lhe esta simples instrução:
+
+```text
+Faz o clone de https://github.com/Mafarricos/badbox-tv-audit.git, lê o ficheiro AGENTS.md e audita a minha Android TV no IP <IP_DA_TV>.
+```
+*(Dica: Se não souber o IP da sua TV, diga ao agente: `...lê o AGENTS.md, descobre as Android TVs na minha sub-rede 192.168.1.0/24 e audita-as.`)*
+
+O agente tratará autonomamente de:
+1. Clonar o repositório e consultar as diretrizes operacionais de [`AGENTS.md`](AGENTS.md).
+2. Ligar-se por ADB em Python puro (sem exigir instalação de binários externos).
+3. Executar o varrimento estático de 6 camadas e o sentinela VPN em tempo real.
+4. Gerar o ficheiro sanitizado anónimo (`community_audit_submission.json`) pronto para submissão.
 
 ---
 
@@ -107,6 +111,31 @@ python tools/audit_security.py <TV_IP> --restore
 # 7. Forense Avançada / Inspeção de Pacotes (Suporta --lang pt / --lang en)
 python tools/deep_forensics.py <TV_IP> --inspect-package <NOME_DO_PACOTE>
 ```
+
+---
+
+## 📤 Como Contribuir: Submeter Relatórios para o Registo de Aparelhos
+
+Ajude a comunidade a mapear quais os modelos de Android TV e Google TV que trazem droppers de fábrica ou firmwares limpos!
+
+Sempre que realiza uma auditoria (seja via `--quick-scan` ou `--auto-pipeline`), o código **gera automaticamente um relatório sanitizado e anónimo** no ficheiro:
+```text
+community_audit_submission.json
+```
+
+### 🛡️ Garantia Total de Privacidade (Zero Dados Pessoais):
+- **Todos os identificadores pessoais são removidos na origem**: Nenhum endereço IP local, nenhum endereço MAC, número de série ou credencial Wi-Fi é incluído.
+- Contém **estritamente** dados técnicos de hardware e segurança: Modelo do SoC, versão de firmware, estado do Play Protect, pacotes/hashes maliciosos detetados e portas C2 ativas.
+
+### Como Submeter o Resultado:
+1. **Pelo GitHub Issues (Recomendado):**
+   - Abra um novo Issue em: [https://github.com/Mafarricos/badbox-tv-audit/issues](https://github.com/Mafarricos/badbox-tv-audit/issues)
+   - Título: `[Device Audit] <Marca> <Modelo>` (ex: `[Device Audit] Strong 4K Google TV Stick`)
+   - Cole o conteúdo do ficheiro `community_audit_submission.json`.
+2. **Por E-mail:**
+   - Envie o ficheiro `community_audit_submission.json` diretamente para o e-mail indicado no canal de YouTube: **`mafastudios@gmail.com`** (Assunto: `Auditoria TV: <Marca> <Modelo>`).
+
+O seu relatório será analisado e adicionado à lista pública oficial no [Registo de Aparelhos Testados (DEVICES.md)](DEVICES.md)!
 
 ---
 

@@ -26,24 +26,9 @@ This suite provides two complete audit & cleanup paths:
 
 ---
 
-## 🤖 Using with AI Agents (Antigravity, Claude Code, Grok, Cursor, Copilot)
+## 📱 1. Preparing Your TV (Enable Developer Options & ADB)
 
-This repository includes full instructions in [`AGENTS.md`](AGENTS.md) that modern AI coding agents automatically follow. You don't need to manually run Python scripts or terminal commands:
-
-Simply open your AI Agent (Antigravity, Claude Code, Cursor, Copilot, Grok CLI, etc.) and give it this single instruction:
-
-```text
-Clone https://github.com/Mafarricos/badbox-tv-audit.git and audit my Android TV box at IP <TV_IP>.
-```
-*(Tip: If you don't know your TV's IP address, replace `<TV_IP>` with: `...discover my Android TV devices on subnet 192.168.1.0/24 and audit them.`)*
-
-The agent will clone the repository, read [`AGENTS.md`](AGENTS.md), install requirements, run the token-saving 5-layer audit (`--quick-scan --json`), and present the findings or apply reversible remediation with automatic backup.
-
----
-
-## 📱 Preparing Your TV (Enable Developer Options & ADB)
-
-To allow PC tools or AI agents to communicate with your TV over Wi-Fi, enable **ADB Debugging**:
+Before running tools or dispatching an AI Agent, enable **ADB Debugging** on your TV so it can be audited over Wi-Fi:
 
 ### A. Standard Android TV (Android 9, 10, 11 - e.g. Xiaomi, Strong, generic boxes):
 1. Go to **Settings** (gear icon) -> **Device Preferences** -> **About**.
@@ -61,6 +46,25 @@ To allow PC tools or AI agents to communicate with your TV over Wi-Fi, enable **
 5. Return to **System** -> **Developer Options**.
 6. Enable **USB Debugging**.
 7. Confirm the authorization pop-up on the TV screen.
+
+---
+
+## 🤖 2. Dispatching an AI Agent (Antigravity, Claude Code, Grok, Cursor, Copilot)
+
+This repository includes self-contained operational guidelines in [`AGENTS.md`](AGENTS.md) that modern AI coding agents automatically follow. **You don't need to manually configure Python, install drivers, or write commands.**
+
+Simply open your AI Agent and send this single prompt:
+
+```text
+Clone https://github.com/Mafarricos/badbox-tv-audit.git, read AGENTS.md, and audit my Android TV at IP <TV_IP>.
+```
+*(Tip: If you do not know your TV's IP address, ask the agent: `...read AGENTS.md, discover my Android TV devices on subnet 192.168.1.0/24, and audit them.`)*
+
+The agent will autonomously:
+1. Clone the repository and review [`AGENTS.md`](AGENTS.md).
+2. Connect over pure-Python ADB (no external ADB installation required).
+3. Execute the 6-layer static scan and live VPN network sentinel.
+4. Generate a sanitized anonymous audit report (`community_audit_submission.json`) ready to help update the infected devices database.
 
 ---
 
@@ -111,6 +115,31 @@ python tools/audit_security.py <TV_IP> --restore
 python tools/deep_forensics.py <TV_IP> --inspect-package <PACKAGE_NAME>
 python tools/deep_forensics.py <TV_IP> --pull-and-analyze <REMOTE_APK_PATH>
 ```
+
+---
+
+## 📤 Contributing: Submitting Audit Reports for the Device Registry
+
+Help us track which Android TV and Google TV models ship with factory droppers or clean firmware!
+
+Whenever an audit is performed (via `--quick-scan` or `--auto-pipeline`), the suite **automatically generates an anonymized report** at:
+```text
+community_audit_submission.json
+```
+
+### 🛡️ Privacy Guarantee (Zero Personal Data):
+- **All private identifiers are automatically stripped**: No local IP addresses, no MAC addresses, no serial numbers, and no Wi-Fi credentials.
+- Contains **only** technical firmware attributes: SoC model, build version, Play Protect status, detected dropper packages/hashes, and active C2 ports.
+
+### How to Submit:
+1. **GitHub Issues (Recommended):**
+   - Open a new issue at: [https://github.com/Mafarricos/badbox-tv-audit/issues](https://github.com/Mafarricos/badbox-tv-audit/issues)
+   - Title: `[Device Audit] <Brand> <Model>` (e.g. `[Device Audit] Strong 4K Google TV Stick`)
+   - Paste the contents of `community_audit_submission.json`.
+2. **Via E-mail:**
+   - Send the `community_audit_submission.json` file directly to the email published on the YouTube channel: **`mafastudios@gmail.com`** (Subject: `TV Audit Report: <Brand> <Model>`).
+
+Your report will be reviewed and merged into the official [Tested Devices Registry (DEVICES.md)](DEVICES.md)!
 
 ---
 
