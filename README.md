@@ -70,7 +70,7 @@ Clone https://github.com/Mafarricos/badbox-tv-audit.git, read AGENTS.md, and aud
 *(Tip: If you do not know your TV's IP address, ask the agent: `...read AGENTS.md, discover my Android TV devices on subnet 192.168.1.0/24, and audit them.`)*
 
 The agent will autonomously:
-1. Clone the repository and review [`AGENTS.md`](AGENTS.md).
+1. Clone the repository (or run `git pull` if already present) and review [`AGENTS.md`](AGENTS.md) to ensure latest malware signatures and rules are applied.
 2. Connect over pure-Python ADB (no external ADB installation required).
 3. Execute the 6-layer static scan and live VPN network sentinel.
 4. Generate a sanitized anonymous audit report (`community_audit_submission.json`) ready to help update the infected devices database.

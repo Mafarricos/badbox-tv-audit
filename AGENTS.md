@@ -40,9 +40,11 @@ Before running any remote ADB command, agents **MUST verify connection**. If the
 
 ---
 
-## 3. Environment Prerequisites & Setup (Agent Protocol)
+## 3. Workspace Synchronization & Environment Setup (Agent Protocol)
 
-Before running any forensic task, agents **must ensure the Python environment is ready**:
+Before running any audit or tool, agents **MUST ensure the repository is updated with the latest signatures and engine fixes**:
+1. **Pull Latest Changes**: If the repository was already cloned in a previous session, execute `git pull origin main` to fetch updated IoCs, malware rules, and device profiles.
+2. **Environment Readiness**:
 - Python 3.9+ runtime.
 - Pip requirements: `pip install -r requirements.txt` (provides `adb-shell`, `rsa`, `pyasn1`).
 - **No external ADB binary needed**: `tools/tv.py` implements pure Python ADB over TCP sockets.
