@@ -44,7 +44,7 @@ Antes de iniciar ferramentas ou pedir a um Agente de IA para analisar o aparelho
 6. Ative a **Depuração USB (USB Debugging)**.
 7. Confirme o pop-up de autorização na TV quando o computador se conectar.
 
-> [!SECURITY]
+> [!WARNING]
 > 🔒 **Recomendação Essencial de Segurança (Desativar a Depuração no Fim):**  
 > Manter a Depuração USB / ADB permanentemente ativada na sua rede Wi-Fi doméstica deixa aberta a porta de gestão remota (5555), que pode ser sondada por outros aparelhos ou apps maliciosas na rede.  
 > **Não se esqueça de voltar a DESLIGAR a Depuração USB nas Opções do Programador assim que terminar o diagnóstico e a limpeza da TV!**
