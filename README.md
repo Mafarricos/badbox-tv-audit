@@ -47,6 +47,11 @@ Before running tools or dispatching an AI Agent, enable **ADB Debugging** on you
 6. Enable **USB Debugging**.
 7. Confirm the authorization pop-up on the TV screen.
 
+> [!SECURITY]
+> 🔒 **Security Best Practice (Turn OFF Debugging when finished):**  
+> Leaving ADB / USB Debugging permanently enabled on your home Wi-Fi network exposes a management port (5555) that other devices or malicious apps on the local network could theoretically probe.  
+> **Always remember to turn OFF USB Debugging in Developer Options once the audit and remediation are complete!**
+
 ---
 
 ## 🤖 2. Dispatching an AI Agent (Antigravity, Claude Code, Grok, Cursor, Copilot)

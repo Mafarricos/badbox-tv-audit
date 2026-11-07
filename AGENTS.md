@@ -35,6 +35,9 @@ Before running any remote ADB command, agents **MUST verify connection**. If the
 4. Enable **USB Debugging (Depuração USB)**.
 5. Confirm the computer's authorization dialog on the TV screen.
 
+> **CRITICAL AGENT POST-RUN ADVISORY:**  
+> Upon completing audits or remediation, agents **MUST remind the user** to navigate back to Developer Options and **turn OFF USB Debugging** to ensure no network management ports (5555) remain exposed to other local devices.
+
 ---
 
 ## 3. Environment Prerequisites & Setup (Agent Protocol)
