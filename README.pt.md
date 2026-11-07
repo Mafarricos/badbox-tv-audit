@@ -55,6 +55,10 @@ Antes de iniciar ferramentas ou pedir a um Agente de IA para analisar o aparelho
 
 Este repositório inclui instruções autónomas completas no ficheiro [`AGENTS.md`](AGENTS.md) que os agentes de IA leem e seguem de forma transparente. **Não precisa de configurar Python manualmente, instalar drivers ou escrever comandos.**
 
+> [!TIP]
+> ⚡ **Recomendação para Utilizadores do Google Antigravity:**  
+> Se estiver a utilizar o **Antigravity**, configure o modelo para **Gemini 3.8 Flash** com nível de raciocínio em **Low** e ative o modo **Turbo**. Desta forma, o agente executa a auditoria de forma ultrarrápida, consome uma fração mínima de tokens e procede autonomamente sem interromper continuamente o utilizador com pedidos de confirmação desnecessários.
+
 Basta abrir o seu Agente de IA favorito e enviar-lhe esta simples instrução:
 
 ```text

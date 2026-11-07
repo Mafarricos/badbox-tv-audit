@@ -58,6 +58,10 @@ Before running tools or dispatching an AI Agent, enable **ADB Debugging** on you
 
 This repository includes self-contained operational guidelines in [`AGENTS.md`](AGENTS.md) that modern AI coding agents automatically follow. **You don't need to manually configure Python, install drivers, or write commands.**
 
+> [!TIP]
+> ⚡ **Recommended Setup for Google Antigravity Users:**  
+> When using **Antigravity**, select the **Gemini 3.8 Flash** model with reasoning level set to **Low** and enable **Turbo** mode. This maximizes execution speed, minimizes token consumption, and allows the agent to execute actions seamlessly without prompting for repetitive permissions.
+
 Simply open your AI Agent and send this single prompt:
 
 ```text
