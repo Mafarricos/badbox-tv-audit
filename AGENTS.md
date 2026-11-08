@@ -111,7 +111,7 @@ The remediation cycle operates completely inside Android:
 ## 7. Non-Negotiable Operational Rules for Agents
 
 - **Audit Strategy: Ask User (Fast vs Intensive Sentinel)**: When asked by a user to audit or inspect a TV box for malware without specifying the mode, the agent **MUST present the choice** to the user (unless the user has a standing rule or preference configured):
-  1. **Fast 5-Layer ADB Scan (`--quick-scan`)**: Instant (5-10s), zero installation on TV, checks all known malware families (XCPE, BadBox, Vo1d, droppers, C2 sockets, Play Protect tampering).
+  1. **Fast 6-Layer ADB Scan (`--quick-scan`)**: Instant (5-10s), zero installation on TV, checks all known malware families (XCPE, BadBox, Vo1d, droppers, C2 sockets, Play Protect tampering).
   2. **Intensive Dynamic Sentinel (`--auto-pipeline`)**: Deploys the native TV APK (`com.scanner.tv`), runs a local VPN sentinel to intercept live network/DNS traffic looking for unknown or novel threats, pulls reports, and automatically uninstalls the APK.
 - **Zero-Damage & Reversibility**: Never disable critical core system packages (`com.android.systemui`, `com.android.settings`, Bluetooth/Wi-Fi stack).
 - **Mandatory Backup Before Change**: Every modifying operation must save original state to `backups/`.
@@ -128,12 +128,15 @@ When executing autonomous forensic audits, invoke `tools/audit_security.py` dire
 
 | Goal | Command | Description |
 |---|---|---|
-| **Full Automated Pipeline** | `python tools/audit_security.py <IP> --auto-pipeline` | Installs APK, grants VPN silent, runs 5-layer scan, monitors network for 20s, pulls logs, evaluates scoring rules, uninstalls APK. |
-| **Fast 5-Layer ADB Scan** | `python tools/audit_security.py <IP> --quick-scan` | 100% read-only scan via ADB (checks Play Protect, C2 sockets, IoC packages, props). |
+| **Full Automated Pipeline** | `python tools/audit_security.py <IP> --auto-pipeline` | Installs APK, grants VPN silent, runs 6-layer scan, monitors network for 20s, pulls logs, evaluates scoring rules, uninstalls APK. |
+| **Fast 6-Layer ADB Scan** | `python tools/audit_security.py <IP> --quick-scan` | 100% read-only scan via ADB (checks Play Protect, C2 sockets, IoC packages, props). |
 | **Token-Optimized AI Scan (JSON)** | `python tools/audit_security.py <IP> --quick-scan --json` | **Recommended for AI Agents**: Outputs a compact, machine-readable JSON structure with exact findings, saving context tokens. |
 | **Subnet TV Discovery & Batch Audit** | `python tools/audit_security.py --scan-subnet 192.168.1.0/24` | Scans local subnet for active Android TV ADB ports (5555) and audits all found devices in parallel. |
-| **Remediate / Clean Box** | `python tools/audit_security.py <IP> --remediate` | Creates backup, re-enables Play Protect, uninstalls bots, freezes backdoors, enables secure DNS, and creates restore script. |
-| **Restore Previous State** | `python tools/audit_security.py <IP> --restore` | Restores original settings and re-enables disabled apps from the latest backup. |
+| **Remediate in Depth** | `python tools/audit_security.py <IP> --remediate` | Multi-layer defense: force-stop, pm clear, AppOps ignore, freeze + user-0 uninstall. Generates .ps1 and .sh restore scripts. Preserves local network DNS. |
+| **Remediate + Verify Reboot** | `python tools/audit_security.py <IP> --remediate --verify-reboot` | Remediates and reboots TV, awaiting boot_completed to verify watchdogs do not resurrect. |
+| **Remediate + Force DoT** | `python tools/audit_security.py <IP> --remediate --enable-dot` | Remediates and explicitly forces Cloudflare DoT (security.cloudflare-dns.com). |
+| **Scan Init.rc Watchdogs** | `python tools/audit_security.py <IP> --scan-init-watchdogs` | Inspects init.rc scripts and non-standard binaries for boot persistences. |
+| **Restore Previous State** | `python tools/audit_security.py <IP> --restore` | Restores settings, re-installs user-0 packages, re-enables apps, and resets AppOps from latest backup snapshot. |
 | **Automated with Custom Recompilation** | `python tools/audit_security.py <IP> --auto-pipeline --recompile-for-device` | Gathers device SoC/SDK specs, recompiles tailored APK, runs full pipeline and cleans up. |
 | **Install Tailored App** | `python tools/audit_security.py <IP> --recompile-for-device` | Compiles from `app/` and installs on the box. |
 | **Launch TV Interface** | `python tools/audit_security.py <IP> --launch-app` | Opens the D-Pad optimized scanner on the TV display. |
@@ -151,7 +154,7 @@ When executing autonomous forensic audits, invoke `tools/audit_security.py` dire
 
 ```
 badbox-tv-audit/
-├── backups/              # Reversible device snapshots and restore_<IP>.ps1 scripts
+├── backups/              # Reversible device snapshots, restore_<IP>.ps1 (Windows) and restore_<IP>.sh (Linux/macOS)
 ├── logs/                 # Comprehensive real-time execution transcripts (session_<timestamp>.log)
 ├── setup.bat             # One-click Windows prerequisite installer (Python + JDK/SDK option)
 ├── setup.sh              # One-click Linux/macOS prerequisite installer

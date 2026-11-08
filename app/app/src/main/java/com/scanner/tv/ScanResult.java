@@ -15,6 +15,8 @@ public class ScanResult implements Serializable {
     public int riskScore = 0;
     public List<String> findings = new ArrayList<>();
     public List<String> scannedApks = new ArrayList<>();
+    public List<String> userThreatPackages = new ArrayList<>();
+    public List<String> systemThreatPackages = new ArrayList<>();
     public String deviceDetails = "";
     public String playProtectStatus = "";
 

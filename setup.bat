@@ -89,7 +89,7 @@ echo.
 echo ================================================================================
 echo [v] Environment ready! You can now audit your Android TV boxes:
 echo.
-echo     1. Fast 5-layer read-only audit:
+echo     1. Fast 6-layer read-only audit:
 echo        python tools\audit_security.py ^<TV_IP^> --quick-scan
 echo.
 echo     2. Full automated pipeline (Sentinel VPN + APK + scoring):

@@ -89,7 +89,7 @@ echo.
 echo ================================================================================
 echo [v] Ambiente pronto! Pode agora auditar as suas boxes Android TV:
 echo.
-echo     1. Auditoria rapida de 5 camadas via ADB:
+echo     1. Auditoria rapida de 6 camadas via ADB:
 echo        python tools\audit_security.py ^<IP_DA_TV^> --quick-scan
 echo.
 echo     2. Pipeline completo (Sentinela VPN + APK nativo + pontuacao):

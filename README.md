@@ -97,14 +97,14 @@ The application is localized automatically (Portuguese if device is set to Portu
 The suite **automatically detects your system language** (defaults to **English** for international users, or **Portuguese** if your operating system is in Portuguese). You can also explicitly force a language with `--lang en` or `--lang pt`.
 
 ### Two Audit Modes Available:
-- **Fast 5-Layer ADB Scan (`--quick-scan`)**: 100% read-only, takes 5-10 seconds, installs nothing on the device. Audits all known threat families (XCPE, BadBox, Vo1d, droppers, active C2 sockets, and Play Protect status).
+- **Fast 6-Layer ADB Scan (`--quick-scan`)**: 100% read-only, takes 5-10 seconds, installs nothing on the device. Audits all known threat families (XCPE, BadBox, Vo1d, droppers, active C2 sockets, and Play Protect status).
 - **Intensive Dynamic Sentinel (`--auto-pipeline`)**: Deploys the on-device TV app (`com.scanner.tv`), raises a local VPN loopback for 20-60 seconds to inspect live DNS/IP traffic looking for unknown or dormant botnets, pulls reports, evaluates rules, and automatically uninstalls the app cleanly.
 
 ```bash
 # 1. Intensive Dynamic Audit (Installs APK, runs 20s VPN sentinel for unknown threats, and cleans up)
 python tools/audit_security.py <TV_IP> --auto-pipeline
 
-# 2. Fast 5-Layer ADB Read-Only Scan (Known threats triage - Standard or Token-Saving JSON)
+# 2. Fast 6-Layer ADB Read-Only Scan (Known threats triage - Standard or Token-Saving JSON)
 python tools/audit_security.py <TV_IP> --quick-scan
 python tools/audit_security.py <TV_IP> --quick-scan --json
 
@@ -114,11 +114,22 @@ python tools/detect_infection_stage.py <TV_IP>
 # 4. Discover and Audit all Android TVs across the Home Subnet
 python tools/audit_security.py --scan-subnet 192.168.1.0/24
 
-# 5. Autonomous Remediation (Locks Play Protect, freezes droppers, activates Private DNS DoT)
+# 5. Multi-Layer Remediation (Force-stop, pm clear, AppOps ignore, freeze + user-0 uninstall)
 python tools/audit_security.py <TV_IP> --remediate
 
-# 6. Instant Reversible Restore / Rollback
+# 5.1 Remediation with Post-Reboot Persistence Check & Cloudflare DoT
+python tools/audit_security.py <TV_IP> --remediate --verify-reboot --enable-dot
+
+# 5.2 Deep Init.rc Watchdog Hunter & Native Process Correlation
+python tools/audit_security.py <TV_IP> --scan-init-watchdogs
+python tools/deep_forensics.py <TV_IP> --dump-network-state
+
+# 5.3 Automated Pipeline with Custom VPN Monitoring Duration (e.g. 60 seconds)
+python tools/audit_security.py <TV_IP> --auto-pipeline --vpn-duration 60
+
+# 6. Instant Cross-Platform Reversible Restore / Rollback
 python tools/audit_security.py <TV_IP> --restore
+# Or run standalone scripts: backups/restore_<IP>.ps1 (Windows) or backups/restore_<IP>.sh (Linux/macOS)
 
 # 7. Deep Forensics / Package Inspector (Supports --lang en / --lang pt)
 python tools/deep_forensics.py <TV_IP> --inspect-package <PACKAGE_NAME>

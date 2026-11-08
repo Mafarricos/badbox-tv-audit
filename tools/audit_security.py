@@ -601,12 +601,13 @@ def discover_subnet_tvs(cidr_or_base, port=5555, timeout=0.8):
 def create_remediation_backup(adb):
     """
     Cria um backup completo das definições e estado de pacotes ANTES de qualquer alteração,
-    gerando também um script de restauro reversível em backups/.
+    gerando scripts de restauro reversíveis (.ps1 para Windows e .sh para Linux/macOS) em backups/.
     """
     clean_ip = adb.host.replace(".", "_")
     timestamp = time.strftime("%Y%m%d_%H%M%S")
     backup_file = os.path.join(BACKUPS_DIR, f"backup_{clean_ip}_{timestamp}.json")
-    restore_script = os.path.join(BACKUPS_DIR, f"restore_{clean_ip}.ps1")
+    restore_ps1 = os.path.join(BACKUPS_DIR, f"restore_{clean_ip}.ps1")
+    restore_sh = os.path.join(BACKUPS_DIR, f"restore_{clean_ip}.sh")
 
     print(f"\n[*] A criar BACKUP de segurança reversível em backups/...")
 
@@ -627,21 +628,26 @@ def create_remediation_backup(adb):
             "private_dns_specifier": orig_dns_spec
         },
         "originally_disabled_packages": disabled_pkgs,
-        "disabled_during_remediation": []
+        "disabled_during_remediation": [],
+        "uninstalled_user0_packages": [],
+        "appops_modified": []
     }
 
     with open(backup_file, "w", encoding="utf-8") as f:
         json.dump(backup_data, f, indent=2)
 
     print(f"    [✓] Ficheiro de estado guardado: {os.path.basename(backup_file)}")
-    return backup_file, backup_data, restore_script
+    return backup_file, backup_data, restore_ps1, restore_sh
 
 
-def generate_restore_script(adb, backup_data, restore_script_path):
-    """Gera script PowerShell autónomo e reversível para restaurar a TV."""
+def generate_restore_scripts(adb, backup_data, restore_ps1_path, restore_sh_path):
+    """Gera scripts autónomos e reversíveis (.ps1 e .sh) para restaurar a TV."""
     settings = backup_data.get("settings", {})
     disabled = backup_data.get("disabled_during_remediation", [])
-    
+    uninstalled = backup_data.get("uninstalled_user0_packages", [])
+    all_packages = list(dict.fromkeys(disabled + uninstalled))
+
+    # 1. Gerar PowerShell script (.ps1)
     ps_content = f"""# =====================================================================
 # RESTORE SCRIPT - BADBOX FORENSIC REMEDIATION REVERSAL
 # Dispositivo: {adb.host}
@@ -671,11 +677,11 @@ if ($dnsSpec -ne "null" -and $dnsSpec -ne "") {{
     python -c "import tv; d = tv.connect(); d.shell('settings put global private_dns_specifier $dnsSpec')"
 }}
 
-# 2. Reativar Pacotes de Sistema Desativados
-Write-Host "2. A reativar pacotes de sistema desativados..." -ForegroundColor Yellow
+# 2. Reinstalar e Reativar Pacotes Desativados para user 0
+Write-Host "2. A restaurar e reativar pacotes de sistema..." -ForegroundColor Yellow
 $packagesToEnable = @(
 """
-    for pkg in disabled:
+    for pkg in all_packages:
         ps_content += f'    "{pkg}",\n'
 
     ps_content += f"""@()
@@ -683,21 +689,81 @@ $packagesToEnable = @(
 
 foreach ($pkg in $packagesToEnable) {{
     if ($pkg) {{
-        Write-Host "   -> A reativar: $pkg"
-        python -c "import tv; d = tv.connect(); d.shell('pm enable $pkg')"
+        Write-Host "   -> A reinstalar/reativar: $pkg"
+        python -c "import tv; d = tv.connect(); d.shell('cmd package install-existing --user 0 $pkg'); d.shell('pm enable --user 0 $pkg'); d.shell('cmd appops set $pkg RUN_IN_BACKGROUND default'); d.shell('cmd appops set $pkg RUN_ANY_IN_BACKGROUND default')"
     }}
 }}
 
-Write-Host "`n>>> [✓] Restauro concluído com sucesso!" -ForegroundColor Green
+Write-Host "`
+>>> [✓] Restauro concluído com sucesso!" -ForegroundColor Green
 """
-    with open(restore_script_path, "w", encoding="utf-8") as f:
+    with open(restore_ps1_path, "w", encoding="utf-8") as f:
         f.write(ps_content)
-    print(f"    [✓] Script de reversão gerado com sucesso: {os.path.basename(restore_script_path)}")
+
+    # 2. Gerar Bash script (.sh)
+    sh_content = f"""#!/usr/bin/env bash
+# =====================================================================
+# RESTORE SCRIPT - BADBOX FORENSIC REMEDIATION REVERSAL (Linux / macOS)
+# Dispositivo: {adb.host}
+# Gerado em:   {backup_data.get('timestamp')}
+# =====================================================================
+
+TV_HOST="${{1:-{adb.host}}}"
+export TV_HOST
+TOOLS_DIR="{PROJECT_ROOT.replace('\\', '/')}/tools"
+cd "$TOOLS_DIR" || exit 1
+
+echo ">>> A reverter remediação e restaurar estado da TV ($TV_HOST)..."
+
+# 1. Repor definições originais
+echo "1. A repor definições globais..."
+python3 -c "import tv; d = tv.connect(); d.shell('settings put global package_verifier_user_consent {settings.get('package_verifier_user_consent', '1')}')"
+python3 -c "import tv; d = tv.connect(); d.shell('settings put global package_verifier_enable {settings.get('package_verifier_enable', '1')}')"
+
+DNS_MODE="{settings.get('private_dns_mode', 'off')}"
+DNS_SPEC="{settings.get('private_dns_specifier', '')}"
+[ -z "$DNS_MODE" ] || [ "$DNS_MODE" = "null" ] && DNS_MODE="off"
+python3 -c "import tv; d = tv.connect(); d.shell('settings put global private_dns_mode $DNS_MODE')"
+if [ -n "$DNS_SPEC" ] && [ "$DNS_SPEC" != "null" ]; then
+    python3 -c "import tv; d = tv.connect(); d.shell('settings put global private_dns_specifier $DNS_SPEC')"
+fi
+
+# 2. Reinstalar e reativar pacotes
+echo "2. A restaurar pacotes de sistema no user 0..."
+PACKAGES=(
+"""
+    for pkg in all_packages:
+        sh_content += f'  "{pkg}"\n'
+    sh_content += """)
+
+for pkg in "${PACKAGES[@]}"; do
+    if [ -n "$pkg" ]; then
+        echo "   -> A reinstalar/reativar: $pkg"
+        python3 -c "import tv; d = tv.connect(); d.shell('cmd package install-existing --user 0 $pkg'); d.shell('pm enable --user 0 $pkg'); d.shell('cmd appops set $pkg RUN_IN_BACKGROUND default'); d.shell('cmd appops set $pkg RUN_ANY_IN_BACKGROUND default')"
+    fi
+done
+
+echo ""
+echo ">>> [✓] Restauro concluído com sucesso!"
+"""
+    with open(restore_sh_path, "w", encoding="utf-8") as f:
+        f.write(sh_content)
+    try:
+        os.chmod(restore_sh_path, 0o755)
+    except Exception:
+        pass
+
+    print(f"    [✓] Scripts de reversão gerados: {os.path.basename(restore_ps1_path)} e {os.path.basename(restore_sh_path)}\n")
 
 
-def step_remediate_device(adb):
+def step_remediate_device(adb, enable_dot=False, verify_reboot=False):
     """
-    Executa a neutralização e remediação completa da box com salvaguarda reversível (backup).
+    Executa a neutralização e remediação em profundidade com salvaguarda reversível (backup):
+    1. Reativação e tranca do Play Protect
+    2. Sequência multi-camada: force-stop + pm clear + appops ignore + pm disable-user + pm uninstall -k --user 0
+    3. Proteção anti-C2 segura (opcionalmente ativa DNS-over-TLS se --enable-dot for solicitado)
+    4. Geração de scripts autónomos de reversão (.ps1 e .sh)
+    5. Validação de persistência pós-reboot (se --verify-reboot)
     """
     print("\n================================================================================")
     print(f"     PLANO DE REMEDIAÇÃO & NEUTRALIZAÇÃO FORENSE - ANDROID TV ({adb.host})       ")
@@ -706,7 +772,7 @@ def step_remediate_device(adb):
     if not adb.specs:
         adb.load_specs()
 
-    backup_file, backup_data, restore_script = create_remediation_backup(adb)
+    backup_file, backup_data, restore_ps1, restore_sh = create_remediation_backup(adb)
 
     # 1. Reativar e Trancar o Google Play Protect
     print("\n[Passo 1/4] A restaurar e trancar o Google Play Protect...")
@@ -721,8 +787,8 @@ def step_remediate_device(adb):
     else:
         print("    [!] Aviso: Não foi possível repor o valor padrão de Play Protect.")
 
-    # 2. Desinstalar / Desativar Pacotes Maliciosos da Botnet
-    print("\n[Passo 2/4] A procurar e neutralizar pacotes de botnet, trojans e proxies...")
+    # 2. Neutralização em Profundidade de Pacotes Maliciosos
+    print("\n[Passo 2/4] A procurar e neutralizar em profundidade pacotes de botnet, trojans e proxies...")
     pkgs = adb.run("pm list packages").splitlines()
     neutralized_count = 0
     for p in pkgs:
@@ -730,14 +796,31 @@ def step_remediate_device(adb):
         for ioc in IOC_PACKAGES:
             if ioc.lower() in p_name.lower():
                 print(f"    [*] A neutralizar pacote malicioso detetado: {p_name}")
+                # a) Forçar paragem imediata e limpar cache/dados
+                adb.run(f"am force-stop {p_name}")
+                adb.run(f"pm clear {p_name}")
+                
+                # b) Bloquear execução em background e wakelocks via AppOps
+                adb.run(f"cmd appops set {p_name} RUN_IN_BACKGROUND ignore")
+                adb.run(f"cmd appops set {p_name} RUN_ANY_IN_BACKGROUND ignore")
+                adb.run(f"cmd appops set {p_name} WAKE_LOCK ignore")
+                adb.run(f"cmd appops set {p_name} BOOT_COMPLETED ignore")
+                backup_data["appops_modified"].append(p_name)
+
+                # c) Tentar desinstalação na partição de utilizador (/data/app)
                 uninst = adb.run(f"pm uninstall {p_name}").strip()
                 if "Success" in uninst:
-                    print(f"        -> Desinstalado com sucesso: {p_name}")
+                    print(f"        -> [✓] Desinstalado da partição de utilizador: {p_name}")
+                    backup_data["disabled_during_remediation"].append(p_name)
                     neutralized_count += 1
                 else:
+                    # d) App de sistema (/system, /vendor, /oem): congelar e desinstalar para user 0
                     dis = adb.run(f"pm disable-user --user 0 {p_name}").strip()
-                    print(f"        -> App de sistema desativada/congelada: {p_name} ({dis})")
+                    uninst0 = adb.run(f"pm uninstall -k --user 0 {p_name}").strip()
+                    print(f"        -> [✓] App de sistema congelada e desinstalada para user 0: {p_name}")
+                    print(f"               (disable: {dis} | uninstall: {uninst0})")
                     backup_data["disabled_during_remediation"].append(p_name)
+                    backup_data["uninstalled_user0_packages"].append(p_name)
                     neutralized_count += 1
 
     if neutralized_count == 0:
@@ -745,43 +828,84 @@ def step_remediate_device(adb):
     else:
         print(f"    [✓] Total de pacotes maliciosos neutralizados: {neutralized_count}")
 
+    # Guardar snapshot JSON atualizado
     with open(backup_file, "w", encoding="utf-8") as f:
         json.dump(backup_data, f, indent=2)
 
-    # 3. Terminar Processos e Forçar Paragem de Módulos
-    print("\n[Passo 3/4] A terminar processos e serviços em execução da botnet...")
+    # 3. Terminar Processos e Neutralizar Ficheiros de Persistência
+    print("\n[Passo 3/4] A terminar processos residuais e neutralizar binários de persistência...")
     for ioc in IOC_PACKAGES:
         adb.run(f"am force-stop {ioc}")
         adb.run(f"killall {ioc} 2>/dev/null")
 
-    # Neutralizar ficheiros de persistência Vo1d / Corejava caso existam
     for b_path in IOC_BINARY_PATHS:
         check = adb.run(f"ls -ld {b_path} 2>/dev/null").strip()
         if check and "No such file" not in check and "not found" not in check:
-            print(f"    [*] A remover ficheiro de persistência malicioso: {b_path}")
+            print(f"    [*] A neutralizar ficheiro de persistência malicioso: {b_path}")
             adb.run(f"rm -rf {b_path} 2>/dev/null")
             adb.run(f"touch {b_path} 2>/dev/null && chmod 000 {b_path} 2>/dev/null")
 
     print("    [✓] Processos residuais terminados.")
 
-    # 4. Ativar DNS Seguro com Filtro de Malware (Corte de C2 direto na Box)
-    print("\n[Passo 4/4] A configurar Private DNS seguro na Box (Proteção anti-malware)...")
-    print("    - A definir DNS sobre TLS para: security.cloudflare-dns.com")
-    adb.run("settings put global private_dns_mode hostname")
-    adb.run("settings put global private_dns_specifier security.cloudflare-dns.com")
-    dns_mode = adb.run("settings get global private_dns_mode").strip()
-    dns_host = adb.run("settings get global private_dns_specifier").strip()
-    print(f"    - Modo Private DNS: {dns_mode}")
-    print(f"    - Servidor Seguro:  {dns_host}")
-    print("    [✓] Proteção de DNS ativa: pedidos para servidores C2 serão bloqueados na fonte.")
+    # 4. Configuração Segura de DNS
+    print("\n[Passo 4/4] Verificação de DNS e Resolução de Nomes...")
+    if enable_dot:
+        print("    - A configurar Private DNS seguro (DoT via Cloudflare): security.cloudflare-dns.com")
+        adb.run("settings put global private_dns_mode hostname")
+        adb.run("settings put global private_dns_specifier security.cloudflare-dns.com")
+        dns_mode = adb.run("settings get global private_dns_mode").strip()
+        dns_host = adb.run("settings get global private_dns_specifier").strip()
+        print(f"    - Modo Private DNS: {dns_mode}")
+        print(f"    - Servidor Seguro:  {dns_host}")
+        print("    [✓] Proteção de DNS ativa: pedidos para servidores C2 serão bloqueados na fonte.")
+    else:
+        current_dns_mode = adb.run("settings get global private_dns_mode").strip()
+        current_dns_spec = adb.run("settings get global private_dns_specifier").strip()
+        if current_dns_mode in ["hostname", "on"]:
+            print(f"    [*] Private DNS já ativo no dispositivo: {current_dns_mode} ({current_dns_spec})")
+        else:
+            print("    [*] Private DNS (DoT) mantido inalterado para preservar o DNS local da sua rede (Pi-hole, UniFi, AdGuard).")
+            print("        (Nota: para forçar Cloudflare DoT, execute o script com o parâmetro --enable-dot)")
 
-    generate_restore_script(adb, backup_data, restore_script)
+    generate_restore_scripts(adb, backup_data, restore_ps1, restore_sh)
 
     print("\n================================================================================")
-    print("  REMEDIAÇÃO CONCLUÍDA: A TV foi limpa e o tráfego de botnet bloqueado!")
+    print("  REMEDIAÇÃO CONCLUÍDA: A TV foi limpa e o tráfego de botnet neutralizado!")
     print(f"  Log da sessão gravado em: {CURRENT_LOGGER.log_path}")
-    print(f"  Para reverter a qualquer momento, execute: backups/{os.path.basename(restore_script)}")
+    print(f"  Para reverter no Windows:      backups/{os.path.basename(restore_ps1)}")
+    print(f"  Para reverter no Linux/macOS:  backups/{os.path.basename(restore_sh)}")
     print("================================================================================\n")
+
+    # 5. Validação Pós-Reboot (--verify-reboot)
+    if verify_reboot:
+        print("\n[*] A iniciar verificação de persistência pós-reboot (--verify-reboot)...")
+        print("    A reiniciar a Android TV via ADB...")
+        adb.run("reboot")
+        print("    A aguardar reinicialização do sistema (até 90 segundos)...")
+        time.sleep(15)
+        boot_completed = False
+        for attempt in range(15):
+            time.sleep(5)
+            try:
+                res = adb.run("getprop sys.boot_completed").strip()
+                if res == "1":
+                    boot_completed = True
+                    break
+            except Exception:
+                pass
+        
+        if boot_completed:
+            print("    [✓] Dispositivo reiniciado com sucesso! A reexecutar auditoria das 6 camadas...")
+            time.sleep(3)
+            post_result = step_quick_audit(adb, json_output=False)
+            post_v = post_result.get("verdict", "")
+            if "CRÍTICO" in post_v or "CRITICAL" in post_v:
+                print("\n[!] ALERTA CRÍTICO: Foi detetada persistência pós-reboot!")
+                print("    Um watchdog em init.rc ou partição /vendor reverteu as alterações.")
+            else:
+                print("\n[✓] VERIFICAÇÃO PÓS-REBOOT BEM-SUCEDIDA: Nenhuma ameaça ressuscitou.")
+        else:
+            print("    [!] Aviso: Não foi possível confirmar o arranque completo dentro do tempo limite.")
 
 
 def step_restore_device(adb):
@@ -807,7 +931,7 @@ def step_restore_device(adb):
         backup_data = json.load(f)
 
     settings = backup_data.get("settings", {})
-    print("\n[1/2] A repor definições globais originais...")
+    print("\n[1/3] A repor definições globais originais...")
     if "package_verifier_user_consent" in settings:
         adb.run(f"settings put global package_verifier_user_consent {settings['package_verifier_user_consent']}")
     if "package_verifier_enable" in settings:
@@ -822,17 +946,77 @@ def step_restore_device(adb):
         adb.run(f"settings put global private_dns_specifier {dns_spec}")
     print("    [✓] Definições restauradas.")
 
+    uninstalled = backup_data.get("uninstalled_user0_packages", [])
     disabled = backup_data.get("disabled_during_remediation", [])
-    print("\n[2/2] A reativar pacotes desativados durante a remediação...")
-    for pkg in disabled:
-        print(f"    [*] A reativar: {pkg}")
+    all_packages = list(dict.fromkeys(uninstalled + disabled))
+
+    print("\n[2/3] A reinstalar e reativar pacotes desativados no utilizador 0...")
+    for pkg in all_packages:
+        print(f"    [*] A restaurar: {pkg}")
+        adb.run(f"cmd package install-existing --user 0 {pkg}")
+        adb.run(f"pm enable --user 0 {pkg}")
         adb.run(f"pm enable {pkg}")
     print("    [✓] Pacotes reativados.")
+
+    appops_pkgs = backup_data.get("appops_modified", [])
+    if appops_pkgs:
+        print("\n[3/3] A repor permissões de AppOps para default...")
+        for pkg in set(appops_pkgs):
+            adb.run(f"cmd appops set {pkg} RUN_IN_BACKGROUND default")
+            adb.run(f"cmd appops set {pkg} RUN_ANY_IN_BACKGROUND default")
+            adb.run(f"cmd appops set {pkg} WAKE_LOCK default")
+            adb.run(f"cmd appops set {pkg} BOOT_COMPLETED default")
+        print("    [✓] AppOps repostos.")
+    else:
+        print("\n[3/3] Sem registos de alterações de AppOps a reverter.")
 
     print("\n================================================================================")
     print("  [✓] RESTAURO CONCLUÍDO COM SUCESSO! Dispositivo reposto no estado anterior.")
     print("================================================================================\n")
     return True
+
+
+def scan_init_watchdogs(adb):
+    """
+    Inspeciona scripts de inicialização init.rc (/system/etc/init, /vendor/etc/init, /odm/etc/init)
+    à procura de serviços de persistência e watchdogs que reativem a botnet no arranque.
+    """
+    print("\n================================================================================")
+    print(f"      PESQUISA DE WATCHDOGS & PERSISTÊNCIA EM INIT.RC ({adb.host})              ")
+    print("================================================================================")
+
+    init_dirs = ["/system/etc/init", "/vendor/etc/init", "/odm/etc/init", "/system_ext/etc/init", "/etc/init"]
+    suspect_terms = [
+        "package_verifier_user_consent", "oemservice", "x.cpe", "vo1d", "corejava",
+        "titannet", "getgrass", "traffmonetizer", "wd", "linkfog", "appdns", "szbboys"
+    ]
+
+    print("[*] A procurar scripts *.rc e gatilhos de arranque...")
+    found_watchdogs = []
+    for idir in init_dirs:
+        for term in suspect_terms:
+            res = adb.run(f"grep -rn '{term}' {idir} 2>/dev/null").strip()
+            if res:
+                for line in res.splitlines():
+                    if line.strip() and not line.startswith("Binary file"):
+                        found_watchdogs.append(line.strip())
+
+    suspect_bins = ["wd", "vo1d", "oemservice", "corejava", "titannet", "linkfog"]
+    for sbin in suspect_bins:
+        for bdir in ["/system/bin", "/vendor/bin", "/data/local/tmp"]:
+            chk = adb.run(f"ls -ld {bdir}/{sbin} 2>/dev/null").strip()
+            if chk and "No such file" not in chk and "not found" not in chk:
+                found_watchdogs.append(f"Binário executável não-padrão detetado: {chk}")
+
+    if found_watchdogs:
+        print(f"    [!] ALERTA CRÍTICO: Foram detetadas {len(found_watchdogs)} referências a watchdogs/persistência:")
+        for w in set(found_watchdogs):
+            print(f"        -> {w}")
+    else:
+        print("    [✓] Nenhum script de persistência ou watchdog detetado nas partições init.")
+
+    print("================================================================================\n")
+    return found_watchdogs
 
 
 def ensure_build_environment():
@@ -1188,9 +1372,13 @@ if __name__ == "__main__":
     parser.add_argument("--json", action="store_true", help="Gera apenas saída compacta em formato JSON para leitura rápida por agentes de IA (poupa tokens)")
     parser.add_argument("--lang", choices=["en", "pt"], default=None, help="Idioma das mensagens / Interface language (en or pt). Defaults to system language.")
     parser.add_argument("--scan-subnet", metavar="CIDR", help="Descobre e audita automaticamente todas as Android TVs na sub-rede (ex: 192.168.1.0/24)")
-    parser.add_argument("--auto-pipeline", action="store_true", help="Executa pipeline completo: instala, scan estatico, VPN 20s, recolhe logs e desinstala")
-    parser.add_argument("--quick-scan", action="store_true", help="Executa o diagnóstico rápido das 5 camadas via ADB")
-    parser.add_argument("--remediate", action="store_true", help="Neutraliza a box com backup prévio: repõe Play Protect, remove/desativa apps da botnet e ativa DNS seguro")
+    parser.add_argument("--auto-pipeline", action="store_true", help="Executa pipeline completo: instala, scan estatico, VPN Sentinel, recolhe logs e desinstala")
+    parser.add_argument("--quick-scan", action="store_true", help="Executa o diagnóstico rápido das 6 camadas via ADB")
+    parser.add_argument("--remediate", action="store_true", help="Neutraliza a box com backup prévio: repõe Play Protect, remove/desativa apps da botnet em profundidade")
+    parser.add_argument("--enable-dot", action="store_true", help="Ativa DNS-over-TLS (Cloudflare Security DoT) durante a remediação")
+    parser.add_argument("--verify-reboot", action="store_true", help="Reinicia a Android TV e valida se ameaças ressuscitaram após o arranque")
+    parser.add_argument("--vpn-duration", type=int, default=20, help="Duração da captura do Sentinel VPN no auto-pipeline em segundos (padrão: 20)")
+    parser.add_argument("--scan-init-watchdogs", action="store_true", help="Inspeciona scripts init.rc e binários não-standard à procura de persistências de watchdogs")
     parser.add_argument("--restore", action="store_true", help="Reverte a remediação e repõe o estado anterior usando o backup")
     parser.add_argument("--install-app", action="store_true", help="Instala a app na box")
     parser.add_argument("--recompile-for-device", action="store_true", help="Força a recompilação à medida para o SoC/SDK do dispositivo")
@@ -1240,19 +1428,23 @@ if __name__ == "__main__":
             print(json.dumps(batch_results, indent=2, ensure_ascii=False))
         sys.exit(0)
 
-    if args.target and (args.quick_scan or args.auto_pipeline or args.remediate or args.restore or args.install_app or args.recompile_for_device or args.launch_app or args.pull_report or args.remove_app):
+    if args.target and (args.quick_scan or args.auto_pipeline or args.remediate or args.restore or args.install_app or args.recompile_for_device or args.launch_app or args.pull_report or args.remove_app or args.scan_init_watchdogs):
         adb = AdbDevice(args.target)
         if not adb.device:
             print(f"[!] Falha de conexao com {args.target}")
             sys.exit(3)
 
-        if args.auto_pipeline:
-            verdict = step_automated_pipeline(adb, vpn_duration=20, force_recompile=args.recompile_for_device)
+        if args.scan_init_watchdogs:
+            adb.load_specs()
+            scan_init_watchdogs(adb)
+            sys.exit(0)
+        elif args.auto_pipeline:
+            verdict = step_automated_pipeline(adb, vpn_duration=args.vpn_duration, force_recompile=args.recompile_for_device)
             if "CRÍTICO" in verdict or "CRITICAL" in verdict: sys.exit(1)
             elif "SUSP" in verdict: sys.exit(2)
             else: sys.exit(0)
         elif args.remediate:
-            step_remediate_device(adb)
+            step_remediate_device(adb, enable_dot=args.enable_dot, verify_reboot=args.verify_reboot)
             sys.exit(0)
         elif args.restore:
             success = step_restore_device(adb)
@@ -1279,7 +1471,7 @@ if __name__ == "__main__":
         elif args.remove_app:
             step_remove_app(adb)
             sys.exit(0)
-    elif args.target and not any([args.quick_scan, args.install_app, args.remediate, args.restore, args.recompile_for_device, args.launch_app, args.pull_report, args.remove_app]):
+    elif args.target and not any([args.quick_scan, args.install_app, args.remediate, args.restore, args.recompile_for_device, args.launch_app, args.pull_report, args.remove_app, args.scan_init_watchdogs]):
         adb = AdbDevice(args.target)
         if not adb.device:
             sys.exit(3)

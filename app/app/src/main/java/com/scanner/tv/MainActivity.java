@@ -1,6 +1,7 @@
 package com.scanner.tv;
 
 import android.content.Intent;
+import android.content.pm.ApplicationInfo;
 import android.graphics.Color;
 import android.net.Uri;
 import android.net.VpnService;
@@ -200,26 +201,77 @@ public class MainActivity extends AppCompatActivity {
         appendColoredLog("      A INICIAR REMEDIAÇÃO NATIVA NA TV          ", Color.parseColor("#F59E0B"));
         appendColoredLog("=================================================", Color.parseColor("#F59E0B"));
 
-        if (!detectedMaliciousPackages.isEmpty()) {
-            appendColoredLog("[*] A abrir desinstalação guiada das apps da botnet...", Color.WHITE);
-            for (String pkg : detectedMaliciousPackages) {
-                appendColoredLog("   -> A solicitar remoção de: " + pkg, Color.parseColor("#EF4444"));
+        List<String> userPkgs = (lastResult != null) ? new ArrayList<>(lastResult.userThreatPackages) : new ArrayList<>();
+        List<String> sysPkgs = (lastResult != null) ? new ArrayList<>(lastResult.systemThreatPackages) : new ArrayList<>();
+
+        if (userPkgs.isEmpty() && sysPkgs.isEmpty() && !detectedMaliciousPackages.isEmpty()) {
+            for (String p : detectedMaliciousPackages) {
+                try {
+                    ApplicationInfo ai = getPackageManager().getApplicationInfo(p, 0);
+                    if ((ai.flags & ApplicationInfo.FLAG_SYSTEM) != 0 || (ai.flags & ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) != 0) {
+                        sysPkgs.add(p);
+                    } else {
+                        userPkgs.add(p);
+                    }
+                } catch (Exception e) {
+                    userPkgs.add(p);
+                }
+            }
+        }
+
+        // 1. Desinstalação com D-Pad de Apps de Utilizador (/data/app)
+        if (!userPkgs.isEmpty()) {
+            appendColoredLog("\n[Passo 1/3] A solicitar desinstalação de apps na partição de utilizador...", Color.WHITE);
+            for (String pkg : userPkgs) {
+                appendColoredLog("   -> A solicitar desinstalação: " + pkg, Color.parseColor("#EF4444"));
                 Intent uninstallIntent = new Intent(Intent.ACTION_UNINSTALL_PACKAGE);
                 uninstallIntent.setData(Uri.parse("package:" + pkg));
                 uninstallIntent.putExtra(Intent.EXTRA_RETURN_RESULT, true);
                 try {
                     startActivity(uninstallIntent);
                 } catch (Exception e) {
-                    appendColoredLog("   [!] App do sistema (necessita de congelamento via ADB): " + pkg, Color.parseColor("#F59E0B"));
+                    appendColoredLog("   [!] Erro ao invocar desinstalação: " + pkg, Color.parseColor("#EF4444"));
                 }
             }
         } else {
-            appendColoredLog("[✓] Não foram encontrados pacotes de terceiros na partição de utilizador.", Color.WHITE);
+            appendColoredLog("\n[Passo 1/3] Nenhuma app maliciosa removível em /data/app.", Color.WHITE);
         }
 
-        appendColoredLog("\n[*] A abrir Definições de Segurança / Play Protect na TV...", Color.WHITE);
+        // 2. Isolamento de Implantes de Sistema (/system, /vendor) via Quarentena Sinkhole e Definições
+        if (!sysPkgs.isEmpty()) {
+            appendColoredLog("\n[Passo 2/3] Implantes de sistema detetados (/system ou /vendor):", Color.parseColor("#EF4444"));
+            appendColoredLog("   Nota: Sem ADB/PC, o Android TV bloqueia a desinstalação direta de apps de fábrica.", Color.parseColor("#F59E0B"));
+            appendColoredLog("   [*] A ativar Quarentena de Rede (VpnService Sinkhole) para cortar ligações C2...", Color.parseColor("#22C55E"));
+
+            Intent vpnPrep = VpnService.prepare(this);
+            if (vpnPrep == null) {
+                Intent qIntent = new Intent(this, PacketMonitorVpnService.class);
+                qIntent.setAction(PacketMonitorVpnService.ACTION_QUARANTINE);
+                qIntent.putStringArrayListExtra(PacketMonitorVpnService.EXTRA_QUARANTINE_PKGS, new ArrayList<>(sysPkgs));
+                startService(qIntent);
+                isVpnRunning = true;
+                btnVpnMonitor.setText(getString(R.string.btn_stop_vpn));
+                btnVpnMonitor.setBackgroundResource(R.drawable.btn_red_focused);
+                appendColoredLog("   [✓] Quarentena Sinkhole ATIVA: Tráfego de rede dos implantes foi travado!", Color.parseColor("#22C55E"));
+            } else {
+                startActivityForResult(vpnPrep, VPN_REQUEST_CODE);
+            }
+
+            appendColoredLog("   [*] A abrir ecrã de detalhes da app (prima 'Forçar Paragem' e 'Desativar' no telecomando):", Color.parseColor("#38BDF8"));
+            for (String pkg : sysPkgs) {
+                try {
+                    Intent detailsIntent = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
+                    detailsIntent.setData(Uri.parse("package:" + pkg));
+                    startActivity(detailsIntent);
+                } catch (Exception ignored) {}
+            }
+        } else {
+            appendColoredLog("\n[Passo 2/3] Nenhum implante de sistema detetado.", Color.WHITE);
+        }
+
+        // 3. Ativação de Google Play Protect
+        appendColoredLog("\n[Passo 3/3] A abrir Definições de Segurança / Play Protect...", Color.WHITE);
         appendColoredLog("    Por favor confirme que a 'Verificação de apps' está ATIVA.", Color.parseColor("#38BDF8"));
-        
         try {
             Intent secIntent = new Intent(Settings.ACTION_SECURITY_SETTINGS);
             startActivity(secIntent);
@@ -228,12 +280,12 @@ public class MainActivity extends AppCompatActivity {
                 Intent setIntent = new Intent(Settings.ACTION_SETTINGS);
                 startActivity(setIntent);
             } catch (Exception e) {
-                appendColoredLog("[!] Não foi possível abrir definições automaticamente.", Color.parseColor("#EF4444"));
+                appendColoredLog("[!] Não foi possível abrir definições gerais automaticamente.", Color.parseColor("#EF4444"));
             }
         }
 
-        appendColoredLog("\n[✓] Passos de remediação aplicados!", Color.parseColor("#22C55E"));
-        appendColoredLog(">>> Prima novamente 'ANALISAR BOX' para comprovar a eficácia da limpeza!\n", Color.parseColor("#38BDF8"));
+        appendColoredLog("\n[✓] Ações de remediação aplicadas!", Color.parseColor("#22C55E"));
+        appendColoredLog(">>> Prima 'ANALISAR BOX' para validar o estado de limpeza!\n", Color.parseColor("#38BDF8"));
         btnScan.requestFocus();
     }
 

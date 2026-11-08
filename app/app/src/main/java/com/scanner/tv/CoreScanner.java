@@ -103,6 +103,31 @@ public class CoreScanner {
         return executeScan(context, listener);
     }
 
+    private static Set<String> loadDynamicIocs(Context context) {
+        Set<String> set = new HashSet<>(IOC_PACKAGES);
+        try (InputStream is = context.getAssets().open("iocs.json")) {
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            byte[] buf = new byte[8192];
+            int len;
+            while ((len = is.read(buf)) != -1) {
+                baos.write(buf, 0, len);
+            }
+            String jsonStr = baos.toString("UTF-8");
+            org.json.JSONObject obj = new org.json.JSONObject(jsonStr);
+            if (obj.has("entries")) {
+                org.json.JSONArray arr = obj.getJSONArray("entries");
+                for (int i = 0; i < arr.length(); i++) {
+                    String entry = arr.getString(i).trim();
+                    if (!entry.isEmpty()) {
+                        set.add(entry.toLowerCase());
+                    }
+                }
+            }
+        } catch (Exception ignored) {
+        }
+        return set;
+    }
+
     public static ScanResult executeScan(Context context, ScanProgressListener listener) {
         ScanResult result = new ScanResult();
         result.deviceDetails = Build.MANUFACTURER + " " + Build.MODEL + " (Android " + Build.VERSION.RELEASE + ", API " + Build.VERSION.SDK_INT + ")";
@@ -134,17 +159,34 @@ public class CoreScanner {
             result.addFinding("[SUSPEITO] A box declara suporte GSM/Telefonia móvel (Típico de spoofing para ad-fraud).", 3);
         }
 
-        // 4. Enumeração de Pacotes Instalados vs Lista de IoCs
+        // 4. Enumeração de Pacotes Instalados vs Lista de IoCs (Dinâmica + Embebida)
         if (listener != null) listener.onProgress("[4/6] A procurar pacotes maliciosos conhecidos e backdoors...");
         PackageManager pm = context.getPackageManager();
         List<PackageInfo> installedPackages = pm.getInstalledPackages(PackageManager.GET_PERMISSIONS);
+        Set<String> allIocs = loadDynamicIocs(context);
 
         for (PackageInfo pkg : installedPackages) {
             String pkgName = pkg.packageName.toLowerCase();
+            boolean isMalicious = false;
 
-            for (String ioc : IOC_PACKAGES) {
-                if (pkgName.equals(ioc.toLowerCase()) || pkgName.contains(ioc.toLowerCase())) {
-                    result.addFinding("[CRÍTICO] Pacote com assinatura de botnet/proxy encontrado: " + pkg.packageName, 8);
+            for (String ioc : allIocs) {
+                if (pkgName.equals(ioc) || pkgName.contains(ioc)) {
+                    isMalicious = true;
+                    break;
+                }
+            }
+
+            if (isMalicious) {
+                boolean isSystem = (pkg.applicationInfo != null) &&
+                        ((pkg.applicationInfo.flags & ApplicationInfo.FLAG_SYSTEM) != 0 ||
+                         (pkg.applicationInfo.flags & ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) != 0);
+
+                if (isSystem) {
+                    result.systemThreatPackages.add(pkg.packageName);
+                    result.addFinding("[CRÍTICO - IMPLANTE DE SISTEMA] Pacote pré-instalado em partição read-only (/system ou /vendor): " + pkg.packageName, 9);
+                } else {
+                    result.userThreatPackages.add(pkg.packageName);
+                    result.addFinding("[CRÍTICO - APP DE UTILIZADOR] Pacote malicioso desinstalável (/data/app): " + pkg.packageName, 8);
                 }
             }
 
@@ -309,6 +351,9 @@ public class CoreScanner {
     }
 
     private static void scanNetworkSockets(ScanResult result) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            result.addFinding("[INFO] Android 10+ detetado: Leitura de /proc/net/tcp restrita por SELinux (Inspeção em tempo real ativa no Sentinela VPN)", 0);
+        }
         File tcpFile = new File("/proc/net/tcp");
         if (tcpFile.exists() && tcpFile.canRead()) {
             try (InputStream is = new FileInputStream(tcpFile)) {

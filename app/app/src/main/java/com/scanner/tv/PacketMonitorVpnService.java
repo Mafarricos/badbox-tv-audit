@@ -1,14 +1,19 @@
 package com.scanner.tv;
 
+import android.content.Context;
 import android.content.Intent;
+import android.net.ConnectivityManager;
 import android.net.VpnService;
+import android.os.Build;
 import android.os.ParcelFileDescriptor;
 import android.util.Log;
 
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
@@ -16,9 +21,16 @@ import java.util.Set;
 public class PacketMonitorVpnService extends VpnService implements Runnable {
 
     private static final String TAG = "VpnPacketMonitor";
+    public static final String ACTION_STOP = "STOP";
+    public static final String ACTION_START_SENTINEL = "START_SENTINEL";
+    public static final String ACTION_QUARANTINE = "QUARANTINE";
+    public static final String EXTRA_QUARANTINE_PKGS = "quarantine_pkgs";
+
     private Thread mThread;
     private ParcelFileDescriptor mInterface;
     private boolean isRunning = false;
+    private boolean isQuarantineMode = false;
+    private final Set<String> mQuarantinePackages = new HashSet<>();
 
     // 1. Portas CRÍTICAS de C2, Proxies e PCDN conhecidos (XCPE, Videostrong, Airship, Linkfog, TitanNet) -> VERMELHO
     private static final Set<Integer> CRITICAL_MALWARE_PORTS = new HashSet<>(Arrays.asList(
@@ -30,7 +42,8 @@ public class PacketMonitorVpnService extends VpnService implements Runnable {
             12000,                  // Jaguar cleartext controller
             9992, 9994,             // Linkfog agent deployment channels (bkdomain.cn)
             2375,                   // VS/SOFT backup router (router.anyevonline.com)
-            2095, 2082              // UOTA updater endpoints (uota.club / uota.xyz)
+            2095, 2082,             // UOTA updater endpoints (uota.club / uota.xyz)
+            2222, 7000              // Portas SSH Reverso / FRP do XCPE (Plume Whitepaper)
     ));
 
     private static final Set<String> CRITICAL_C2_IPS = new HashSet<>(Arrays.asList(
@@ -65,13 +78,23 @@ public class PacketMonitorVpnService extends VpnService implements Runnable {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        if ("STOP".equals(intent.getAction())) {
-            stopVpn();
-            return START_NOT_STICKY;
+        if (intent != null) {
+            if (ACTION_STOP.equals(intent.getAction())) {
+                stopVpn();
+                return START_NOT_STICKY;
+            }
+            if (ACTION_QUARANTINE.equals(intent.getAction())) {
+                ArrayList<String> pkgs = intent.getStringArrayListExtra(EXTRA_QUARANTINE_PKGS);
+                if (pkgs != null && !pkgs.isEmpty()) {
+                    mQuarantinePackages.clear();
+                    mQuarantinePackages.addAll(pkgs);
+                    isQuarantineMode = true;
+                }
+            }
         }
 
         if (mThread == null || !mThread.isAlive()) {
-            AuditLogger.log("INFO", "VPN", "Interface de monitorização VPN iniciada.");
+            AuditLogger.log("INFO", "VPN", isQuarantineMode ? "Interface de Quarentena Sinkhole iniciada." : "Interface de monitorização VPN iniciada.");
             mThread = new Thread(this, "VpnMonitorThread");
             isRunning = true;
             mThread.start();
@@ -104,10 +127,25 @@ public class PacketMonitorVpnService extends VpnService implements Runnable {
     public void run() {
         try {
             Builder builder = new Builder();
-            builder.setSession("XCPE Sentinel VPN");
-            builder.addAddress("10.10.10.2", 32);
-            builder.addRoute("0.0.0.0", 0);
-            builder.addDnsServer("8.8.8.8");
+            if (isQuarantineMode && !mQuarantinePackages.isEmpty()) {
+                builder.setSession("XCPE Quarantine Sinkhole");
+                builder.addAddress("10.99.99.2", 32);
+                builder.addRoute("0.0.0.0", 0);
+                builder.addDnsServer("127.0.0.1");
+                for (String pkg : mQuarantinePackages) {
+                    try {
+                        builder.addAllowedApplication(pkg);
+                        AuditLogger.log("INFO", "QUARANTINE", "Pacote isolado via Sinkhole: " + pkg);
+                    } catch (Exception e) {
+                        Log.w(TAG, "Impossível associar pacote à quarentena: " + pkg, e);
+                    }
+                }
+            } else {
+                builder.setSession("XCPE Sentinel VPN");
+                builder.addAddress("10.10.10.2", 32);
+                builder.addRoute("0.0.0.0", 0);
+                builder.addDnsServer("8.8.8.8");
+            }
 
             mInterface = builder.establish();
             if (mInterface == null) {
@@ -141,29 +179,58 @@ public class PacketMonitorVpnService extends VpnService implements Runnable {
         int headerLength = (data[0] & 0x0F) * 4;
         int protocol = data[9] & 0xFF;
 
+        String srcIp = (data[12] & 0xFF) + "." + (data[13] & 0xFF) + "." + (data[14] & 0xFF) + "." + (data[15] & 0xFF);
         String destIp = (data[16] & 0xFF) + "." + (data[17] & 0xFF) + "." + (data[18] & 0xFF) + "." + (data[19] & 0xFF);
 
+        int srcPort = 0;
         int destPort = 0;
         String protoStr = (protocol == 6) ? "TCP" : (protocol == 17) ? "UDP" : "PROTO-" + protocol;
 
         if (protocol == 6 || protocol == 17) {
             if (length >= headerLength + 4) {
+                srcPort = ((data[headerLength] & 0xFF) << 8) | (data[headerLength + 1] & 0xFF);
                 destPort = ((data[headerLength + 2] & 0xFF) << 8) | (data[headerLength + 3] & 0xFF);
             }
+        }
+
+        // Se estiver em modo Quarentena Sinkhole, todo o tráfego dos pacotes isolados é bloqueado
+        if (isQuarantineMode) {
+            String msg = "QUARENTENA [SINKHOLE BLOQUEADO]: Tráfego de implante de sistema bloqueado: " + destIp + ":" + destPort + " (" + protoStr + ")";
+            notifyEvent("CRITICO", msg);
+            return;
+        }
+
+        // Tenta atribuição de UID/Pacote no Android 10+ (API 29+)
+        String attribution = "";
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && (protocol == 6 || protocol == 17) && destPort > 0) {
+            try {
+                ConnectivityManager cm = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
+                if (cm != null) {
+                    InetSocketAddress local = new InetSocketAddress(srcIp, srcPort);
+                    InetSocketAddress remote = new InetSocketAddress(destIp, destPort);
+                    int uid = cm.getConnectionOwnerUid(protocol, local, remote);
+                    if (uid > 0) {
+                        String[] pkgs = getPackageManager().getPackagesForUid(uid);
+                        if (pkgs != null && pkgs.length > 0) {
+                            attribution = " [App: " + pkgs[0] + "]";
+                        }
+                    }
+                }
+            } catch (Exception ignored) {}
         }
 
         // === CASO A: AMEAÇAS CRÍTICAS DE BOTNET / C2 (VERMELHO) ===
 
         // 1. Conexão direta a IP de C2 conhecido
         if (CRITICAL_C2_IPS.contains(destIp)) {
-            String msg = "PERIGO [CRÍTICO]: Tentativa de ligação direta a IP C2 da Botnet: " + destIp + ":" + destPort + " (" + protoStr + ")";
+            String msg = "PERIGO [CRÍTICO]: Ligação direta a IP C2 da Botnet: " + destIp + ":" + destPort + " (" + protoStr + ")" + attribution;
             notifyEvent("CRITICO", msg);
             return;
         }
 
         // 2. Conexão a portas de C2 / Proxies conhecidos
         if (CRITICAL_MALWARE_PORTS.contains(destPort)) {
-            String msg = "PERIGO [CRÍTICO]: Tentativa de conexão a Porta de Botnet/Proxy: " + destIp + ":" + destPort + " (" + protoStr + ")";
+            String msg = "PERIGO [CRÍTICO]: Conexão a Porta de Botnet/Proxy: " + destIp + ":" + destPort + " (" + protoStr + ")" + attribution;
             notifyEvent("CRITICO", msg);
             return;
         }
@@ -177,14 +244,13 @@ public class PacketMonitorVpnService extends VpnService implements Runnable {
                     || payload.contains("getgrass") || payload.contains("traffmonetizer") || payload.contains("linkfog")
                     || payload.contains("yokatv") || payload.contains("uota") || payload.contains("amhib")
                     || payload.contains("creapslpinut") || payload.contains("gapslpinch") || payload.contains("bestipip")) {
-                String msg = "PERIGO [CRÍTICO DNS]: Pedido de resolução para domínio malicioso de C2/Botnet!";
+                String msg = "PERIGO [CRÍTICO DNS]: Pedido de resolução para domínio malicioso de C2/Botnet!" + attribution;
                 notifyEvent("CRITICO", msg);
                 return;
             }
         }
 
         // === FILTRAGEM DE TRÁFEGO LEGÍTIMO (IGNORADO SILENCIOSAMENTE) ===
-        // 1. Tráfego de rede interna (RFC 1918, Multicast, Broadcast local, Router/Gateway)
         boolean isLocalOrInternal = destIp.startsWith("192.168.") || destIp.startsWith("10.") || destIp.startsWith("172.16.")
                 || destIp.startsWith("172.17.") || destIp.startsWith("172.18.") || destIp.startsWith("172.19.")
                 || destIp.startsWith("172.2") || destIp.startsWith("172.3")
@@ -192,25 +258,23 @@ public class PacketMonitorVpnService extends VpnService implements Runnable {
                 || destIp.startsWith("127.") || destIp.startsWith("169.254.");
 
         if (isLocalOrInternal) {
-            return; // Filtra e ignora totalmente tráfego interno/router
+            return;
         }
 
-        // 2. Tráfego de infraestrutura oficial Google / Android TV (8.8.8.8, 8.8.4.4, ranges ASN Google)
         boolean isGoogleInfra = destIp.equals("8.8.8.8") || destIp.equals("8.8.4.4")
                 || destIp.startsWith("142.250.") || destIp.startsWith("172.217.")
                 || destIp.startsWith("216.58.") || destIp.startsWith("74.125.");
 
         if (isGoogleInfra) {
-            return; // Filtra e ignora tráfego legítimo de serviços Google/DoT
+            return;
         }
 
-        // 3. Portas padrão de internet já autorizadas
         if (STANDARD_PORTS.contains(destPort)) {
             return;
         }
 
-        // === CASO B: ANOMALIA SUSPEITA REAL (EXTERNA, NÃO GOOGLE, NÃO HABITUAL) ===
-        String msg = "ALERTA [ANOMALIA]: Tráfego suspeito externo não habitual: " + destIp + ":" + destPort + " (" + protoStr + ")";
+        // === CASO B: ANOMALIA SUSPEITA REAL ===
+        String msg = "ALERTA [ANOMALIA]: Tráfego externo não habitual: " + destIp + ":" + destPort + " (" + protoStr + ")" + attribution;
         notifyEvent("ANOMALIA", msg);
     }
 

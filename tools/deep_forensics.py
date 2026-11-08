@@ -125,9 +125,30 @@ def scan_oem_droppers(adb):
 
 
 def dump_network_state(adb):
-    print(f"\n[*] A inspecionar conexoes e sockets de rede ativos em {adb.host}...")
+    print(f"\n[*] A inspecionar conexões e sockets de rede ativos em {adb.host}...")
     netstat = adb.run("netstat -tuln 2>/dev/null || ss -tuln 2>/dev/null")
     print(netstat)
+
+    print("\n[*] A inspecionar sockets com associação de processo (PID / Programa)...")
+    netstat_proc = adb.run("ss -tanp 2>/dev/null || netstat -tanp 2>/dev/null")
+    if netstat_proc.strip():
+        print(netstat_proc)
+
+    print("\n[*] Processos nativos fora do runtime Zygote (root / system / adb):")
+    ps_out = adb.run("ps -ef 2>/dev/null || ps 2>/dev/null")
+    non_zygote_count = 0
+    for line in ps_out.splitlines():
+        if any(b in line for b in ["/system/bin/", "/vendor/bin/", "/data/local/tmp/", "wd", "vo1d", "corejava", "titannet", "linkfog", "oemservice"]):
+            if not any(ign in line for ign in ["zygote", "adbd", "logd", "servicemanager", "hwservicemanager", "vndservicemanager"]):
+                print(f"    -> {line.strip()}")
+                non_zygote_count += 1
+    if non_zygote_count == 0:
+        print("    [✓] Nenhum processo nativo anómalo detetado.")
+
+
+def scan_init_watchdogs(adb):
+    from audit_security import scan_init_watchdogs as _scan_watchdogs
+    return _scan_watchdogs(adb)
 
 
 if __name__ == "__main__":
@@ -137,7 +158,8 @@ if __name__ == "__main__":
     parser.add_argument("--inspect-package", metavar="PKG", help="Inspeciona pacote em detalhe (path, UID, permissoes, componentes)")
     parser.add_argument("--pull-and-analyze", metavar="PATH", help="Descarrega e faz engenharia reversa das strings do APK")
     parser.add_argument("--scan-oem-droppers", action="store_true", help="Pesquisa ficheiros suspeitos em /system, /vendor, /oem")
-    parser.add_argument("--dump-network-state", action="store_true", help="Lista portas em escuta e ligacoes ativas")
+    parser.add_argument("--scan-init-watchdogs", action="store_true", help="Inspeciona scripts init.rc e binários não-standard à procura de persistências de watchdogs")
+    parser.add_argument("--dump-network-state", action="store_true", help="Lista portas em escuta, ligacoes ativas e correlaciona com processos")
 
     args = parser.parse_args()
     if args.lang:
@@ -150,9 +172,12 @@ if __name__ == "__main__":
         pull_and_analyze_apk(adb, args.pull_and_analyze)
     elif args.scan_oem_droppers:
         scan_oem_droppers(adb)
+    elif args.scan_init_watchdogs:
+        scan_init_watchdogs(adb)
     elif args.dump_network_state:
         dump_network_state(adb)
     else:
         # Se nenhum argumento especifico for passado, executa analise forense profunda completa
         scan_oem_droppers(adb)
+        scan_init_watchdogs(adb)
         dump_network_state(adb)
