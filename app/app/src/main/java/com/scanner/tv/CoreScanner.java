@@ -177,13 +177,17 @@ public class CoreScanner {
             }
 
             if (isMalicious) {
-                boolean isSystem = (pkg.applicationInfo != null) &&
-                        ((pkg.applicationInfo.flags & ApplicationInfo.FLAG_SYSTEM) != 0 ||
-                         (pkg.applicationInfo.flags & ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) != 0);
+                boolean isUpdatedSystemApp = (pkg.applicationInfo != null) &&
+                        ((pkg.applicationInfo.flags & ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) != 0);
+                boolean isPureSystemApp = (pkg.applicationInfo != null) &&
+                        ((pkg.applicationInfo.flags & ApplicationInfo.FLAG_SYSTEM) != 0) && !isUpdatedSystemApp;
 
-                if (isSystem) {
+                if (isUpdatedSystemApp) {
+                    result.userThreatPackages.add(pkg.packageName);
+                    result.addFinding("[CRÍTICO - ATUALIZAÇÃO MALICIOSA EM /DATA/APP] Atualização de app de sistema desinstalável: " + pkg.packageName, 9);
+                } else if (isPureSystemApp) {
                     result.systemThreatPackages.add(pkg.packageName);
-                    result.addFinding("[CRÍTICO - IMPLANTE DE SISTEMA] Pacote pré-instalado em partição read-only (/system ou /vendor): " + pkg.packageName, 9);
+                    result.addFinding("[CRÍTICO - IMPLANTE DE SISTEMA] Pacote de fábrica pré-instalado em /system ou /vendor: " + pkg.packageName, 9);
                 } else {
                     result.userThreatPackages.add(pkg.packageName);
                     result.addFinding("[CRÍTICO - APP DE UTILIZADOR] Pacote malicioso desinstalável (/data/app): " + pkg.packageName, 8);

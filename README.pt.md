@@ -55,9 +55,9 @@ Antes de iniciar ferramentas ou pedir a um Agente de IA para analisar o aparelho
 
 Este repositório inclui instruções autónomas completas no ficheiro [`AGENTS.md`](AGENTS.md) que os agentes de IA leem e seguem de forma transparente. **Não precisa de configurar Python manualmente, instalar drivers ou escrever comandos.**
 
-> [!TIP]
-> ⚡ **Recomendação para Utilizadores do Google Antigravity:**  
-> Se estiver a utilizar o **Antigravity**, configure o modelo para **Gemini 3.8 Flash** com nível de raciocínio em **Low** e ative o modo **Turbo**. Desta forma, o agente executa a auditoria de forma ultrarrápida, consome uma fração mínima de tokens e procede autonomamente sem interromper continuamente o utilizador com pedidos de confirmação desnecessários.
+> [!IMPORTANT]
+> 🛡️ **Fluxo Operacional Seguro para Agentes de IA:**  
+> O agente deve sempre executar primeiro o `--quick-scan` (diagnóstico 100% de leitura). O plano de remediação e as evidências técnicas encontradas devem ser validados pelo utilizador antes de disparar o `--remediate`.
 
 Basta abrir o seu Agente de IA favorito e enviar-lhe esta simples instrução:
 
@@ -67,7 +67,7 @@ Faz o clone de https://github.com/Mafarricos/badbox-tv-audit.git, lê o ficheiro
 *(Dica: Se não souber o IP da sua TV, diga ao agente: `...lê o AGENTS.md, descobre as Android TVs na minha sub-rede 192.168.1.0/24 e audita-as.`)*
 
 O agente tratará autonomamente de:
-1. Clonar o repositório (ou fazer `git pull` se já existir) e consultar as diretrizes operacionais de [`AGENTS.md`](AGENTS.md) para garantir que usa as assinaturas de malware mais recentes.
+1. Clonar o repositório e consultar as diretrizes operacionais de [`AGENTS.md`](AGENTS.md).
 2. Ligar-se por ADB em Python puro (sem exigir instalação de binários externos).
 3. Executar o varrimento estático de 6 camadas e o sentinela VPN em tempo real.
 4. Gerar o ficheiro sanitizado anónimo (`community_audit_submission.json`) pronto para submissão.
@@ -83,9 +83,17 @@ A aplicação deteta o idioma da box automaticamente (em Português se a TV esti
    - **A Vermelho (`[CRÍTICO]`):** Se a box tentar falar com servidores C2 ou portas MQTT/proxy conhecidas.
    - **A Amarelo (`[ANOMALIA]`):** Se houver tráfego anómalo em portas altas enquanto a TV devia estar em repouso.
 3. **Botão 3: NEUTRALIZAR AMEAÇAS (Aparece se forem detetadas anomalias):**
-   - Inicia a desinstalação guiada das apps da botnet com diálogo direto no ecrã.
-   - Abre o atalho para confirmação da reativação do Google Play Protect.
-   - Permite voltar a carregar em **"ANALISAR BOX"** imediatamente a seguir para comprovar que o veredito mudou de **`PERIGO [INFETADO]`** para **`DISPOSITIVO LIMPO`**.
+   - **Aplicações de Utilizador e Atualizações (/data/app):** Abre o diálogo nativo de desinstalação.
+   - **Implantes de Sistema (/system, /vendor):** Bloqueia o tráfego ativando o modo de **Quarentena Sinkhole via VpnService** e guia o operador nas Definições do sistema para forçar paragem/desativar, indicando também o comando ADB (`pm disable-user --user 0`).
+   - Atalho direto para reativar a verificação de aplicações do Google Play Protect.
+   - Reexecução da auditoria para comprovar a eficácia da mitigação.
+
+### 🛡️ Integridade Criptográfica e Assinatura de Release
+O APK universal autónomo em `tools/xcpe-scanner-tv.apk` é assinado criptograficamente com uma chave de release dedicada:
+- **SHA-256 do APK:** `5062effaa061fbd7aa32b670226dbb1179462409370c2b84e6957df993295e3e`
+- **Impressão Digital SHA-256 do Certificado:** `70:BA:AC:0D:7E:C8:74:C1:C6:9E:FA:A5:FC:66:40:EA:F9:71:7F:A5:02:9A:BD:E4:8E:50:88:6F:2A:EB:53:14`
+- **Ficheiro de Checksum:** [`tools/xcpe-scanner-tv.apk.sha256`](tools/xcpe-scanner-tv.apk.sha256)
+- **Identidade do Certificado:** `CN=BadBox Forensic Scanner, OU=Security Research, O=Open Source Community, C=PT`
 
 ---
 

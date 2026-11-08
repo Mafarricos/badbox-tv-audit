@@ -284,8 +284,14 @@ public class MainActivity extends AppCompatActivity {
             }
         }
 
-        appendColoredLog("\n[✓] Ações de remediação aplicadas!", Color.parseColor("#22C55E"));
-        appendColoredLog(">>> Prima 'ANALISAR BOX' para validar o estado de limpeza!\n", Color.parseColor("#38BDF8"));
+        if (!sysPkgs.isEmpty()) {
+            appendColoredLog("\n[!] AVISO IMPORTANTE: Implantes de sistema foram isolados na Quarentena VPN (tráfego de rede bloqueado).", Color.parseColor("#F59E0B"));
+            appendColoredLog("    Para desativação permanente da app de fábrica sem PC, utilize 'Desativar' nas Definições da TV,", Color.parseColor("#F59E0B"));
+            appendColoredLog("    ou execute via PC/ADB: adb shell pm disable-user --user 0 " + sysPkgs.get(0), Color.parseColor("#38BDF8"));
+        } else {
+            appendColoredLog("\n[✓] Ações de desinstalação aplicadas com sucesso!", Color.parseColor("#22C55E"));
+            appendColoredLog(">>> Prima 'ANALISAR BOX' para validar o estado de limpeza!\n", Color.parseColor("#38BDF8"));
+        }
         btnScan.requestFocus();
     }
 

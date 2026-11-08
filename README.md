@@ -58,9 +58,9 @@ Before running tools or dispatching an AI Agent, enable **ADB Debugging** on you
 
 This repository includes self-contained operational guidelines in [`AGENTS.md`](AGENTS.md) that modern AI coding agents automatically follow. **You don't need to manually configure Python, install drivers, or write commands.**
 
-> [!TIP]
-> ⚡ **Recommended Setup for Google Antigravity Users:**  
-> When using **Antigravity**, select the **Gemini 3.8 Flash** model with reasoning level set to **Low** and enable **Turbo** mode. This maximizes execution speed, minimizes token consumption, and allows the agent to execute actions seamlessly without prompting for repetitive permissions.
+> [!IMPORTANT]
+> 🛡️ **Safe Autonomous Workflow for AI Agents:**  
+> Always instruct the AI Agent to run `--quick-scan` (100% read-only diagnosis) first. Review the technical findings and the remediation plan before executing `--remediate`.
 
 Simply open your AI Agent and send this single prompt:
 
@@ -70,7 +70,7 @@ Clone https://github.com/Mafarricos/badbox-tv-audit.git, read AGENTS.md, and aud
 *(Tip: If you do not know your TV's IP address, ask the agent: `...read AGENTS.md, discover my Android TV devices on subnet 192.168.1.0/24, and audit them.`)*
 
 The agent will autonomously:
-1. Clone the repository (or run `git pull` if already present) and review [`AGENTS.md`](AGENTS.md) to ensure latest malware signatures and rules are applied.
+1. Clone the repository and review [`AGENTS.md`](AGENTS.md) for forensic instructions.
 2. Connect over pure-Python ADB (no external ADB installation required).
 3. Execute the 6-layer static scan and live VPN network sentinel.
 4. Generate a sanitized anonymous audit report (`community_audit_submission.json`) ready to help update the infected devices database.
@@ -86,9 +86,17 @@ The application is localized automatically (Portuguese if device is set to Portu
    - **RED (`[CRITICAL]`):** If the TV initiates connections to known C2 servers or proxy ports.
    - **YELLOW (`[ANOMALY]`):** If unusual high-port network traffic is detected while the TV is idle.
 3. **Button 3: NEUTRALIZE THREATS (Appears when anomalies are detected):**
-   - Launches guided on-screen uninstallation for detected botnet packages.
-   - Shortcut to re-enable Google Play Protect verification.
-   - Immediate re-scan to verify that the verdict transitions from **`DANGER [INFECTED]`** to **`DEVICE CLEAN`**.
+   - **User Packages & Updates (/data/app):** Launches guided uninstallation intents.
+   - **System Implants (/system, /vendor):** Isolates traffic via persistent **VpnService Quarantine Sinkhole** mode and guides operator through system Settings to force-stop/disable, or provides exact ADB command (`pm disable-user --user 0`).
+   - Shortcut to verify and re-enable Google Play Protect verification.
+   - Re-scan to verify remediation effectiveness.
+
+### 🛡️ Binary Integrity & Cryptographic Signatures
+The standalone universal APK in `tools/xcpe-scanner-tv.apk` is cryptographically signed with a dedicated release key:
+- **APK SHA-256:** `5062effaa061fbd7aa32b670226dbb1179462409370c2b84e6957df993295e3e`
+- **Certificate SHA-256 Fingerprint:** `70:BA:AC:0D:7E:C8:74:C1:C6:9E:FA:A5:FC:66:40:EA:F9:71:7F:A5:02:9A:BD:E4:8E:50:88:6F:2A:EB:53:14`
+- **Verification Checksum:** [`tools/xcpe-scanner-tv.apk.sha256`](tools/xcpe-scanner-tv.apk.sha256)
+- **Certificate Identity:** `CN=BadBox Forensic Scanner, OU=Security Research, O=Open Source Community, C=PT`
 
 ---
 

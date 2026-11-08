@@ -11,6 +11,9 @@ import android.util.Log;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.net.DatagramPacket;
+import java.net.DatagramSocket;
+import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -32,18 +35,18 @@ public class PacketMonitorVpnService extends VpnService implements Runnable {
     private boolean isQuarantineMode = false;
     private final Set<String> mQuarantinePackages = new HashSet<>();
 
-    // 1. Portas CRÍTICAS de C2, Proxies e PCDN conhecidos (XCPE, Videostrong, Airship, Linkfog, TitanNet) -> VERMELHO
+    // 1. Portas CRÍTICAS de C2 e Proxies conhecidos (XCPE, Videostrong, Airship, Linkfog, TitanNet) -> VERMELHO
+    // NOTA: 8080, 8888 e 9999 foram removidas para evitar falsos positivos com servidores web / IPTV legítimos.
     private static final Set<Integer> CRITICAL_MALWARE_PORTS = new HashSet<>(Arrays.asList(
             3885, 3886, 3887,       // Portas MQTT C2 do XCPE / szbboys
-            1080, 8080, 9050, 4145, // Proxies SOCKS5 comuns em bots residenciais
-            8888, 7777, 9999, 6667, // Botnets / IRC / Troianos
+            1080, 9050, 4145,       // Proxies SOCKS5 comuns em bots residenciais
+            7777, 6667,             // Botnets / IRC
             22345,                  // Airship PCDN Overseer controller (121.4.8.146 / painet.work)
             16000,                  // APSolo Proxy relay (bmw.bestipip.com)
             12000,                  // Jaguar cleartext controller
             9992, 9994,             // Linkfog agent deployment channels (bkdomain.cn)
             2375,                   // VS/SOFT backup router (router.anyevonline.com)
-            2095, 2082,             // UOTA updater endpoints (uota.club / uota.xyz)
-            2222, 7000              // Portas SSH Reverso / FRP do XCPE (Plume Whitepaper)
+            2095, 2082              // UOTA updater endpoints (uota.club / uota.xyz)
     ));
 
     private static final Set<String> CRITICAL_C2_IPS = new HashSet<>(Arrays.asList(
@@ -52,6 +55,15 @@ public class PacketMonitorVpnService extends VpnService implements Runnable {
             "38.145.197.135",
             "38.145.197.30",
             "23.94.49.57"
+    ));
+
+    // Domínios de C2 e Proxy SDKs verificados com parser de QNAME
+    private static final Set<String> KNOWN_C2_DOMAINS = new HashSet<>(Arrays.asList(
+            "szbboys.com", "anyevonline.com", "bestipip.com", "uota.club", "uota.xyz",
+            "titannet.io", "getgrass.io", "traffmonetizer.com", "painet.work", "paigod.com",
+            "linkfog.com", "yokatvonline.com", "yokatv.com", "amhib.com", "creapslpinut.com",
+            "gapslpinch.com", "dgjm.online", "zorapslwsnic.com", "cloudbrokerapi.xyz",
+            "floporin.com", "ipmoyu.com", "catmore88.com", "file.long.tv"
     ));
 
     // 2. Portas Legítimas Habituais de uma Android TV em Repouso -> IGNORADAS
@@ -63,7 +75,9 @@ public class PacketMonitorVpnService extends VpnService implements Runnable {
             5228, 5229, 5230,        // Google Play Services / MTalk Push notifications
             8008, 8009,              // Google Cast / Chromecast local
             5353,                    // mDNS local
-            1900                     // SSDP / UPnP local
+            1900,                    // SSDP / UPnP local
+            7000,                    // AirPlay / RTSP local
+            2222                     // SSH de desenvolvimento / local
     ));
 
     public interface PacketListener {
@@ -160,7 +174,7 @@ public class PacketMonitorVpnService extends VpnService implements Runnable {
             while (isRunning && !Thread.currentThread().isInterrupted()) {
                 int length = in.read(packet);
                 if (length > 0) {
-                    inspectPacket(packet, length);
+                    inspectAndProcessPacket(packet, length, out);
                 }
             }
         } catch (Exception e) {
@@ -170,7 +184,7 @@ public class PacketMonitorVpnService extends VpnService implements Runnable {
         }
     }
 
-    private void inspectPacket(byte[] data, int length) {
+    private void inspectAndProcessPacket(byte[] data, int length, FileOutputStream out) {
         if (length < 20) return;
 
         int version = (data[0] >> 4) & 0x0F;
@@ -193,9 +207,9 @@ public class PacketMonitorVpnService extends VpnService implements Runnable {
             }
         }
 
-        // Se estiver em modo Quarentena Sinkhole, todo o tráfego dos pacotes isolados é bloqueado
+        // Se estiver em modo Quarentena Sinkhole: bloqueia integralmente qualquer pacote
         if (isQuarantineMode) {
-            String msg = "QUARENTENA [SINKHOLE BLOQUEADO]: Tráfego de implante de sistema bloqueado: " + destIp + ":" + destPort + " (" + protoStr + ")";
+            String msg = "QUARENTENA [SINKHOLE BLOQUEADO]: Tráfego de implante de sistema travado: " + destIp + ":" + destPort + " (" + protoStr + ")";
             notifyEvent("CRITICO", msg);
             return;
         }
@@ -219,38 +233,35 @@ public class PacketMonitorVpnService extends VpnService implements Runnable {
             } catch (Exception ignored) {}
         }
 
-        // === CASO A: AMEAÇAS CRÍTICAS DE BOTNET / C2 (VERMELHO) ===
-
-        // 1. Conexão direta a IP de C2 conhecido
+        // === CASO A: CONEXÃO A IP DE C2 CONHECIDO ===
         if (CRITICAL_C2_IPS.contains(destIp)) {
             String msg = "PERIGO [CRÍTICO]: Ligação direta a IP C2 da Botnet: " + destIp + ":" + destPort + " (" + protoStr + ")" + attribution;
             notifyEvent("CRITICO", msg);
             return;
         }
 
-        // 2. Conexão a portas de C2 / Proxies conhecidos
+        // === CASO B: CONEXÃO A PORTAS DE C2 / PROXIES CONHECIDOS ===
         if (CRITICAL_MALWARE_PORTS.contains(destPort)) {
             String msg = "PERIGO [CRÍTICO]: Conexão a Porta de Botnet/Proxy: " + destIp + ":" + destPort + " (" + protoStr + ")" + attribution;
             notifyEvent("CRITICO", msg);
             return;
         }
 
-        // 3. Inspeção de DNS (Porta 53 UDP) para domínios de C2 e Proxy SDKs
+        // === CASO C: INSPEÇÃO DE DNS (Porta 53 UDP) COM PARSER DE QNAME E REENCAMINHAMENTO ===
         if (destPort == 53 && protocol == 17 && length > headerLength + 12) {
-            String payload = new String(data, headerLength + 8, length - (headerLength + 8), StandardCharsets.ISO_8859_1).toLowerCase();
-            
-            if (payload.contains("szbboys") || payload.contains("anyevonline") || payload.contains("nexus")
-                    || payload.contains("titannet") || payload.contains("painet") || payload.contains("paigod")
-                    || payload.contains("getgrass") || payload.contains("traffmonetizer") || payload.contains("linkfog")
-                    || payload.contains("yokatv") || payload.contains("uota") || payload.contains("amhib")
-                    || payload.contains("creapslpinut") || payload.contains("gapslpinch") || payload.contains("bestipip")) {
-                String msg = "PERIGO [CRÍTICO DNS]: Pedido de resolução para domínio malicioso de C2/Botnet!" + attribution;
+            String qname = parseDnsQName(data, headerLength + 8, length - (headerLength + 8));
+            if (isMaliciousDomain(qname)) {
+                String msg = "PERIGO [CRÍTICO DNS]: Resolução para domínio malicioso C2: " + qname + attribution;
                 notifyEvent("CRITICO", msg);
-                return;
             }
+
+            // REENCAMINHAMENTO DNS NO MODO SENTINELA:
+            // Permite que o pedido DNS receba resposta real de modo a que a app maliciosa tente a ligação TCP subsequente
+            forwardDnsQuery(data, headerLength, length, srcIp, srcPort, destIp, destPort, out);
+            return;
         }
 
-        // === FILTRAGEM DE TRÁFEGO LEGÍTIMO (IGNORADO SILENCIOSAMENTE) ===
+        // === FILTRAGEM DE TRÁFEGO LEGÍTIMO ===
         boolean isLocalOrInternal = destIp.startsWith("192.168.") || destIp.startsWith("10.") || destIp.startsWith("172.16.")
                 || destIp.startsWith("172.17.") || destIp.startsWith("172.18.") || destIp.startsWith("172.19.")
                 || destIp.startsWith("172.2") || destIp.startsWith("172.3")
@@ -273,9 +284,113 @@ public class PacketMonitorVpnService extends VpnService implements Runnable {
             return;
         }
 
-        // === CASO B: ANOMALIA SUSPEITA REAL ===
+        // === CASO D: ANOMALIA SUSPEITA REAL ===
         String msg = "ALERTA [ANOMALIA]: Tráfego externo não habitual: " + destIp + ":" + destPort + " (" + protoStr + ")" + attribution;
         notifyEvent("ANOMALIA", msg);
+    }
+
+    private String parseDnsQName(byte[] data, int dnsOffset, int dnsLen) {
+        if (dnsLen < 12) return "";
+        int qOffset = dnsOffset + 12; // Salta cabeçalho de 12 bytes do DNS
+        StringBuilder sb = new StringBuilder();
+        while (qOffset < dnsOffset + dnsLen) {
+            int labelLen = data[qOffset] & 0xFF;
+            if (labelLen == 0) break;
+            if (labelLen > 63 || qOffset + 1 + labelLen > dnsOffset + dnsLen) return "";
+            if (sb.length() > 0) sb.append(".");
+            sb.append(new String(data, qOffset + 1, labelLen, StandardCharsets.UTF_8));
+            qOffset += 1 + labelLen;
+        }
+        return sb.toString().toLowerCase();
+    }
+
+    private boolean isMaliciousDomain(String domain) {
+        if (domain == null || domain.isEmpty()) return false;
+        for (String c2 : KNOWN_C2_DOMAINS) {
+            if (domain.equals(c2) || domain.endsWith("." + c2)) {
+                return true;
+            }
+        }
+        if (domain.contains("x.cpe") || domain.contains("szbboys") || domain.contains("anyevonline") || domain.contains("bestipip")) {
+            return true;
+        }
+        return false;
+    }
+
+    private void forwardDnsQuery(byte[] data, int headerLength, int length, String srcIp, int srcPort, String destIp, int destPort, FileOutputStream out) {
+        int dnsOffset = headerLength + 8;
+        int dnsLen = length - dnsOffset;
+        if (dnsLen <= 0) return;
+
+        new Thread(() -> {
+            DatagramSocket socket = null;
+            try {
+                socket = new DatagramSocket();
+                protect(socket); // Protege o socket para não entrar em loop na VPN
+                socket.setSoTimeout(3000);
+                InetAddress dnsServer = InetAddress.getByName(destIp.equals("127.0.0.1") || destIp.startsWith("10.10.") ? "8.8.8.8" : destIp);
+                DatagramPacket queryPacket = new DatagramPacket(data, dnsOffset, dnsLen, dnsServer, 53);
+                socket.send(queryPacket);
+
+                byte[] respBuf = new byte[1500];
+                DatagramPacket respPacket = new DatagramPacket(respBuf, respBuf.length);
+                socket.receive(respPacket);
+                int respDnsLen = respPacket.getLength();
+
+                int totalLen = 20 + 8 + respDnsLen;
+                byte[] respData = new byte[totalLen];
+
+                // Cabeçalho IPv4 (20 bytes)
+                respData[0] = 0x45;
+                respData[2] = (byte) ((totalLen >> 8) & 0xFF);
+                respData[3] = (byte) (totalLen & 0xFF);
+                respData[6] = 0x40; // Don't fragment
+                respData[8] = 64;   // TTL
+                respData[9] = 17;   // UDP
+                // IP Origem (Servidor DNS)
+                respData[12] = data[16]; respData[13] = data[17]; respData[14] = data[18]; respData[15] = data[19];
+                // IP Destino (Cliente)
+                respData[16] = data[12]; respData[17] = data[13]; respData[18] = data[14]; respData[19] = data[15];
+
+                int checksum = computeIpChecksum(respData, 20);
+                respData[10] = (byte) ((checksum >> 8) & 0xFF);
+                respData[11] = (byte) (checksum & 0xFF);
+
+                // Cabeçalho UDP (8 bytes)
+                int udpLen = 8 + respDnsLen;
+                respData[20] = (byte) ((destPort >> 8) & 0xFF);
+                respData[21] = (byte) (destPort & 0xFF);
+                respData[22] = (byte) ((srcPort >> 8) & 0xFF);
+                respData[23] = (byte) (srcPort & 0xFF);
+                respData[24] = (byte) ((udpLen >> 8) & 0xFF);
+                respData[25] = (byte) (udpLen & 0xFF);
+
+                System.arraycopy(respBuf, 0, respData, 28, respDnsLen);
+
+                synchronized (out) {
+                    out.write(respData, 0, totalLen);
+                    out.flush();
+                }
+            } catch (Exception ignored) {
+            } finally {
+                if (socket != null && !socket.isClosed()) {
+                    socket.close();
+                }
+            }
+        }).start();
+    }
+
+    private static int computeIpChecksum(byte[] buf, int length) {
+        int sum = 0;
+        for (int i = 0; i < length; i += 2) {
+            if (i == 10) continue;
+            int word = ((buf[i] & 0xFF) << 8) | (buf[i + 1] & 0xFF);
+            sum += word;
+            if ((sum & 0xFFFF0000) != 0) {
+                sum = (sum & 0xFFFF) + (sum >> 16);
+            }
+        }
+        return ~sum & 0xFFFF;
     }
 
     private void notifyEvent(String level, String msg) {

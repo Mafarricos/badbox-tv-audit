@@ -40,10 +40,10 @@ Before running any remote ADB command, agents **MUST verify connection**. If the
 
 ---
 
-## 3. Workspace Synchronization & Environment Setup (Agent Protocol)
+## 3. Environment Readiness & Deterministic Execution (Agent Protocol)
 
-Before running any audit or tool, agents **MUST ensure the repository is updated with the latest signatures and engine fixes**:
-1. **Pull Latest Changes**: If the repository was already cloned in a previous session, execute `git pull origin main` to fetch updated IoCs, malware rules, and device profiles.
+Before running any audit or forensic tool, agents **MUST verify environment prerequisites**:
+1. **Deterministic Workspace**: Operate on the local codebase state without automated remote pulls during execution to guarantee repeatability and offline audit capability.
 2. **Environment Readiness**:
 - Python 3.9+ runtime.
 - Pip requirements: `pip install -r requirements.txt` (provides `adb-shell`, `rsa`, `pyasn1`).
