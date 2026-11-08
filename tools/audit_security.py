@@ -1699,7 +1699,8 @@ def step_automated_pipeline(adb, vpn_duration=20, force_recompile=False):
 
     print("\n================================================================================")
     print(f"  PIPELINE CONCLUÍDO COM SUCESSO: Veredito = {verdict}")
-    print(f"  Registo integral da auditoria guardado em: {CURRENT_LOGGER.log_path}")
+    if CURRENT_LOGGER and hasattr(CURRENT_LOGGER, "log_path"):
+        print(f"  Registo integral da auditoria guardado em: {CURRENT_LOGGER.log_path}")
     print("================================================================================\n")
     return verdict
 
