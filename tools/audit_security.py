@@ -383,24 +383,73 @@ def discover_subnet_tvs(subnet_str: str, max_hosts: int = None) -> list:
     return found_targets
 
 
-def generate_sanitized_community_submission(json_data, vpn_log_lines, device_specs=None, verdict="UNKNOWN", score=0):
+ALLOWED_SPECS_ALLOWLIST = {
+    "manufacturer", "brand", "model", "product", "device", "board",
+    "hardware", "soc", "cpu_abi", "android_version", "sdk_version",
+    "build_id", "security_patch"
+}
+
+
+def sanitize_community_data(device_specs, findings=None):
+    """
+    Sanitiza estritamente os dados para submissão comunitária usando allowlist (PRIV-01).
+    Remove números de série, endereços MAC, IPs v4/v6, chip IDs e PII.
+    """
+    sanitized_specs = {}
+    if device_specs:
+        for k, v in device_specs.items():
+            k_lower = k.lower().strip()
+            if k_lower in ALLOWED_SPECS_ALLOWLIST:
+                val_str = str(v)
+                val_str = re.sub(r'\b(?:\d{1,3}\.){3}\d{1,3}\b', '[REDACTED_IP]', val_str)
+                val_str = re.sub(r'(?:[0-9a-fA-F]{1,4}:){2,7}[0-9a-fA-F]{1,4}', '[REDACTED_IP]', val_str)
+                val_str = re.sub(r'\b([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})\b', '[REDACTED_MAC]', val_str)
+                sanitized_specs[k_lower] = val_str
+
+    sanitized_findings = []
+    if findings:
+        for f in findings:
+            if isinstance(f, str):
+                f_str = f
+                f_str = re.sub(r'\b(?:\d{1,3}\.){3}\d{1,3}\b', '[REDACTED_IP]', f_str)
+                f_str = re.sub(r'(?:[0-9a-fA-F]{1,4}:){2,7}[0-9a-fA-F]{1,4}', '[REDACTED_IP]', f_str)
+                f_str = re.sub(r'\b([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})\b', '[REDACTED_MAC]', f_str)
+                sanitized_findings.append(f_str)
+            elif isinstance(f, dict):
+                clean_f = {}
+                for fk, fv in f.items():
+                    if fk in ("code", "layer", "severity", "category"):
+                        clean_f[fk] = fv
+                    elif fk == "subject":
+                        sub_str = str(fv)
+                        sub_str = re.sub(r'\b(?:\d{1,3}\.){3}\d{1,3}\b', '[REDACTED_IP]', sub_str)
+                        sub_str = re.sub(r'\b([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})\b', '[REDACTED_MAC]', sub_str)
+                        clean_f[fk] = sub_str
+                sanitized_findings.append(clean_f)
+
+    return sanitized_specs, sanitized_findings
+
+
+def generate_sanitized_community_submission(json_data, vpn_log_lines, device_specs=None, verdict="UNKNOWN", score=0, findings=None, out_path=None):
     try:
-        anon_specs = {}
-        if device_specs:
-            anon_specs = {k: v for k, v in device_specs.items() if k.lower() not in ["serial", "serialno", "mac", "wifi_mac", "ip", "device_id"]}
+        raw_findings = findings or (json_data.get("findings") if json_data else [])
+        anon_specs, anon_findings = sanitize_community_data(device_specs, raw_findings)
         report = {
+            "schema_version": 2,
             "timestamp": time.strftime("%Y-%m-%d %H:%M:%S UTC", time.gmtime()),
             "device": anon_specs,
             "verdict": str(verdict),
             "risk_score": score,
-            "has_app_report": bool(json_data),
+            "findings_count": len(anon_findings),
+            "findings": anon_findings,
             "vpn_events_count": len(vpn_log_lines) if vpn_log_lines else 0
         }
-        anon_path = os.path.join(PROJECT_ROOT, "community_audit_submission.json")
-        with open(anon_path, "w", encoding="utf-8") as f:
+        target_path = out_path if out_path else os.path.join(PROJECT_ROOT, "community_audit_submission.json")
+        with open(target_path, "w", encoding="utf-8") as f:
             json.dump(report, f, indent=2, ensure_ascii=False)
+        return report
     except Exception:
-        pass
+        return None
 
 
 def evaluate_forensic_results(json_data, vpn_log_lines, device_specs=None):
