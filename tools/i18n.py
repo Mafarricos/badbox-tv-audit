@@ -16,7 +16,7 @@ def detect_system_language():
     if env_lang.lower().startswith("pt"):
         return "pt"
     try:
-        loc = locale.getdefaultlocale()[0]
+        loc = locale.getlocale()[0]
         if loc and loc.lower().startswith("pt"):
             return "pt"
     except Exception:

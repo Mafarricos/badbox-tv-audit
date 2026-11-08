@@ -33,4 +33,5 @@ vpn_events.jsonl
 backups/
 logs/
 scratch/
+blocklists/
 tools/adbkey/

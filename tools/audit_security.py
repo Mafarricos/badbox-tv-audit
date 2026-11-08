@@ -1568,12 +1568,6 @@ def step_pull_report(adb):
             print(f"    [✓] Registo de tráfego VPN guardado em: {local_log}")
         except Exception as e:
             print(f"[!] Erro ao ler log de VPN: {e}")
-        try:
-            with open(local_log, "r", encoding="utf-8") as f:
-                vpn_lines = f.readlines()
-            print(f"    [✓] Registo de tráfego VPN guardado em: {local_log}")
-        except Exception as e:
-            print(f"[!] Erro ao ler log de VPN: {e}")
 
     if not adb.specs:
         adb.load_specs()

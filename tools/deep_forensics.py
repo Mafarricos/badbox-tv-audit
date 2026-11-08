@@ -16,6 +16,7 @@ import re
 import json
 import zipfile
 import argparse
+import hashlib
 
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 TOOLS_DIR = os.path.join(PROJECT_ROOT, "tools")
@@ -63,9 +64,11 @@ def inspect_package(adb, package_name):
 
 def pull_and_analyze_apk(adb, remote_apk_path, local_dest=None):
     if not local_dest:
-        dest_dir = os.path.join(PROJECT_ROOT, "scratch", "pulled")
+        dev_id = getattr(adb, "device_id", adb.host).replace(":", "_")
+        dest_dir = os.path.join(PROJECT_ROOT, "backups", dev_id, "quarantine")
         os.makedirs(dest_dir, exist_ok=True)
-        local_dest = os.path.join(dest_dir, os.path.basename(remote_apk_path))
+        base = os.path.basename(remote_apk_path)
+        local_dest = os.path.join(dest_dir, f"{base}.quarantined")
 
     print(f"\n[*] A descarregar APK da TV: {remote_apk_path} -> {local_dest}...")
     success = adb.pull(remote_apk_path, local_dest)
@@ -73,8 +76,13 @@ def pull_and_analyze_apk(adb, remote_apk_path, local_dest=None):
         print(f"[!] Falha ao descarregar {remote_apk_path}")
         return
 
+    with open(local_dest, "rb") as f:
+        sha256_hash = hashlib.sha256(f.read()).hexdigest()
+    with open(f"{local_dest}.sha256", "w", encoding="utf-8") as f:
+        f.write(f"{sha256_hash}  {os.path.basename(local_dest)}\n")
+
     size = os.path.getsize(local_dest)
-    print(f"    [✓] Descarregado com sucesso ({size} bytes).")
+    print(f"    [✓] Descarregado e em quarentena ({size} bytes, SHA256: {sha256_hash[:16]}...).")
     
     print("\n--- ANALISE DE ESTRUTURA DO APK ---")
     try:
