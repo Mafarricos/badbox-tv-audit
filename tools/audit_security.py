@@ -489,7 +489,7 @@ def evaluate_forensic_results(json_data, vpn_log_lines, device_specs=None):
                     subject = f.split(":")[-1].strip() if ":" in f else f
                     code = "PKG_IOC_ACTIVE" if ("pacote" in f.lower() or "app" in f.lower() or "com." in f) else "FILE_IOC_PRESENT"
                     findings.append(GLOBAL_ENGINE.create_finding(code, "app_report", subject, override_severity="CRITICAL"))
-                elif "SUSPEITO" in f_upper or "SUSPICIOUS" in f_upper or "ALERTA" in f_upper:
+                elif "SUSPEITO" in f_norm or "SUSPICIOUS" in f_norm or "ALERTA" in f_norm:
                     subject = f.split(":")[-1].strip() if ":" in f else f
                     code = "SDK_IOC_IN_DEX" if "sdk" in f.lower() else "APP_LABEL_IOC"
                     findings.append(GLOBAL_ENGINE.create_finding(code, "app_report", subject, override_severity="MEDIUM"))
