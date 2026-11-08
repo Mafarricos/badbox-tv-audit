@@ -10,6 +10,9 @@ import android.net.Uri;
 import android.os.Build;
 import android.provider.Settings;
 
+import org.json.JSONArray;
+import org.json.JSONObject;
+
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
@@ -20,6 +23,7 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
@@ -68,24 +72,23 @@ public class CoreScanner {
             "content://com.release.debug.provider".getBytes(StandardCharsets.UTF_8)
     };
 
-    // Pacotes conhecidos de Trojans, Proxies Residenciais, Loaders e Ad Fraud (XCPE & BadBox 2.0 / Plume Whitepaper)
-    private static final List<String> IOC_PACKAGES = Arrays.asList(
+    // Pacotes conhecidos de Trojans, Proxies Residenciais, Loaders e Ad Fraud (fallback caso JSON falhe)
+    private static final List<String> FALLBACK_IOC_PACKAGES = Arrays.asList(
             "x.cpe", "com.oemservice", "com.abc.nexus", "sso.authHandler",
             "com.ota.service", "newtv.cboxtv", "com.vs.tvonline2",
             "com.release.debug.provider", "com.hs.app", "com.mz.sdk",
-            "com.debby.devour", "io.popanet", "gaganode", "linkfog",
-            "appsalt", "traffmonetizer", "cboxtv", "hiddenview", "moyu", "spirit",
-            "android-grass", "com.grass", "appdnschange", "SmartPrivilege",
-            "SmartEntertainment", "SmartThroughput", "EcoSaverDaemon", "titannet", "yokatv",
-            "com.yk.debugtools", "com.droidlogic.vsota", "com.abcproxy.proxysdk", "com.appdns.change.rc",
-            "com.dnschecker.rc", "com.ecosaver.daemon", "com.proxypeer.peerapp", "com.ycngmn.notubetv.service",
-            "com.whale.screensaver", "com.yokatv.market", "com.yokatv.otaupdate"
+            "com.debby.devour", "io.popanet", "com.gaganode.app", "com.linkfog.service",
+            "com.appsalt.service", "com.traffmonetizer", "com.cboxtv.app", "com.hiddenview.service",
+            "com.android.grass", "com.grass", "com.appdnschange", "com.smartprivilege",
+            "com.smartentertainment", "com.smartthroughput", "com.ecosaverdaemon", "com.titannet.app",
+            "com.yokatv", "com.yk.debugtools", "com.droidlogic.vsota", "com.abcproxy.proxysdk",
+            "com.appdns.change.rc", "com.dnschecker.rc", "com.ecosaver.daemon", "com.proxypeer.peerapp",
+            "com.ycngmn.notubetv.service", "com.whale.screensaver", "com.yokatv.market", "com.yokatv.otaupdate"
     );
 
-    // Portas de C2 / Proxyware conhecidas (incluindo portas MQTT, FRP e SSH reverso da Plume)
+    // Portas remotas de C2 / Proxyware (sem 2222 nem 7000 para evitar falsos positivos)
     private static final Set<Integer> SUSPICIOUS_PORTS = new HashSet<>(Arrays.asList(
-            3885, 3886, 3887, 8082, 8083, 16000, 18083, 4444, 5555, 6667, 8080, 8888, 9000, 9999, 5353,
-            2222, 7000
+            3885, 3886, 3887, 8082, 8083, 16000, 18083, 4444, 5555, 6667, 9000, 5353
     ));
 
     // Nomes de ficheiros de bibliotecas nativas e binários ELF maliciosos
@@ -104,26 +107,40 @@ public class CoreScanner {
     }
 
     private static Set<String> loadDynamicIocs(Context context) {
-        Set<String> set = new HashSet<>(IOC_PACKAGES);
-        try (InputStream is = context.getAssets().open("iocs.json")) {
-            ByteArrayOutputStream baos = new ByteArrayOutputStream();
-            byte[] buf = new byte[8192];
-            int len;
-            while ((len = is.read(buf)) != -1) {
-                baos.write(buf, 0, len);
-            }
-            String jsonStr = baos.toString("UTF-8");
-            org.json.JSONObject obj = new org.json.JSONObject(jsonStr);
-            if (obj.has("entries")) {
-                org.json.JSONArray arr = obj.getJSONArray("entries");
-                for (int i = 0; i < arr.length(); i++) {
-                    String entry = arr.getString(i).trim();
-                    if (!entry.isEmpty()) {
-                        set.add(entry.toLowerCase());
+        Set<String> set = new HashSet<>(FALLBACK_IOC_PACKAGES);
+        String[] possibleAssets = {"iocs_database.json", "iocs.json"};
+        for (String assetName : possibleAssets) {
+            try (InputStream is = context.getAssets().open(assetName)) {
+                ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                byte[] buf = new byte[8192];
+                int len;
+                while ((len = is.read(buf)) != -1) {
+                    baos.write(buf, 0, len);
+                }
+                String jsonStr = baos.toString("UTF-8");
+                JSONObject obj = new JSONObject(jsonStr);
+                if (obj.has("entries")) {
+                    JSONArray arr = obj.getJSONArray("entries");
+                    for (int i = 0; i < arr.length(); i++) {
+                        Object item = arr.get(i);
+                        if (item instanceof JSONObject) {
+                            JSONObject entryObj = (JSONObject) item;
+                            String type = entryObj.optString("type", "");
+                            String val = entryObj.optString("value", "").trim();
+                            if ("package".equals(type) && !val.isEmpty()) {
+                                set.add(val.toLowerCase());
+                            }
+                        } else if (item instanceof String) {
+                            String entry = ((String) item).trim();
+                            if (!entry.isEmpty()) {
+                                set.add(entry.toLowerCase());
+                            }
+                        }
                     }
                 }
+                break; // Carregou com sucesso
+            } catch (Exception ignored) {
             }
-        } catch (Exception ignored) {
         }
         return set;
     }
@@ -137,8 +154,8 @@ public class CoreScanner {
         try {
             int consent = Settings.Global.getInt(context.getContentResolver(), "package_verifier_user_consent", 1);
             if (consent == -1) {
-                result.playProtectStatus = "DESATIVADO (Modificado por Malware)";
-                result.addFinding("[CRÍTICO] Google Play Protect foi silenciosamente desativado (package_verifier_user_consent = -1)!", 8);
+                result.playProtectStatus = "DESATIVADO (Modificado por Malware ou Utilizador)";
+                result.addFinding("[AVISO] Google Play Protect encontra-se desativado (package_verifier_user_consent = -1)!", 4);
             } else {
                 result.playProtectStatus = "ATIVO (Protegido)";
             }
@@ -164,19 +181,18 @@ public class CoreScanner {
         PackageManager pm = context.getPackageManager();
         List<PackageInfo> installedPackages = pm.getInstalledPackages(PackageManager.GET_PERMISSIONS);
         Set<String> allIocs = loadDynamicIocs(context);
+        PackageMatcher packageMatcher = new PackageMatcher(allIocs);
 
         for (PackageInfo pkg : installedPackages) {
-            String pkgName = pkg.packageName.toLowerCase();
-            boolean isMalicious = false;
-
-            for (String ioc : allIocs) {
-                if (pkgName.equals(ioc) || pkgName.contains(ioc)) {
-                    isMalicious = true;
-                    break;
+            String pkgName = pkg.packageName;
+            if (packageMatcher.matches(pkgName)) {
+                boolean isEnabled = (pkg.applicationInfo == null) || pkg.applicationInfo.enabled;
+                if (!isEnabled) {
+                    // Pacote desativado/congelado previamente (APP-02)
+                    result.addFinding("[DESATIVADO] Pacote malicioso desativado/congelado: " + pkg.packageName, 1);
+                    continue;
                 }
-            }
 
-            if (isMalicious) {
                 boolean isUpdatedSystemApp = (pkg.applicationInfo != null) &&
                         ((pkg.applicationInfo.flags & ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) != 0);
                 boolean isPureSystemApp = (pkg.applicationInfo != null) &&
@@ -202,14 +218,12 @@ public class CoreScanner {
             }
         }
 
-        // 5. Inspeção Estática de APKs em /oem, /vendor, /system/priv-app (Filtrado para otimização de I/O em eMMC e respeito a SELinux)
+        // 5. Inspeção Estática de APKs em /oem, /vendor, /system/priv-app
         if (listener != null) listener.onProgress("[5/6] A analisar APKs e bibliotecas nativas (/oem, /vendor, /system/priv-app)...");
         for (PackageInfo pkg : installedPackages) {
             ApplicationInfo appInfo = pkg.applicationInfo;
             if (appInfo != null && appInfo.sourceDir != null) {
                 String src = appInfo.sourceDir;
-                // Respeita SELinux: usa appInfo.sourceDir que só requer permissão de travessia (x)
-                // Otimização I/O: foca em diretórios com privilégios de fábrica / droppers
                 if (src.startsWith("/oem") || src.startsWith("/vendor") || src.startsWith("/system/priv-app") || src.startsWith("/custom") || src.contains("oem")) {
                     result.scannedApks.add(src);
                     scanApkFile(src, result, listener);
@@ -222,7 +236,7 @@ public class CoreScanner {
         if (listener != null) listener.onProgress("[6/6] A analisar tabela de conexões e portas ativas (incl. MQTT)...");
         scanNetworkSockets(result);
 
-        // Exporta o log estruturado para /data/data/com.scanner.tv/files/last_scan.json
+        // Exporta o log estruturado atomicamente com ScanReportSerializer
         saveScanReport(context, result);
 
         return result;
@@ -294,7 +308,7 @@ public class CoreScanner {
         }
     }
 
-    private static final long MAX_DEX_SCAN_SIZE_BYTES = 15 * 1024 * 1024; // Limite de 15 MB para evitar gargalos em eMMC lentos
+    private static final long MAX_DEX_SCAN_SIZE_BYTES = 15 * 1024 * 1024;
 
     private static void scanApkFile(String apkPath, ScanResult result, ScanProgressListener listener) {
         File apkFile = new File(apkPath);
@@ -315,7 +329,6 @@ public class CoreScanner {
                 }
 
                 if (entryName.endsWith(".dex")) {
-                    // Proteção contra ficheiros DEX gigantescos que degradam eMMC
                     long uncompressedSize = entry.getSize();
                     if (uncompressedSize > MAX_DEX_SCAN_SIZE_BYTES) {
                         zis.closeEntry();
@@ -355,37 +368,40 @@ public class CoreScanner {
     }
 
     private static void scanNetworkSockets(ScanResult result) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            result.addFinding("[INFO] Android 10+ detetado: Leitura de /proc/net/tcp restrita por SELinux (Inspeção em tempo real ativa no Sentinela VPN)", 0);
-        }
         File tcpFile = new File("/proc/net/tcp");
-        if (tcpFile.exists() && tcpFile.canRead()) {
-            try (InputStream is = new FileInputStream(tcpFile)) {
-                ByteArrayOutputStream buffer = new ByteArrayOutputStream();
-                byte[] data = new byte[4096];
-                int nRead;
-                while ((nRead = is.read(data, 0, data.length)) != -1) {
-                    buffer.write(data, 0, nRead);
-                }
-                String content = buffer.toString("UTF-8");
-                String[] lines = content.split("\n");
-                for (String line : lines) {
-                    String[] parts = line.trim().split("\\s+");
-                    if (parts.length > 2 && parts[1].contains(":")) {
-                        String[] addressParts = parts[1].split(":");
-                        if (addressParts.length == 2) {
-                            try {
-                                int port = Integer.parseInt(addressParts[1], 16);
-                                if (SUSPICIOUS_PORTS.contains(port)) {
-                                    result.addFinding("[CRÍTICO] Porta maliciosa de C2/MQTT ativa no dispositivo: " + port, 10);
-                                }
-                            } catch (Exception ignored) {
+        if (!tcpFile.exists() || !tcpFile.canRead()) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                result.addFinding("[INFO] Leitura de /proc/net/tcp restrita pelo SELinux no Android 10+ (inspeção de tráfego delegada ao Sentinela VPN).", 0);
+            }
+            return;
+        }
+
+        try (InputStream is = new FileInputStream(tcpFile)) {
+            ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+            byte[] data = new byte[4096];
+            int nRead;
+            while ((nRead = is.read(data, 0, data.length)) != -1) {
+                buffer.write(data, 0, nRead);
+            }
+            String content = buffer.toString("UTF-8");
+            String[] lines = content.split("\n");
+            for (String line : lines) {
+                String[] parts = line.trim().split("\\s+");
+                // parts[1] é local_address:port, parts[2] é rem_address:port
+                if (parts.length > 2 && parts[2].contains(":")) {
+                    String[] remParts = parts[2].split(":");
+                    if (remParts.length == 2) {
+                        try {
+                            int remotePort = Integer.parseInt(remParts[1], 16);
+                            if (SUSPICIOUS_PORTS.contains(remotePort)) {
+                                result.addFinding("[CRÍTICO] Conexão ativa a porta remota C2/MQTT conhecida: " + remotePort, 10);
                             }
+                        } catch (Exception ignored) {
                         }
                     }
                 }
-            } catch (Exception ignored) {
             }
+        } catch (Exception ignored) {
         }
     }
 
@@ -406,34 +422,40 @@ public class CoreScanner {
 
     private static void saveScanReport(Context context, ScanResult result) {
         try {
-            StringBuilder sb = new StringBuilder();
-            sb.append("{\n");
-            sb.append("  \"timestamp\": ").append(System.currentTimeMillis()).append(",\n");
-            sb.append("  \"status\": \"").append(result.overallStatus.name()).append("\",\n");
-            sb.append("  \"risk_score\": ").append(result.riskScore).append(",\n");
-            sb.append("  \"device\": \"").append(result.deviceDetails).append("\",\n");
-            sb.append("  \"play_protect\": \"").append(result.playProtectStatus).append("\",\n");
-            sb.append("  \"scanned_oem_apks_count\": ").append(result.scannedApks.size()).append(",\n");
-            sb.append("  \"findings\": [\n");
-            for (int i = 0; i < result.findings.size(); i++) {
-                sb.append("    \"").append(result.findings.get(i).replace("\"", "\\\"")).append("\"");
-                if (i < result.findings.size() - 1) sb.append(",");
-                sb.append("\n");
-            }
-            sb.append("  ]\n");
-            sb.append("}\n");
+            String scanId = UUID.randomUUID().toString();
+            String jsonReport = ScanReportSerializer.serialize(
+                    scanId,
+                    System.currentTimeMillis(),
+                    result.overallStatus.name(),
+                    result.riskScore,
+                    result.deviceDetails,
+                    result.playProtectStatus,
+                    result.scannedApks.size(),
+                    result.findings
+            );
 
-            byte[] bytes = sb.toString().getBytes(StandardCharsets.UTF_8);
-            try (FileOutputStream fos = new FileOutputStream(new File(context.getFilesDir(), "last_scan.json"))) {
-                fos.write(bytes);
-            }
+            writeAtomic(new File(context.getFilesDir(), "last_scan.json"), jsonReport);
+
             File extDir = context.getExternalFilesDir(null);
             if (extDir != null) {
-                try (FileOutputStream fos = new FileOutputStream(new File(extDir, "last_scan.json"))) {
-                    fos.write(bytes);
-                }
+                writeAtomic(new File(extDir, "last_scan.json"), jsonReport);
             }
         } catch (Exception ignored) {
+        }
+    }
+
+    private static void writeAtomic(File targetFile, String content) {
+        File tmpFile = new File(targetFile.getParentFile(), targetFile.getName() + ".tmp");
+        try (FileOutputStream fos = new FileOutputStream(tmpFile)) {
+            fos.write(content.getBytes(StandardCharsets.UTF_8));
+            fos.flush();
+            fos.getFD().sync();
+        } catch (Exception e) {
+            return;
+        }
+        if (!tmpFile.renameTo(targetFile)) {
+            targetFile.delete();
+            tmpFile.renameTo(targetFile);
         }
     }
 }

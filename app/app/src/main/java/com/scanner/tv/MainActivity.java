@@ -27,6 +27,7 @@ import java.util.concurrent.Executors;
 public class MainActivity extends AppCompatActivity {
 
     private static final int VPN_REQUEST_CODE = 0x0F;
+    private static final int REQUEST_UNINSTALL_PACKAGE = 0x10;
 
     private TextView tvVerdictBadge;
     private TextView tvScore;
@@ -43,6 +44,8 @@ public class MainActivity extends AppCompatActivity {
     private int anomalyThreatsCount = 0;
     private ScanResult lastResult = null;
     private final List<String> detectedMaliciousPackages = new ArrayList<>();
+    private final List<String> mPendingUninstalls = new ArrayList<>();
+    private final List<String> mPendingSysPackages = new ArrayList<>();
 
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
@@ -72,7 +75,6 @@ public class MainActivity extends AppCompatActivity {
 
         btnScan.requestFocus();
 
-        // Se a app for aberta através do pipeline automatizado (--auto-pipeline ou extra auto_start)
         boolean autoStart = getIntent().getBooleanExtra("auto_start", false);
         if (autoStart) {
             mainHandler.postDelayed(this::startAudit, 800);
@@ -127,24 +129,24 @@ public class MainActivity extends AppCompatActivity {
 
             mainHandler.post(() -> {
                 tvDeviceStats.setText(result.deviceDetails);
-                tvScore.setText(getString(R.string.threats_count, result.findings.size()));
+                int threats = result.getThreatCount();
+                tvScore.setText(getString(R.string.threats_count, threats));
 
                 appendColoredLog("\n=================================================", Color.WHITE);
                 appendColoredLog("               RELATÓRIO CONCLUÍDO               ", Color.WHITE);
                 appendColoredLog("=================================================", Color.WHITE);
                 appendColoredLog("Veredito: " + result.overallStatus.name(), Color.WHITE);
                 appendColoredLog("Pontuação de Risco: " + result.riskScore, Color.WHITE);
+                appendColoredLog("Ameaças Reais: " + threats, Color.WHITE);
                 appendColoredLog("Play Protect: " + result.playProtectStatus, Color.WHITE);
                 appendColoredLog("APKs OEM analisados: " + result.scannedApks.size(), Color.WHITE);
 
                 for (String f : result.findings) {
-                    if (f.contains("[CRÍTICO]")) {
+                    if (f.contains("[CRÍTICO")) {
                         appendColoredLog("  * " + f, Color.parseColor("#EF4444"));
-                        if (f.contains("Pacote com assinatura")) {
-                            String pkg = f.substring(f.lastIndexOf(":") + 1).trim();
-                            if (!pkg.isEmpty()) detectedMaliciousPackages.add(pkg);
-                        }
-                    } else if (f.contains("[AVISO INFORMATIVO]")) {
+                    } else if (f.contains("[DESATIVADO]")) {
+                        appendColoredLog("  * " + f, Color.parseColor("#34D399"));
+                    } else if (f.contains("[INFO]") || f.contains("[AVISO INFORMATIVO]")) {
                         appendColoredLog("  * " + f, Color.parseColor("#38BDF8"));
                     } else {
                         appendColoredLog("  * " + f, Color.parseColor("#F59E0B"));
@@ -177,11 +179,8 @@ public class MainActivity extends AppCompatActivity {
                         break;
                 }
 
-                // Notifica o sistema de que a primeira fase estática terminou
                 AuditLogger.log("INFO", "STATUS", "SCAN_ESTATICO_CONCLUIDO");
 
-                // Transição sequencial inteligente: se foi chamada pelo pipeline ou auto-start,
-                // inicia de imediato a segunda fase (monitorização de rede VPN)
                 boolean autoStart = getIntent().getBooleanExtra("auto_start", false);
                 if (autoStart && !isVpnRunning) {
                     mainHandler.postDelayed(this::toggleVpnMonitor, 1000);
@@ -190,55 +189,45 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
-    /**
-     * Remediação Nativa no ecrã da TV:
-     * 1. Desinstalação com confirmação D-Pad para cada app maliciosa detetada
-     * 2. Atalho para ativar Google Play Protect
-     * 3. Atalho para configurar Private DNS seguro
-     */
     private void triggerOnScreenRemediation() {
         appendColoredLog("\n=================================================", Color.parseColor("#F59E0B"));
         appendColoredLog("      A INICIAR REMEDIAÇÃO NATIVA NA TV          ", Color.parseColor("#F59E0B"));
         appendColoredLog("=================================================", Color.parseColor("#F59E0B"));
 
-        List<String> userPkgs = (lastResult != null) ? new ArrayList<>(lastResult.userThreatPackages) : new ArrayList<>();
-        List<String> sysPkgs = (lastResult != null) ? new ArrayList<>(lastResult.systemThreatPackages) : new ArrayList<>();
+        mPendingUninstalls.clear();
+        mPendingSysPackages.clear();
 
-        if (userPkgs.isEmpty() && sysPkgs.isEmpty() && !detectedMaliciousPackages.isEmpty()) {
-            for (String p : detectedMaliciousPackages) {
-                try {
-                    ApplicationInfo ai = getPackageManager().getApplicationInfo(p, 0);
-                    if ((ai.flags & ApplicationInfo.FLAG_SYSTEM) != 0 || (ai.flags & ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) != 0) {
-                        sysPkgs.add(p);
-                    } else {
-                        userPkgs.add(p);
-                    }
-                } catch (Exception e) {
-                    userPkgs.add(p);
-                }
-            }
+        if (lastResult != null) {
+            mPendingUninstalls.addAll(lastResult.userThreatPackages);
+            mPendingSysPackages.addAll(lastResult.systemThreatPackages);
         }
 
-        // 1. Desinstalação com D-Pad de Apps de Utilizador (/data/app)
-        if (!userPkgs.isEmpty()) {
-            appendColoredLog("\n[Passo 1/3] A solicitar desinstalação de apps na partição de utilizador...", Color.WHITE);
-            for (String pkg : userPkgs) {
-                appendColoredLog("   -> A solicitar desinstalação: " + pkg, Color.parseColor("#EF4444"));
-                Intent uninstallIntent = new Intent(Intent.ACTION_UNINSTALL_PACKAGE);
-                uninstallIntent.setData(Uri.parse("package:" + pkg));
-                uninstallIntent.putExtra(Intent.EXTRA_RETURN_RESULT, true);
-                try {
-                    startActivity(uninstallIntent);
-                } catch (Exception e) {
-                    appendColoredLog("   [!] Erro ao invocar desinstalação: " + pkg, Color.parseColor("#EF4444"));
-                }
+        // Inicia fluxo sequencial de desinstalação para evitar colisões de UI
+        processNextUninstall();
+    }
+
+    private void processNextUninstall() {
+        if (!mPendingUninstalls.isEmpty()) {
+            String pkg = mPendingUninstalls.remove(0);
+            appendColoredLog("\n[Passo 1/3] A solicitar desinstalação: " + pkg, Color.parseColor("#EF4444"));
+            Intent uninstallIntent = new Intent(Intent.ACTION_UNINSTALL_PACKAGE);
+            uninstallIntent.setData(Uri.parse("package:" + pkg));
+            uninstallIntent.putExtra(Intent.EXTRA_RETURN_RESULT, true);
+            try {
+                startActivityForResult(uninstallIntent, REQUEST_UNINSTALL_PACKAGE);
+            } catch (Exception e) {
+                appendColoredLog("   [!] Erro ao invocar desinstalação: " + pkg, Color.parseColor("#EF4444"));
+                processNextUninstall(); // Prossegue com o próximo
             }
         } else {
-            appendColoredLog("\n[Passo 1/3] Nenhuma app maliciosa removível em /data/app.", Color.WHITE);
+            // Concluído o passo 1 (apps de utilizador), passa ao passo 2 e 3
+            finishRemediationSteps();
         }
+    }
 
-        // 2. Isolamento de Implantes de Sistema (/system, /vendor) via Quarentena Sinkhole e Definições
-        if (!sysPkgs.isEmpty()) {
+    private void finishRemediationSteps() {
+        // 2. Isolamento de Implantes de Sistema (/system, /vendor) via Quarentena Sinkhole
+        if (!mPendingSysPackages.isEmpty()) {
             appendColoredLog("\n[Passo 2/3] Implantes de sistema detetados (/system ou /vendor):", Color.parseColor("#EF4444"));
             appendColoredLog("   Nota: Sem ADB/PC, o Android TV bloqueia a desinstalação direta de apps de fábrica.", Color.parseColor("#F59E0B"));
             appendColoredLog("   [*] A ativar Quarentena de Rede (VpnService Sinkhole) para cortar ligações C2...", Color.parseColor("#22C55E"));
@@ -247,7 +236,7 @@ public class MainActivity extends AppCompatActivity {
             if (vpnPrep == null) {
                 Intent qIntent = new Intent(this, PacketMonitorVpnService.class);
                 qIntent.setAction(PacketMonitorVpnService.ACTION_QUARANTINE);
-                qIntent.putStringArrayListExtra(PacketMonitorVpnService.EXTRA_QUARANTINE_PKGS, new ArrayList<>(sysPkgs));
+                qIntent.putStringArrayListExtra(PacketMonitorVpnService.EXTRA_QUARANTINE_PKGS, new ArrayList<>(mPendingSysPackages));
                 startService(qIntent);
                 isVpnRunning = true;
                 btnVpnMonitor.setText(getString(R.string.btn_stop_vpn));
@@ -258,7 +247,7 @@ public class MainActivity extends AppCompatActivity {
             }
 
             appendColoredLog("   [*] A abrir ecrã de detalhes da app (prima 'Forçar Paragem' e 'Desativar' no telecomando):", Color.parseColor("#38BDF8"));
-            for (String pkg : sysPkgs) {
+            for (String pkg : mPendingSysPackages) {
                 try {
                     Intent detailsIntent = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
                     detailsIntent.setData(Uri.parse("package:" + pkg));
@@ -284,14 +273,8 @@ public class MainActivity extends AppCompatActivity {
             }
         }
 
-        if (!sysPkgs.isEmpty()) {
-            appendColoredLog("\n[!] AVISO IMPORTANTE: Implantes de sistema foram isolados na Quarentena VPN (tráfego de rede bloqueado).", Color.parseColor("#F59E0B"));
-            appendColoredLog("    Para desativação permanente da app de fábrica sem PC, utilize 'Desativar' nas Definições da TV,", Color.parseColor("#F59E0B"));
-            appendColoredLog("    ou execute via PC/ADB: adb shell pm disable-user --user 0 " + sysPkgs.get(0), Color.parseColor("#38BDF8"));
-        } else {
-            appendColoredLog("\n[✓] Ações de desinstalação aplicadas com sucesso!", Color.parseColor("#22C55E"));
-            appendColoredLog(">>> Prima 'ANALISAR BOX' para validar o estado de limpeza!\n", Color.parseColor("#38BDF8"));
-        }
+        appendColoredLog("\n[✓] Ações de remediação processadas com sucesso!", Color.parseColor("#22C55E"));
+        appendColoredLog(">>> Prima 'ANALISAR BOX' para validar o estado de limpeza!\n", Color.parseColor("#38BDF8"));
         btnScan.requestFocus();
     }
 
@@ -318,15 +301,20 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
-        if (requestCode == VPN_REQUEST_CODE && resultCode == RESULT_OK) {
+        if (requestCode == REQUEST_UNINSTALL_PACKAGE) {
+            processNextUninstall();
+        } else if (requestCode == VPN_REQUEST_CODE && resultCode == RESULT_OK) {
             Intent intent = new Intent(this, PacketMonitorVpnService.class);
+            if (!mPendingSysPackages.isEmpty()) {
+                intent.setAction(PacketMonitorVpnService.ACTION_QUARANTINE);
+                intent.putStringArrayListExtra(PacketMonitorVpnService.EXTRA_QUARANTINE_PKGS, new ArrayList<>(mPendingSysPackages));
+            }
             startService(intent);
             isVpnRunning = true;
             btnVpnMonitor.setText(getString(R.string.btn_stop_vpn));
             btnVpnMonitor.setBackgroundResource(R.drawable.btn_red_focused);
             btnVpnMonitor.requestFocus();
-            appendColoredLog("\n[✓] Modo Sentinela Global Ativo!", Color.parseColor("#22C55E"));
-            appendColoredLog("Filtro Ativo: Tráfego C2/Botnet a VERMELHO | Portas não habituais a AMARELO\n", Color.WHITE);
+            appendColoredLog("\n[✓] Modo VPN Ativo!", Color.parseColor("#22C55E"));
         }
     }
 
