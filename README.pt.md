@@ -6,7 +6,7 @@
 
 Suite forense, de remoção de malware e de remediação reversível completa e autónoma (CLI + App nativa Android TV com Sentinela VPN) projetada para auditoria, deteção, verificação, neutralização e restauro de trojans de supply-chain, botnets residenciais e malware (**BadBox**, **XCPE**, **Vo1d**, **Fuyao**, **Videostrong/SZBBOYS** e **Proxyware Residencial**) em dispositivos Android TV, Google TV e TV Boxes genéricas.
 
-> **Idioma:** Português (PT-PT) | [For English version, see README.md](README.md) | [📱 Registo de Aparelhos Testados](DEVICES.md) | [🔬 Estudo Forense (XCPE/com.oemservice)](docs/FORENSIC_XCPE_OEMSERVICE.md)
+> **Idioma:** Português (PT-PT) | [For English version, see README.md](README.md) | [📱 Registo de Aparelhos Testados](DEVICES.md) | [🔬 Decisões de Arquitetura (ADRs)](docs/DECISIONS.md) | [📜 Avisos de Terceiros](THIRD_PARTY_NOTICES.md)
 
 ---
 
@@ -18,8 +18,8 @@ Milhares de Smart TVs e TV Boxes Android económicas chegam ao utilizador pré-i
 3. Transforma o dispositivo num **nó de proxy residencial ilegal** (vendendo a largura de banda da sua casa para cibercriminosos através de SDKs ocultos de proxyware) e participa em fraudes de cliques e visualizações em segundo plano.
 
 Esta ferramenta fornece dois métodos completos para auditar e limpar a sua TV:
-- **Para quem quer usar apenas o comando da TV (Sem PC/Scripts):** Instale o APK na TV via Pen USB ou browser. A própria App faz o varrimento, mostra o veredito no ecrã e disponibiliza o botão vermelho **"NEUTRALIZAR AMEAÇAS"**, permitindo desinstalar as apps maliciosas e reativar proteções com o comando físico.
-- **Para Técnicos e Agentes de IA (Via PC/ADB):** Pipeline 100% silencioso e automatizado (`audit_security.py`) com descoberta de sub-rede, modo JSON otimizado para economia de tokens, criação de backup prévio e reversibilidade instantânea em `backups/`.
+- **Para quem quer usar apenas o comando da TV (Sem PC/Scripts):** Instale o APK na TV via Pen USB ou browser. A própria App faz o varrimento, mostra o veredito no ecrã e disponibiliza o botão vermelho **"NEUTRALIZAR AMEAÇAS"**. Para implantes de sistema que não podem ser desinstalados sem ADB, a App ativa o modo de **Quarentena Sinkhole via VpnService**, bloqueando todo o tráfego malicioso de rede no próprio aparelho.
+- **Para Técnicos e Agentes de IA (Via PC/ADB):** Pipeline 100% silencioso e automatizado (`audit_security.py`) com descoberta de sub-rede, modo JSON puro otimizado para agentes de IA, criação de backup prévio, quarentena de APKs e reversibilidade garantida em `backups/`.
 
 ---
 
@@ -83,122 +83,107 @@ A aplicação deteta o idioma da box automaticamente (em Português se a TV esti
    - **A Vermelho (`[CRÍTICO]`):** Se a box tentar falar com servidores C2 ou portas MQTT/proxy conhecidas.
    - **A Amarelo (`[ANOMALIA]`):** Se houver tráfego anómalo em portas altas enquanto a TV devia estar em repouso.
 3. **Botão 3: NEUTRALIZAR AMEAÇAS (Aparece se forem detetadas anomalias):**
-   - **Aplicações de Utilizador e Atualizações (/data/app):** Abre o diálogo nativo de desinstalação.
+   - **Aplicações de Utilizador e Atualizações (/data/app):** Abre o diálogo nativo de desinstalação sequencial.
    - **Implantes de Sistema (/system, /vendor):** Bloqueia o tráfego ativando o modo de **Quarentena Sinkhole via VpnService** e guia o operador nas Definições do sistema para forçar paragem/desativar, indicando também o comando ADB (`pm disable-user --user 0`).
    - Atalho direto para reativar a verificação de aplicações do Google Play Protect.
-   - Reexecução da auditoria para comprovar a eficácia da mitigação.
 
-### 🛡️ Integridade Criptográfica e Assinatura de Release
-O APK universal autónomo em `tools/xcpe-scanner-tv.apk` é assinado criptograficamente com uma chave de release dedicada:
-- **SHA-256 do APK:** `5062effaa061fbd7aa32b670226dbb1179462409370c2b84e6957df993295e3e`
-- **Impressão Digital SHA-256 do Certificado:** `70:BA:AC:0D:7E:C8:74:C1:C6:9E:FA:A5:FC:66:40:EA:F9:71:7F:A5:02:9A:BD:E4:8E:50:88:6F:2A:EB:53:14`
-- **Ficheiro de Checksum:** [`tools/xcpe-scanner-tv.apk.sha256`](tools/xcpe-scanner-tv.apk.sha256)
-- **Identidade do Certificado:** `CN=BadBox Forensic Scanner, OU=Security Research, O=Open Source Community, C=PT`
+### 🛡️ Compilação e Assinatura da App
+Para garantir a integridade da cadeia de fornecimento, não são versionadas chaves criptográficas nem APKs pré-compilados no git (SEC-01).
+- Compilação de debug: `cd app && ./gradlew assembleDebug`
+- Testes unitários puros: `cd app && ./gradlew testDebugUnitTest`
+- Procedimento de assinatura de release: [`docs/RELEASE_SIGNING.md`](docs/RELEASE_SIGNING.md)
 
 ---
 
 ## 🚀 Utilização da Linha de Comandos (CLI) & Agentes
 
-A suite **deteta automaticamente o idioma do seu sistema operativo** (assume **Português** em sistemas em português, e **Inglês** por omissão internacional). Pode também forçar o idioma desejado com `--lang pt` ou `--lang en`.
+A suite **deteta automaticamente o idioma do seu sistema** (assume **Inglês** para utilizadores internacionais ou **Português** se o sistema operativo estiver em Português). Pode forçar o idioma com `--lang en` ou `--lang pt`.
 
 ### Dois Modos de Auditoria Disponíveis:
-- **Diagnóstico Rápido ADB (`--quick-scan`)**: 100% apenas de leitura, demora 5-10 segundos, não instala nada no aparelho. Verifica todas as famílias de ameaças conhecidas (XCPE, BadBox, Vo1d, droppers, sockets C2 e integridade do Play Protect).
-- **Diagnóstico Intensivo Sentinela (`--auto-pipeline`)**: Instala a app nativa (`com.scanner.tv`), levanta uma VPN loopback local durante 20-60 segundos para inspecionar tráfego dinâmico de rede/DNS à procura de ameaças desconhecidas ou adormecidas, recolhe relatórios, avalia regras e desinstala automaticamente a app no fim.
+- **Diagnóstico Rápido ADB 6 Camadas (`--quick-scan`)**: 100% leitura, demora 5 a 10 segundos, não instala nada no aparelho. Cobre todas as famílias de trojans conhecidas (XCPE, BadBox, Vo1d, droppers, sockets C2 ativos e Play Protect).
+- **Sentinela Dinâmico Intensivo (`--auto-pipeline`)**: Instala a app na TV (`com.scanner.tv`), ativa a VPN de loopback durante 20 a 60 segundos para inspecionar tráfego DNS/IP à procura de tráfego C2 dormente, recolhe relatórios, avalia regras e desinstala a app no fim de forma limpa.
 
 ```bash
-# 1. Diagnóstico Intensivo com App (Instala APK, sentinela VPN 20s para tráfego desconhecido e limpa a box)
-python tools/audit_security.py <TV_IP> --auto-pipeline
+# 1. Auditoria Dinâmica Completa (Instala APK, corre 20s sentinela VPN, recolhe logs e desinstala)
+python tools/audit_security.py <IP_DA_TV> --auto-pipeline
 
-# 2. Diagnóstico Rápido ADB (Ameaças conhecidas - Normal ou Modo JSON para Agentes)
-python tools/audit_security.py <TV_IP> --quick-scan
-python tools/audit_security.py <TV_IP> --quick-scan --json
+# 2. Diagnóstico Rápido de Leitura via ADB (Modo Padrão ou JSON Puro para Agentes)
+python tools/audit_security.py <IP_DA_TV> --quick-scan
+python tools/audit_security.py <IP_DA_TV> --quick-scan --json
 
-# 3. Classificador de Estágio de Infeção (Diferencia Estágio 1 dropper vs Estágio 2 ativo e payload /oem)
-python tools/detect_infection_stage.py <TV_IP>
-
-# 4. Descobrir e Auditar todas as Android TVs na Rede Local (Sub-rede)
+# 3. Descobrir e Auditar Todas as TVs na Sub-rede Doméstica
 python tools/audit_security.py --scan-subnet 192.168.1.0/24
 
-# 5. Remediação em Profundidade (Force-stop, pm clear, bloqueio AppOps, congelamento e remoção no user 0)
-python tools/audit_security.py <TV_IP> --remediate
+# 4. Remediação Profunda com Pré-visualização do Plano (--dry-run)
+python tools/audit_security.py <IP_DA_TV> --remediate --dry-run
+python tools/audit_security.py <IP_DA_TV> --remediate
 
-# 5.1 Remediação com Validação Pós-Reboot e DNS-over-TLS Opcional
-python tools/audit_security.py <TV_IP> --remediate --verify-reboot --enable-dot
+# 4.1 Remediação Não-Interativa para Agentes de IA (requer --yes explícito)
+python tools/audit_security.py <IP_DA_TV> --remediate --yes
 
-# 5.2 Pesquisa de Watchdogs em init.rc e Correlação de Processos Nativos
-python tools/audit_security.py <TV_IP> --scan-init-watchdogs
-python tools/deep_forensics.py <TV_IP> --dump-network-state
+# 4.2 Remediação com Validação de Ressurreição Pós-Reboot e Cloudflare DoT
+python tools/audit_security.py <IP_DA_TV> --remediate --yes --verify-reboot --enable-dot
 
-# 5.3 Pipeline Automatizado com Janela Sentinela Personalizada (ex: 60 segundos)
-python tools/audit_security.py <TV_IP> --auto-pipeline --vpn-duration 60
+# 5. Reversão e Restauro do Estado Anterior a partir de Backup
+python tools/audit_security.py <IP_DA_TV> --restore --backup backups/<device_id>/backup_<timestamp>.json
 
-# 6. Restauro Reversível Imediato (Multiplataforma)
-python tools/audit_security.py <TV_IP> --restore
-# Ou através dos scripts autónomos gerados: backups/restore_<IP>.ps1 (Windows) ou backups/restore_<IP>.sh (Linux/macOS)
+# 6. Exportação de Listas de Bloqueio de C2 (Pi-hole, AdGuard, dnsmasq, /etc/hosts)
+python tools/export_blocklist.py --format all
 
-# 7. Forense Avançada / Inspeção de Pacotes (Suporta --lang pt / --lang en)
-python tools/deep_forensics.py <TV_IP> --inspect-package <NOME_DO_PACOTE>
+# 7. Validação da Base de Dados Canónica de IoCs
+python tools/validate_iocs.py
 ```
 
 ---
 
-## 📤 Como Contribuir: Submeter Relatórios para o Registo de Aparelhos
+## 📤 Contribuição: Envio de Relatórios para o Registo de Aparelhos
 
-Ajude a comunidade a mapear quais os modelos de Android TV e Google TV que trazem droppers de fábrica ou firmwares limpos!
+Ajude a comunidade a mapear quais os modelos de Android TV e Google TV que trazem implantes de fábrica ou firmwares limpos!
 
-Sempre que realiza uma auditoria (seja via `--quick-scan` ou `--auto-pipeline`), o código **gera automaticamente um relatório sanitizado e anónimo** no ficheiro:
+Sempre que realiza uma auditoria (via `--quick-scan` ou `--auto-pipeline`), a suite **gera automaticamente um relatório sanitizado** em:
 ```text
 community_audit_submission.json
 ```
 
-### 🛡️ Garantia Total de Privacidade (Zero Dados Pessoais):
-- **Todos os identificadores pessoais são removidos na origem**: Nenhum endereço IP local, nenhum endereço MAC, número de série ou credencial Wi-Fi é incluído.
-- Contém **estritamente** dados técnicos de hardware e segurança: Modelo do SoC, versão de firmware, estado do Play Protect, pacotes/hashes maliciosos detetados e portas C2 ativas.
+### 🛡️ Garantia de Privacidade e Sanitização (Allowlist):
+- **Todos os identificadores pessoais são estritamente removidos** através de uma allowlist estrita: sem endereços IP locais ou públicos, sem endereços MAC, sem números de série, sem chip IDs e sem IMEIs (PRIV-01).
+- Contém **apenas** características técnicas de firmware: modelo de SoC, versão de build, estado do Play Protect, hashes de pacotes suspeitos e portas ativas de C2.
 
-### Como Submeter o Resultado:
-1. **Pelo GitHub Issues (Recomendado):**
+### Como Submeter:
+1. **No GitHub Issues (Recomendado):**
    - Abra um novo Issue em: [https://github.com/Mafarricos/badbox-tv-audit/issues](https://github.com/Mafarricos/badbox-tv-audit/issues)
    - Título: `[Device Audit] <Marca> <Modelo>` (ex: `[Device Audit] Strong 4K Google TV Stick`)
    - Cole o conteúdo do ficheiro `community_audit_submission.json`.
-2. **Por E-mail:**
-   - Envie o ficheiro `community_audit_submission.json` diretamente para o e-mail indicado no canal de YouTube: **`mafastudios@gmail.com`** (Assunto: `Auditoria TV: <Marca> <Modelo>`).
+2. **Por Correio Eletrónico:**
+   - Envie o ficheiro `community_audit_submission.json` diretamente para o e-mail: **`mafastudios@gmail.com`** (Assunto: `Auditoria TV: <Marca> <Modelo>`).
 
-O seu relatório será analisado e adicionado à lista pública oficial no [Registo de Aparelhos Testados (DEVICES.md)](DEVICES.md)!
+O seu relatório será validado e incorporado no registo oficial de [Aparelhos Testados (DEVICES.md)](DEVICES.md)!
 
 ---
 
 ## 🔒 Garantia de Segurança e Reversibilidade
 
-Cada ação de remediação cria um snapshot exato em formato JSON em `backups/backup_<IP>_<timestamp>.json` e um script de reversão imediata executável em `backups/restore_<IP>.ps1`. Nada é alterado sem existir um caminho de restauro imediato a um clique.
+Cada operação de remediação cria um snapshot integral sob `backups/<device_id>/backup_<timestamp>.json`. Os APKs desinstalados são colocados em quarentena com verificação criptográfica SHA-256 sob `backups/<device_id>/quarantine/`.
 
 > [!IMPORTANT]
-> **Nota de Persistência (Reposição de Fábrica & Atualizações de Sistema / OTA):**  
-> Como os droppers de cadeia de distribuição (como o `com.oemservice` / XCPE) vêm gravados de fábrica pelo fabricante em partições de sistema protegidas (`/system` ou `/vendor`), esta ferramenta mitiga e congela-os ao nível do gestor de pacotes do SO (`pm disable-user`) com total segurança e sem risco de inutilizar o aparelho (*brick*).  
-> Por este motivo:
-> 1. **Reposição de Fábrica (*Factory Reset*):** Se efetuar uma reposição de valores de fábrica na TV, a partição de dados é limpa e o backdoor do sistema voltará a ficar ativo como veio de fábrica. Terá de executar novamente este script ou a aplicação para voltar a neutralizá-lo.
-> 2. **Atualizações de Sistema (OTA do Fabricante):** A mitigação permanece válida até que a própria marca lance uma atualização de firmware que remova em definitivo a ameaça da ROM. Caso a sua box receba uma atualização de sistema, execute o `--quick-scan` para verificar se a marca corrigiu o problema ou se é necessário reaplicar a remediação.
+> **Nota sobre Persistência (Atualizações OTA e Reposição de Fábrica):**  
+> Como os droppers de supply-chain (como o `com.oemservice` / XCPE) vêm gravados de fábrica nas partições só de leitura (`/system` ou `/vendor`), esta ferramenta mitiga-os e congela-os no gestor de pacotes do Android (`pm disable-user --user 0`) sem risco de inutilizar o dispositivo.  
+> Consequentemente:
+> 1. **Reposição de Fábrica (Factory Reset):** Se repuser o aparelho para as definições originais de fábrica, a partição volta ao estado inicial e o backdoor será reativado. Terá de correr a ferramenta de remediação novamente.
+> 2. **Atualizações de Sistema (OTA):** Uma atualização do fabricante pode corrigir definitivamente a vulnerabilidade ou repor os pacotes de sistema. Se a TV receber um update, execute `--quick-scan` para verificar se a ROM foi limpa.
 
 ---
 
 ## ⚠️ Isenção de Responsabilidade
 
-Este software e ferramentas são disponibilizados estritamente para fins educativos, forenses e de investigação de cibersegurança.
-
-Realizei os testes e validações em **aparelhos pessoais meus**: as ferramentas detetaram com precisão os problemas, neutralizaram as ameaças/backdoors e os aparelhos continuaram a funcionar perfeitamente e sem qualquer anomalia. No entanto, perante a enorme diversidade de fabricantes, firmwares proprietários de operadores e versões modificadas de Android existentes no mercado, **não posso garantir a 100% a eficácia ou compatibilidade total em aparelhos que não tenham sido testados diretamente por mim**.
-
-A utilização desta ferramenta é da exclusiva responsabilidade de quem a executa. Nem o autor nem eventuais colaboradores poderão ser responsabilizados por qualquer comportamento inesperado ou instabilidade decorrente do seu uso. Recomenda-se sempre a salvaguarda dos backups gerados automaticamente na pasta `backups/`.
+Este software é disponibilizado estritamente para fins educativos, forenses e de investigação de segurança ao abrigo da [Licença MIT](LICENSE). Referências a relatórios e IoCs de terceiros pertencem aos respetivos autores ([Avisos de Terceiros](THIRD_PARTY_NOTICES.md)).
 
 ---
 
-## 👨‍💻 Sobre Mim & Agradecimentos
+## 👨‍💻 Sobre o Autor & Agradecimentos
 
-Olá, sou o **Carlos Correia**! Sou um entusiasta geek e programador que sempre acompanhou e adorou o mundo das TV boxes Android. Ao longo dos anos sempre recomendei ativamente aparelhos certificados Google TV e Android TV pela sua segurança e qualidade.
-
-Foi por isso uma enorme surpresa descobrir a investigação forense recente sobre a **VideoStrong / SZBBOYS (BadBox & XCPE)** e como estas ameaças de cadeia de distribuição conseguiram infiltrar-se em hardware certificado e de grande circulação. Essa descoberta motivou-me a criar este repositório, desenvolvido em estreita colaboração com Agentes de IA, para oferecer a qualquer utilizador ou técnico uma ferramenta transparente, gratuita e acessível para limpar facilmente malwares, trojans e botnets — quer seja diretamente pelo comando da TV, quer seja por linha de comandos com segurança e reversibilidade total.
-
-O conceito estrutural deste script teve por base o excelente projeto [CleanYourTV](https://cleanyour.tv) e assentou na investigação detalhada publicada pela [Synthient](https://synthient.com/blog/the-internals-of-a-badbox-operation), [Eclypsium](https://eclypsium.com/blog/android-tv-devices-pre-0wned-supply-chain-security-threats/) e [Dr.Web](https://vms.drweb.com/bulletin/).
+Olá, sou o **Carlos Correia**! Sou entusiasta de tecnologia e programador, apaixonado pelo ecossistema Android TV e Google TV. A revelação recente de comprometimentos de supply-chain (**VideoStrong / SZBBOYS / BadBox / XCPE**) motivou-me a desenvolver esta suite aberta, transparente e autónoma.
 
 ### Apoie o Projeto:
-Se esta ferramenta lhe foi útil e deseja apoiar o meu trabalho:
-- 📺 **Siga-me e veja os meus vídeos no YouTube:** [@Carlos___Correia](https://www.youtube.com/@Carlos___Correia)
-- ⭐ Deixe uma estrela no repositório e partilhe com a comunidade!
+- 📺 **Subscreva o meu canal no YouTube:** [@Carlos___Correia](https://www.youtube.com/@Carlos___Correia)
+- ⭐ Deixe uma estrela neste repositório e partilhe-o com a comunidade de Android TV!
