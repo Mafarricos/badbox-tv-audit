@@ -141,10 +141,9 @@ class FakeTransport:
         if not self.connected:
             raise TransportError("Not connected")
         self.pulled_files.append((remote_path, local_path))
-        if remote_path in self.fs:
-            import os
-            os.makedirs(os.path.dirname(os.path.abspath(local_path)), exist_ok=True)
-            with open(local_path, "wb") as f:
-                f.write(self.fs[remote_path])
-            return True
-        return False
+        import os
+        os.makedirs(os.path.dirname(os.path.abspath(local_path)), exist_ok=True)
+        content = self.fs.get(remote_path, b"PK\x03\x04FAKE_APK_CONTENT")
+        with open(local_path, "wb") as f:
+            f.write(content)
+        return True

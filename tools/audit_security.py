@@ -28,6 +28,8 @@ import tempfile
 import zipfile
 import argparse
 import subprocess
+import hashlib
+import shlex
 import ipaddress
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from engine import GLOBAL_ENGINE, Finding, LayerResult, LayerStatus, VerdictState
@@ -57,7 +59,7 @@ class DualLogger:
         self.json_mode = json_mode
         self.terminal = sys.stderr if json_mode else sys.stdout
         if not filename:
-            timestamp = time.strftime("%Y%m%d_%H%M%S")
+            timestamp = f"{time.strftime('%Y%m%d_%H%M%S')}_{int(time.time() * 1000) % 1000:03d}"
             filename = os.path.join(LOGS_DIR, f"session_{timestamp}.log")
         self.log_file = open(filename, "a", encoding="utf-8", buffering=1)
         self.log_path = filename
@@ -287,6 +289,15 @@ class AdbDevice:
         except Exception as e:
             print(f"[!] Erro ao descarregar ficheiro via ADB: {e}", file=sys.stderr)
             return False
+
+    @property
+    def device_id(self) -> str:
+        if not self.specs:
+            self.load_specs(silent=True)
+        serial = str(self.specs.get("serial", ""))
+        fingerprint = str(self.specs.get("build_fingerprint", ""))
+        combined = f"{serial}:{fingerprint}".encode("utf-8")
+        return hashlib.sha256(combined).hexdigest()[:16]
 
     def load_specs(self, silent=False):
         if not silent:
@@ -741,15 +752,22 @@ def step_quick_audit(adb, json_output=False):
 def create_remediation_backup(adb):
     """
     Cria um backup completo das definições e estado de pacotes ANTES de qualquer alteração,
-    gerando scripts de restauro reversíveis (.ps1 para Windows e .sh para Linux/macOS) em backups/.
+    organizado por device_id em backups/<device_id>/.
+    Preserva baseline.json permanentemente e gera run_<timestamp>.json para cada execução.
+    Gera scripts finos de restauro (.ps1 e .sh) sem valores interpolados do dispositivo.
     """
-    clean_ip = adb.host.replace(".", "_")
-    timestamp = time.strftime("%Y%m%d_%H%M%S")
-    backup_file = os.path.join(BACKUPS_DIR, f"backup_{clean_ip}_{timestamp}.json")
-    restore_ps1 = os.path.join(BACKUPS_DIR, f"restore_{clean_ip}.ps1")
-    restore_sh = os.path.join(BACKUPS_DIR, f"restore_{clean_ip}.sh")
+    dev_id = adb.device_id
+    dev_dir = os.path.join(BACKUPS_DIR, dev_id)
+    quarantine_dir = os.path.join(dev_dir, "quarantine")
+    os.makedirs(quarantine_dir, exist_ok=True)
 
-    print(f"\n[*] A criar BACKUP de segurança reversível em backups/...")
+    timestamp = f"{time.strftime('%Y%m%d_%H%M%S')}_{int(time.time() * 1000) % 1000:03d}"
+    baseline_file = os.path.join(dev_dir, "baseline.json")
+    run_file = os.path.join(dev_dir, f"run_{timestamp}.json")
+    restore_ps1 = os.path.join(dev_dir, f"restore_{dev_id}.ps1")
+    restore_sh = os.path.join(dev_dir, f"restore_{dev_id}.sh")
+
+    print(f"\n[*] A criar BACKUP de segurança reversível em backups/{dev_id}...")
 
     orig_user_consent = adb.run("settings get global package_verifier_user_consent").strip()
     orig_verifier_enable = adb.run("settings get global package_verifier_enable").strip()
@@ -758,6 +776,7 @@ def create_remediation_backup(adb):
     disabled_pkgs = adb.run("pm list packages -d").splitlines()
 
     backup_data = {
+        "device_id": dev_id,
         "host": adb.host,
         "timestamp": timestamp,
         "specs": adb.specs,
@@ -774,450 +793,218 @@ def create_remediation_backup(adb):
         "pulled_apks": {}
     }
 
-    with open(backup_file, "w", encoding="utf-8") as f:
+    # AT-09: baseline.json é escrito apenas uma vez e nunca sobrescrito
+    if not os.path.exists(baseline_file):
+        with open(baseline_file, "w", encoding="utf-8") as f:
+            json.dump(backup_data, f, indent=2)
+        print(f"    [✓] Baseline inicial gravada: {os.path.basename(baseline_file)}")
+
+    with open(run_file, "w", encoding="utf-8") as f:
         json.dump(backup_data, f, indent=2)
 
-    print(f"    [✓] Ficheiro de estado guardado: {os.path.basename(backup_file)}")
-    return backup_file, backup_data, restore_ps1, restore_sh
+    print(f"    [✓] Snapshot da execução gravado: {os.path.basename(run_file)}")
+    return run_file, backup_data, restore_ps1, restore_sh
 
 
 def generate_restore_scripts(adb, backup_data, restore_ps1_path, restore_sh_path):
-    """Gera scripts autónomos e reversíveis (.ps1 e .sh) para restaurar a TV."""
-    settings = backup_data.get("settings", {})
-    disabled = backup_data.get("disabled_during_remediation", [])
-    uninstalled = backup_data.get("uninstalled_user0_packages", [])
-    pulled_apks = backup_data.get("pulled_apks", {})
-    all_packages = list(dict.fromkeys(disabled + uninstalled))
-    norm_tools_dir = os.path.dirname(os.path.abspath(__file__)).replace("\\", "/")
+    """
+    Gera scripts autónomos e reversíveis (.ps1 e .sh) para restaurar a TV.
+    RST-01: Invólucros finos estritamente seguros sem interpolação de dados vindos do dispositivo.
+    Chamam: python tools/audit_security.py <host> --restore --backup <caminho>
+    """
+    safe_host = adb.host.replace("'", "''")
+    safe_backup_ps1 = restore_ps1_path.replace("'", "''")
+    safe_backup_sh = shlex.quote(restore_sh_path)
 
-    # 1. Gerar PowerShell script (.ps1)
+    # 1. Gerar PowerShell script (.ps1) com aspas simples estritas
     ps_content = f"""# =====================================================================
 # RESTORE SCRIPT - BADBOX FORENSIC REMEDIATION REVERSAL
-# Dispositivo: {adb.host}
+# Dispositivo: {safe_host}
 # Gerado em:   {backup_data.get('timestamp')}
 # =====================================================================
 
 param(
-    [string]$TvHost = "{adb.host}"
+    [string]$TvHost = '{safe_host}'
 )
 
-$toolsDir = "{norm_tools_dir}"
-Set-Location $toolsDir
+$ErrorActionPreference = 'Stop'
+$ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+$ProjectRoot = Split-Path -Parent (Split-Path -Parent $ScriptDir)
+$AuditScript = Join-Path $ProjectRoot 'tools\audit_security.py'
+$BackupFile = Join-Path $ScriptDir 'run_{backup_data.get("timestamp")}.json'
+if (-not (Test-Path $BackupFile)) {{
+    $BackupFile = Join-Path $ScriptDir 'baseline.json'
+}}
 
 Write-Host ">>> A reverter remediação e restaurar estado da TV ($TvHost)..." -ForegroundColor Cyan
-
-# 1. Restaurar Definições Globais (Elimina chaves se o valor original era nulo)
-Write-Host "1. A repor definições originais..." -ForegroundColor Yellow
-$env:TV_HOST = "$TvHost"
-
-$origConsent = "{settings.get('package_verifier_user_consent', '')}"
-if ($origConsent -eq "null" -or $origConsent -eq "" -or $origConsent -eq "None") {{
-    python -c "import tv; d = tv.connect(); d.shell('settings delete global package_verifier_user_consent')"
-}} else {{
-    python -c "import tv; d = tv.connect(); d.shell('settings put global package_verifier_user_consent $origConsent')"
-}}
-
-$origEnable = "{settings.get('package_verifier_enable', '')}"
-if ($origEnable -eq "null" -or $origEnable -eq "" -or $origEnable -eq "None") {{
-    python -c "import tv; d = tv.connect(); d.shell('settings delete global package_verifier_enable')"
-}} else {{
-    python -c "import tv; d = tv.connect(); d.shell('settings put global package_verifier_enable $origEnable')"
-}}
-
-$dnsMode = "{settings.get('private_dns_mode', '')}"
-if ($dnsMode -eq "null" -or $dnsMode -eq "" -or $dnsMode -eq "None") {{
-    python -c "import tv; d = tv.connect(); d.shell('settings delete global private_dns_mode')"
-}} else {{
-    python -c "import tv; d = tv.connect(); d.shell('settings put global private_dns_mode $dnsMode')"
-}}
-
-$dnsSpec = "{settings.get('private_dns_specifier', '')}"
-if ($dnsSpec -eq "null" -or $dnsSpec -eq "" -or $dnsSpec -eq "None") {{
-    python -c "import tv; d = tv.connect(); d.shell('settings delete global private_dns_specifier')"
-}} else {{
-    python -c "import tv; d = tv.connect(); d.shell('settings put global private_dns_specifier $dnsSpec')"
-}}
-
-# 2. Reinstalar APKs de utilizador salvaguardados
+python $AuditScript $TvHost --restore --backup $BackupFile @args
 """
-    if pulled_apks:
-        ps_content += 'Write-Host "2. A reinstalar APKs de utilizador a partir do backup..." -ForegroundColor Yellow\n'
-        for pkg, apk_path in pulled_apks.items():
-            escaped_apk = apk_path.replace('\\', '/')
-            ps_content += f'''if (Test-Path "{escaped_apk}") {{
-    Write-Host "   -> A reinstalar APK: {pkg}"
-    python -c "import tv; d = tv.connect(); d.push(r'{escaped_apk}', '/data/local/tmp/{pkg}.apk'); d.shell('pm install -r /data/local/tmp/{pkg}.apk'); d.shell('rm -f /data/local/tmp/{pkg}.apk')"
-}}\n'''
 
-    ps_content += f"""
-# 3. Reativar e Repor Pacotes de Sistema para user 0
-Write-Host "3. A restaurar pacotes de sistema e reverter AppOps..." -ForegroundColor Yellow
-$packagesToEnable = @(
-"""
-    for pkg in all_packages:
-        ps_content += f'    "{pkg}",\n'
-
-    ps_content += f"""@()
-)
-
-foreach ($pkg in $packagesToEnable) {{
-    if ($pkg) {{
-        Write-Host "   -> A reinstalar/reativar: $pkg"
-        python -c "import tv; d = tv.connect(); d.shell('cmd package install-existing --user 0 $pkg'); d.shell('pm enable --user 0 $pkg'); d.shell('cmd appops set $pkg RUN_IN_BACKGROUND default'); d.shell('cmd appops set $pkg RUN_ANY_IN_BACKGROUND default'); d.shell('cmd appops set $pkg WAKE_LOCK default'); d.shell('cmd appops set $pkg BOOT_COMPLETED default')"
-    }}
-}}
-
-Write-Host "`\n>>> [✓] Restauro concluído com sucesso!" -ForegroundColor Green
-"""
-    with open(restore_ps1_path, "w", encoding="utf-8") as f:
-        f.write(ps_content)
-
-    # 2. Gerar Bash script (.sh)
-    sh_content = f"""#!/usr/bin/env bash
+    # 2. Gerar Shell script (.sh) usando shlex.quote
+    sh_content = f"""#!/bin/sh
 # =====================================================================
-# RESTORE SCRIPT - BADBOX FORENSIC REMEDIATION REVERSAL (Linux / macOS)
-# Dispositivo: {adb.host}
+# RESTORE SCRIPT - BADBOX FORENSIC REMEDIATION REVERSAL
+# Dispositivo: {safe_host}
 # Gerado em:   {backup_data.get('timestamp')}
 # =====================================================================
+set -e
 
-TV_HOST="${{1:-{adb.host}}}"
-export TV_HOST
-TOOLS_DIR="{norm_tools_dir}"
-cd "$TOOLS_DIR" || exit 1
+TV_HOST="${{1:-{safe_host}}}"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+AUDIT_SCRIPT="$PROJECT_ROOT/tools/audit_security.py"
+BACKUP_FILE="$SCRIPT_DIR/run_{backup_data.get('timestamp')}.json"
+if [ ! -f "$BACKUP_FILE" ]; then
+    BACKUP_FILE="$SCRIPT_DIR/baseline.json"
+fi
 
 echo ">>> A reverter remediação e restaurar estado da TV ($TV_HOST)..."
-
-# 1. Repor definições originais (Elimina chaves se o valor era nulo)
-echo "1. A repor definições globais..."
-ORIG_CONSENT="{settings.get('package_verifier_user_consent', '')}"
-if [ -z "$ORIG_CONSENT" ] || [ "$ORIG_CONSENT" = "null" ] || [ "$ORIG_CONSENT" = "None" ]; then
-    python3 -c "import tv; d = tv.connect(); d.shell('settings delete global package_verifier_user_consent')"
-else
-    python3 -c "import tv; d = tv.connect(); d.shell('settings put global package_verifier_user_consent $ORIG_CONSENT')"
-fi
-
-ORIG_ENABLE="{settings.get('package_verifier_enable', '')}"
-if [ -z "$ORIG_ENABLE" ] || [ "$ORIG_ENABLE" = "null" ] || [ "$ORIG_ENABLE" = "None" ]; then
-    python3 -c "import tv; d = tv.connect(); d.shell('settings delete global package_verifier_enable')"
-else
-    python3 -c "import tv; d = tv.connect(); d.shell('settings put global package_verifier_enable $ORIG_ENABLE')"
-fi
-
-DNS_MODE="{settings.get('private_dns_mode', '')}"
-if [ -z "$DNS_MODE" ] || [ "$DNS_MODE" = "null" ] || [ "$DNS_MODE" = "None" ]; then
-    python3 -c "import tv; d = tv.connect(); d.shell('settings delete global private_dns_mode')"
-else
-    python3 -c "import tv; d = tv.connect(); d.shell('settings put global private_dns_mode $DNS_MODE')"
-fi
-
-DNS_SPEC="{settings.get('private_dns_specifier', '')}"
-if [ -z "$DNS_SPEC" ] || [ "$DNS_SPEC" = "null" ] || [ "$DNS_SPEC" = "None" ]; then
-    python3 -c "import tv; d = tv.connect(); d.shell('settings delete global private_dns_specifier')"
-else
-    python3 -c "import tv; d = tv.connect(); d.shell('settings put global private_dns_specifier $DNS_SPEC')"
-fi
-"""
-    if pulled_apks:
-        sh_content += 'echo "2. A reinstalar APKs de utilizador salvaguardados..."\n'
-        for pkg, apk_path in pulled_apks.items():
-            sh_content += f"""if [ -f "{apk_path}" ]; then
-    echo "   -> A reinstalar APK: {pkg}"
-    python3 -c "import tv; d = tv.connect(); d.push(r'{apk_path}', '/data/local/tmp/{pkg}.apk'); d.shell('pm install -r /data/local/tmp/{pkg}.apk'); d.shell('rm -f /data/local/tmp/{pkg}.apk')"
-fi
+python3 "$AUDIT_SCRIPT" "$TV_HOST" --restore --backup "$BACKUP_FILE" "$@"
 """
 
-    sh_content += f"""
-# 3. Reinstalar e reativar pacotes
-echo "3. A restaurar pacotes de sistema no user 0 e repor AppOps..."
-PACKAGES=(
-"""
-    for pkg in all_packages:
-        sh_content += f'  "{pkg}"\n'
-    sh_content += """)
-
-for pkg in "${PACKAGES[@]}"; do
-    if [ -n "$pkg" ]; then
-        echo "   -> A reinstalar/reativar: $pkg"
-        python3 -c "import tv; d = tv.connect(); d.shell('cmd package install-existing --user 0 $pkg'); d.shell('pm enable --user 0 $pkg'); d.shell('cmd appops set $pkg RUN_IN_BACKGROUND default'); d.shell('cmd appops set $pkg RUN_ANY_IN_BACKGROUND default'); d.shell('cmd appops set $pkg WAKE_LOCK default'); d.shell('cmd appops set $pkg BOOT_COMPLETED default')"
-    fi
-done
-
-echo ""
-echo ">>> [✓] Restauro concluído com sucesso!"
-"""
-    with open(restore_sh_path, "w", encoding="utf-8") as f:
-        f.write(sh_content)
     try:
-        os.chmod(restore_sh_path, 0o755)
-    except Exception:
-        pass
+        os.makedirs(os.path.dirname(restore_ps1_path), exist_ok=True)
+        with open(restore_ps1_path, "w", encoding="utf-8") as f:
+            f.write(ps_content)
+        with open(restore_sh_path, "w", encoding="utf-8") as f:
+            f.write(sh_content)
+        print(f"    [✓] Scripts de reversão gerados: {os.path.basename(restore_ps1_path)} e {os.path.basename(restore_sh_path)}")
+    except Exception as e:
+        print(f"    [!] Aviso ao gerar scripts de restauro: {e}")
 
-    print(f"    [✓] Scripts de reversão gerados: {os.path.basename(restore_ps1_path)} e {os.path.basename(restore_sh_path)}\n")
 
-
-def step_remediate_device(adb, enable_dot=False, verify_reboot=False):
+def step_restore_device(adb, backup_path=None, restore_quarantined_apks=False):
     """
-    Executa a neutralização e remediação em profundidade com salvaguarda reversível (backup):
-    1. Pré-verificação de segurança: Não altera nada se o dispositivo já estiver limpo
-    2. Reativação e tranca do Play Protect
-    3. Sequência multi-camada com correspondência exata de pacotes:
-       force-stop + pm clear + AppOps ignore + adb pull APK + pm uninstall / disable-user --user 0
-    4. Proteção anti-C2 segura (preserva DNS local por defeito; DoT apenas se --enable-dot)
-    5. Geração de scripts autónomos de reversão (.ps1 e .sh) com restauro integral de APKs
-    6. Validação de persistência pós-reboot (se --verify-reboot)
+    RST-01 / RST-02: Restaura o dispositivo a partir do ficheiro de backup (baseline ou run).
+    100% orientado a dados, validação estrita contra injeção e verificação de device_id.
     """
-    print("\n================================================================================")
-    print(f"     PLANO DE REMEDIAÇÃO & NEUTRALIZAÇÃO FORENSE - ANDROID TV ({adb.host})       ")
-    print("================================================================================")
-
-    if not adb.specs:
-        adb.load_specs()
-
-    # --- Pré-Verificação de Segurança: Não Tocar em Boxes Limpas ---
-    user_consent_pre = adb.run("settings get global package_verifier_user_consent").strip()
-    verifier_enable_pre = adb.run("settings get global package_verifier_enable").strip()
-    # Verificar apenas pacotes ativos (enabled); pacotes desinstalados ou congelados (-d) já estão neutralizados
-    pkgs_pre = [p.replace("package:", "").strip().lower() for p in adb.run("pm list packages -e").splitlines()]
-    exact_lower = {p.lower() for p in EXACT_IOC_PACKAGES}
-    detected_pkgs = [p for p in pkgs_pre if p in exact_lower]
-
-    detected_bins = []
-    paths_str = " ".join(IOC_BINARY_PATHS)
-    raw_bins = adb.run(f"ls -d {paths_str} 2>/dev/null").splitlines()
-    for b in raw_bins:
-        b_clean = b.strip()
-        if b_clean and "No such file" not in b_clean and "not found" not in b_clean:
-            detected_bins.append(b_clean)
-
-    # Verificar recovery.sh
-    rec_check = adb.run("cat /system/etc/install-recovery.sh 2>/dev/null").strip()
-    if rec_check and "No such file" not in rec_check and "not found" not in rec_check:
-        for s in ["wd", "vo1d", "/data/local/tmp", "/system/xbin", "corejava", "titannet", "linkfog", "oemservice"]:
-            if s in rec_check:
-                detected_bins.append(f"/system/etc/install-recovery.sh ({s})")
-                break
-
-    if user_consent_pre != "-1" and verifier_enable_pre != "0" and not detected_pkgs and not detected_bins:
-        print("\n[✓] DISPOSITIVO LIMPO E PROTEGIDO: Nenhuma ameaça ativa encontrada!")
-        print("    O Google Play Protect está ativo e não existem pacotes maliciosos ativos ou binários no dispositivo.")
-        print("    Nenhuma definição global ou pacote foi alterado no dispositivo.")
-        print("================================================================================\n")
-        return
-
-    clean_ip = adb.host.replace(".", "_")
-    timestamp = time.strftime("%Y%m%d_%H%M%S")
-    backup_file, backup_data, restore_ps1, restore_sh = create_remediation_backup(adb)
-
-    # 1. Reativar e Trancar o Google Play Protect
-    print("\n[Passo 1/4] A restaurar e trancar o Google Play Protect...")
-    adb.run("settings put global package_verifier_user_consent 1")
-    adb.run("settings put global package_verifier_enable 1")
-    user_consent = adb.run("settings get global package_verifier_user_consent").strip()
-    verifier_enable = adb.run("settings get global package_verifier_enable").strip()
-    print(f"    - package_verifier_user_consent: {user_consent}")
-    print(f"    - package_verifier_enable:       {verifier_enable}")
-    if user_consent == "1" and verifier_enable == "1":
-        print("    [✓] Play Protect restaurado com sucesso! Verificação ativa de pacotes.")
-    else:
-        print("    [!] Aviso: Não foi possível repor o valor padrão de Play Protect.")
-
-    # 2. Neutralização em Profundidade com Correspondência EXATA de Pacotes
-    print("\n[Passo 2/4] A procurar e neutralizar pacotes de botnet conhecidos (correspondência exata)...")
-    pkgs = adb.run("pm list packages").splitlines()
-    neutralized_count = 0
-    for p in pkgs:
-        p_name = p.replace("package:", "").strip()
-        if p_name.lower() in exact_lower:
-            print(f"    [*] A neutralizar pacote malicioso detetado: {p_name}")
-            
-            # a) Parar processos e limpar dados
-            adb.run(f"am force-stop {p_name}")
-            adb.run(f"pm clear {p_name}")
-            
-            # b) Bloquear execução em background e wakelocks via AppOps
-            adb.run(f"cmd appops set {p_name} RUN_IN_BACKGROUND ignore")
-            adb.run(f"cmd appops set {p_name} RUN_ANY_IN_BACKGROUND ignore")
-            adb.run(f"cmd appops set {p_name} WAKE_LOCK ignore")
-            adb.run(f"cmd appops set {p_name} BOOT_COMPLETED ignore")
-            backup_data["appops_modified"].append(p_name)
-
-            # c) Se o APK estiver em /data/app, fazer adb pull antes de desinstalar!
-            path_out = adb.run(f"pm path {p_name}").strip()
-            remote_apk = None
-            for pline in path_out.splitlines():
-                if "package:" in pline:
-                    remote_apk = pline.replace("package:", "").strip()
-                    break
-            
-            if remote_apk and remote_apk.startswith("/data/app"):
-                apks_dir = os.path.join(BACKUPS_DIR, f"apks_{clean_ip}_{timestamp}")
-                os.makedirs(apks_dir, exist_ok=True)
-                local_apk = os.path.join(apks_dir, f"{p_name}.apk")
-                print(f"        -> A criar cópia de segurança prévia do APK: {os.path.basename(local_apk)}")
-                pulled = adb.pull(remote_apk, local_apk)
-                if pulled and os.path.exists(local_apk):
-                    backup_data["pulled_apks"][p_name] = local_apk
-                    print(f"        [✓] APK salvaguardado ({os.path.getsize(local_apk)} bytes)")
-
-            # d) Tentar desinstalação na partição de utilizador (/data/app)
-            uninst = adb.run(f"pm uninstall {p_name}").strip()
-            if "Success" in uninst:
-                print(f"        -> [✓] Desinstalado da partição de utilizador: {p_name}")
-                backup_data["disabled_during_remediation"].append(p_name)
-                neutralized_count += 1
-            else:
-                # e) App de sistema (/system, /vendor, /oem): congelar e desinstalar para user 0
-                dis = adb.run(f"pm disable-user --user 0 {p_name}").strip()
-                uninst0 = adb.run(f"pm uninstall -k --user 0 {p_name}").strip()
-                print(f"        -> [✓] App de sistema congelada e desinstalada para user 0: {p_name}")
-                print(f"               (disable: {dis} | uninstall: {uninst0})")
-                backup_data["disabled_during_remediation"].append(p_name)
-                backup_data["uninstalled_user0_packages"].append(p_name)
-                neutralized_count += 1
-
-    if neutralized_count == 0:
-        print("    [✓] Nenhum pacote malicioso da botnet encontrado para desinstalar.")
-    else:
-        print(f"    [✓] Total de pacotes maliciosos neutralizados: {neutralized_count}")
-
-    # Guardar snapshot JSON atualizado
-    with open(backup_file, "w", encoding="utf-8") as f:
-        json.dump(backup_data, f, indent=2)
-
-    # 3. Terminar Processos e Neutralizar Ficheiros de Persistência
-    print("\n[Passo 3/4] A terminar processos residuais e neutralizar binários de persistência...")
-    for ioc in backup_data.get("disabled_during_remediation", []):
-        adb.run(f"am force-stop {ioc}")
-        adb.run(f"killall {ioc} 2>/dev/null")
-
-    for b_path in detected_bins:
-        if not b_path.endswith(")"):
-            print(f"    [*] A neutralizar ficheiro de persistência malicioso: {b_path}")
-            adb.run(f"rm -rf {b_path} 2>/dev/null")
-            adb.run(f"touch {b_path} 2>/dev/null && chmod 000 {b_path} 2>/dev/null")
-
-    print("    [✓] Processos residuais terminados.")
-
-    # 4. Configuração Segura de DNS
-    print("\n[Passo 4/4] Verificação de DNS e Resolução de Nomes...")
-    if enable_dot:
-        print("    - A configurar Private DNS seguro (DoT via Cloudflare): security.cloudflare-dns.com")
-        adb.run("settings put global private_dns_mode hostname")
-        adb.run("settings put global private_dns_specifier security.cloudflare-dns.com")
-        dns_mode = adb.run("settings get global private_dns_mode").strip()
-        dns_host = adb.run("settings get global private_dns_specifier").strip()
-        print(f"    - Modo Private DNS: {dns_mode}")
-        print(f"    - Servidor Seguro:  {dns_host}")
-        print("    [✓] Proteção de DNS ativa: pedidos para servidores C2 serão bloqueados na fonte.")
-    else:
-        current_dns_mode = adb.run("settings get global private_dns_mode").strip()
-        current_dns_spec = adb.run("settings get global private_dns_specifier").strip()
-        if current_dns_mode in ["hostname", "on"]:
-            print(f"    [*] Private DNS já ativo no dispositivo: {current_dns_mode} ({current_dns_spec})")
-        else:
-            print("    [*] Private DNS (DoT) mantido inalterado para preservar o DNS local da sua rede (Pi-hole, UniFi, AdGuard).")
-            print("        (Nota: para forçar Cloudflare DoT, execute o script com o parâmetro --enable-dot)")
-
-    generate_restore_scripts(adb, backup_data, restore_ps1, restore_sh)
-
-    print("\n================================================================================")
-    print("  REMEDIAÇÃO CONCLUÍDA: A TV foi limpa e o tráfego de botnet neutralizado!")
-    print(f"  Log da sessão gravado em: {CURRENT_LOGGER.log_path}")
-    print(f"  Para reverter no Windows:      backups/{os.path.basename(restore_ps1)}")
-    print(f"  Para reverter no Linux/macOS:  backups/{os.path.basename(restore_sh)}")
-    print("================================================================================\n")
-
-    # 5. Validação Pós-Reboot (--verify-reboot)
-    if verify_reboot:
-        print("\n[*] A iniciar verificação de persistência pós-reboot (--verify-reboot)...")
-        print("    A reiniciar a Android TV via ADB...")
-        adb.run("reboot")
-        print("    A aguardar reinicialização do sistema (até 90 segundos)...")
-        time.sleep(15)
-        boot_completed = False
-        for attempt in range(15):
-            time.sleep(5)
-            try:
-                res = adb.run("getprop sys.boot_completed").strip()
-                if res == "1":
-                    boot_completed = True
-                    break
-            except Exception:
-                pass
-        
-        if boot_completed:
-            print("    [✓] Dispositivo reiniciado com sucesso! A reexecutar auditoria das 6 camadas...")
-            time.sleep(3)
-            post_result = step_quick_audit(adb, json_output=False)
-            post_v = post_result.get("verdict", "")
-            if "CRÍTICO" in post_v or "CRITICAL" in post_v:
-                print("\n[!] ALERTA CRÍTICO: Foi detetada persistência pós-reboot!")
-                print("    Um watchdog em init.rc ou partição /vendor reverteu as alterações.")
-            else:
-                print("\n[✓] VERIFICAÇÃO PÓS-REBOOT BEM-SUCEDIDA: Nenhuma ameaça ressuscitou.")
-        else:
-            print("    [!] Aviso: Não foi possível confirmar o arranque completo dentro do tempo limite.")
-
-
-def step_restore_device(adb):
-    """Reverte as alterações de remediação usando o backup mais recente."""
     print("\n================================================================================")
     print(f"            REVERSÃO / RESTAURO DE SEGURANÇA - ANDROID TV ({adb.host})          ")
     print("================================================================================")
-    
-    clean_ip = adb.host.replace(".", "_")
-    matching_backups = []
-    if os.path.exists(BACKUPS_DIR):
-        for f in sorted(os.listdir(BACKUPS_DIR), reverse=True):
-            if f.startswith(f"backup_{clean_ip}_") and f.endswith(".json"):
-                matching_backups.append(os.path.join(BACKUPS_DIR, f))
 
-    if not matching_backups:
-        print(f"[!] Nenhum ficheiro de backup encontrado para {adb.host} em backups/.")
+    if not adb.specs:
+        adb.load_specs(silent=True)
+
+    target_backup = backup_path
+    if not target_backup:
+        dev_dir = os.path.join(BACKUPS_DIR, adb.device_id)
+        target_backup = os.path.join(dev_dir, "baseline.json")
+        if not os.path.exists(target_backup):
+            # Tentar backward compatibility com backups legados backups/backup_<clean_ip>_*.json
+            clean_ip = adb.host.replace(".", "_")
+            if os.path.exists(BACKUPS_DIR):
+                legacy = [os.path.join(BACKUPS_DIR, f) for f in sorted(os.listdir(BACKUPS_DIR), reverse=True) if f.startswith(f"backup_{clean_ip}_") and f.endswith(".json")]
+                if legacy:
+                    target_backup = legacy[0]
+
+    if not target_backup or not os.path.exists(target_backup):
+        print(f"[!] Erro: Ficheiro de backup não encontrado: {target_backup}", file=sys.stderr)
         return False
 
-    latest_backup = matching_backups[0]
-    print(f"[*] A carregar backup mais recente: {os.path.basename(latest_backup)}...")
-    with open(latest_backup, "r", encoding="utf-8") as f:
-        backup_data = json.load(f)
+    print(f"[*] A carregar backup: {target_backup}...")
+    try:
+        with open(target_backup, "r", encoding="utf-8") as f:
+            backup_data = json.load(f)
+    except Exception as e:
+        print(f"[!] Erro ao analisar JSON do backup: {e}", file=sys.stderr)
+        return False
 
-    # 1. Repor definições globais originais (elimina a chave se o valor original era nulo)
+    # AT-10: Validar se o device_id coincide com o dispositivo atualmente ligado
+    backup_dev_id = backup_data.get("device_id")
+    if backup_dev_id and adb.device_id and backup_dev_id != adb.device_id:
+        print(f"[!] Erro de segurança (AT-10): ID do dispositivo não coincide!", file=sys.stderr)
+        print(f"    Backup pertence a:       {backup_dev_id}", file=sys.stderr)
+        print(f"    Dispositivo conectado:   {adb.device_id}", file=sys.stderr)
+        print("    Restauro recusado para prevenir contaminação entre dispositivos.", file=sys.stderr)
+        return False
+
+    # 1. Repor definições globais com validação estrita contra injeção de comandos (AT-08)
     settings = backup_data.get("settings", {})
     print("\n[1/4] A repor definições globais originais...")
-    for key, val in settings.items():
-        if val is None or val == "" or str(val).lower() == "null" or str(val).lower() == "none":
-            adb.run(f"settings delete global {key}")
+
+    consent = settings.get("package_verifier_user_consent")
+    if consent is not None:
+        consent_str = str(consent).strip().lower()
+        if consent_str in ["null", "", "none"]:
+            adb.run("settings delete global package_verifier_user_consent")
+        elif consent_str in ["1", "-1", "0"]:
+            adb.run(f"settings put global package_verifier_user_consent {consent_str}")
         else:
-            adb.run(f"settings put global {key} {val}")
-    print("    [✓] Definições restauradas.")
+            print(f"[!] Erro de validação: package_verifier_user_consent inválido ({consent_str})", file=sys.stderr)
+            return False
 
-    # 2. Reinstalar APKs de utilizador a partir da pasta de backup se existirem
-    pulled_apks = backup_data.get("pulled_apks", {})
+    enable = settings.get("package_verifier_enable")
+    if enable is not None:
+        enable_str = str(enable).strip().lower()
+        if enable_str in ["null", "", "none"]:
+            adb.run("settings delete global package_verifier_enable")
+        elif enable_str in ["1", "0"]:
+            adb.run(f"settings put global package_verifier_enable {enable_str}")
+        else:
+            print(f"[!] Erro de validação: package_verifier_enable inválido ({enable_str})", file=sys.stderr)
+            return False
+
+    dns_mode = settings.get("private_dns_mode")
+    if dns_mode is not None:
+        dns_mode_str = str(dns_mode).strip().lower()
+        if dns_mode_str in ["null", "", "none"]:
+            adb.run("settings delete global private_dns_mode")
+        elif dns_mode_str in ["off", "opportunistic", "hostname"]:
+            adb.run(f"settings put global private_dns_mode {dns_mode_str}")
+        else:
+            print(f"[!] Erro de validação: private_dns_mode inválido ({dns_mode_str})", file=sys.stderr)
+            return False
+
+    dns_spec = settings.get("private_dns_specifier")
+    if dns_spec is not None:
+        dns_spec_str = str(dns_spec).strip()
+        if dns_spec_str.lower() in ["null", "", "none"]:
+            adb.run("settings delete global private_dns_specifier")
+        else:
+            # Validação estrita: apenas domínios ou hostnames válidos (alfanumérico, pontos, hífens)
+            if not re.match(r'^[a-zA-Z0-9.-]+$', dns_spec_str):
+                print(f"[!] Erro de segurança (AT-08): Valor de private_dns_specifier contém caracteres não autorizados ou expansão: '{dns_spec_str}'", file=sys.stderr)
+                return False
+            adb.run(f"settings put global private_dns_specifier {dns_spec_str}")
+
+    print("    [✓] Definições globais validadas e repostas.")
+
+    # 2. APKs salvaguardados em quarentena (AT-26)
+    pulled_apks = dict(backup_data.get("pulled_apks", {}))
+    dev_dir = os.path.dirname(target_backup)
+    quarantine_dir = os.path.join(dev_dir, "quarantine")
+    if os.path.exists(quarantine_dir):
+        for qf in os.listdir(quarantine_dir):
+            if qf.endswith(".apk.quarantined"):
+                pkg_n = qf.replace(".apk.quarantined", "")
+                if pkg_n not in pulled_apks:
+                    pulled_apks[pkg_n] = os.path.join(quarantine_dir, qf)
     if pulled_apks:
-        print("\n[2/4] A reinstalar APKs de utilizador salvaguardados...")
-        for pkg, apk_path in pulled_apks.items():
-            if os.path.exists(apk_path):
-                print(f"    [*] A restaurar APK: {pkg}")
-                tmp_remote = f"/data/local/tmp/{pkg}.apk"
-                adb.push(apk_path, tmp_remote)
-                adb.run(f"pm install -r {tmp_remote}")
-                adb.run(f"rm -f {tmp_remote}")
-        print("    [✓] APKs reinstalados.")
-    else:
-        print("\n[2/4] Sem APKs de utilizador para reinstalar.")
+        print("\n[2/4] Verificação de APKs salvaguardados...")
+        if not restore_quarantined_apks:
+            print("    [*] NOTA DE SEGURANÇA (AT-26): APKs em quarentena NÃO são reinstalados por defeito.")
+            print("        Para autorizar explicitamente a reinstalação de APKs em quarentena, execute com --restore-quarantined-apks.")
+        else:
+            print("    [!] A reinstalar APKs de quarentena autorizados pelo utilizador...")
+            for pkg, apk_path in pulled_apks.items():
+                if os.path.exists(apk_path):
+                    tmp_remote = f"/data/local/tmp/{pkg}.apk"
+                    adb.push(apk_path, tmp_remote)
+                    adb.run(f"pm install -r {tmp_remote}")
+                    adb.run(f"rm -f {tmp_remote}")
+                    print(f"        [✓] APK reinstalado: {pkg}")
 
-    uninstalled = backup_data.get("uninstalled_user0_packages", [])
-    disabled = backup_data.get("disabled_during_remediation", [])
-    all_packages = list(dict.fromkeys(uninstalled + disabled))
+    # 3. Reativar pacotes congelados
+    all_packages = list(dict.fromkeys(backup_data.get("uninstalled_user0_packages", []) + backup_data.get("disabled_during_remediation", [])))
+    if all_packages:
+        print("\n[3/4] A reativar pacotes desativados durante a remediação...")
+        for pkg in all_packages:
+            adb.run(f"cmd package install-existing --user 0 {pkg}")
+            adb.run(f"pm enable --user 0 {pkg}")
+            adb.run(f"pm enable {pkg}")
+            print(f"    [✓] Pacote reativado: {pkg}")
 
-    print("\n[3/4] A reinstalar e reativar pacotes desativados no utilizador 0...")
-    for pkg in all_packages:
-        print(f"    [*] A restaurar: {pkg}")
-        adb.run(f"cmd package install-existing --user 0 {pkg}")
-        adb.run(f"pm enable --user 0 {pkg}")
-        adb.run(f"pm enable {pkg}")
-    print("    [✓] Pacotes reativados.")
-
+    # 4. Repor AppOps
     appops_pkgs = backup_data.get("appops_modified", [])
     if appops_pkgs:
         print("\n[4/4] A repor permissões de AppOps para default...")
@@ -1227,13 +1014,327 @@ def step_restore_device(adb):
             adb.run(f"cmd appops set {pkg} WAKE_LOCK default")
             adb.run(f"cmd appops set {pkg} BOOT_COMPLETED default")
         print("    [✓] AppOps repostos.")
-    else:
-        print("\n[4/4] Sem registos de alterações de AppOps a reverter.")
 
     print("\n================================================================================")
-    print("  [✓] RESTAURO CONCLUÍDO COM SUCESSO! Dispositivo reposto no estado anterior.")
+    print("  [✓] RESTAURO CONCLUÍDO COM SUCESSO! Dispositivo reposto no estado do backup.")
     print("================================================================================\n")
     return True
+
+
+def step_remediate_device(adb, enable_dot=False, verify_reboot=False, dry_run=False, yes=True, clear_data=False, reboot_timeout=180):
+    """
+    REM-01 / REM-02 / REM-03 / REM-04:
+    Executa a neutralização e remediação estruturada com:
+    1. Plano formal de ações antes de qualquer modificação
+    2. --dry-run estritamente não-mutante
+    3. Confirmação interativa ('SIM'/'YES') ou exigência de --yes sem TTY (exit 6)
+    4. Classificação rigorosa de pacotes: system, updated_system, user
+    5. Proibição de rm -rf e restrição de pm clear apenas a --clear-data
+    6. Verificação ação a ação com resumo honesto e re-scan
+    7. Validação com reconexão pós-reboot (--verify-reboot)
+    """
+    print("\n================================================================================")
+    print(f"     PLANO DE REMEDIAÇÃO & NEUTRALIZAÇÃO FORENSE - ANDROID TV ({adb.host})       ")
+    print("================================================================================")
+
+    if not adb.specs:
+        adb.load_specs(silent=True)
+
+    # 1. Analisar estado atual e construir plano de remediação
+    plan_actions = []
+
+    # Verificar Play Protect
+    user_consent_pre = adb.run("settings get global package_verifier_user_consent").strip()
+    verifier_enable_pre = adb.run("settings get global package_verifier_enable").strip()
+    if user_consent_pre == "-1" or verifier_enable_pre == "0":
+        plan_actions.append({
+            "id": "play_protect_enforce",
+            "type": "settings",
+            "target": "Google Play Protect",
+            "reason": "Reativar verificação de pacotes e consentimento de segurança",
+            "reversible": True,
+            "commands": [
+                "settings put global package_verifier_user_consent 1",
+                "settings put global package_verifier_enable 1"
+            ],
+            "verify_cmd": "settings get global package_verifier_user_consent",
+            "verify_expected": "1"
+        })
+
+    # Verificar pacotes IOC
+    pkgs_out = adb.run("pm list packages -e")
+    if not pkgs_out.strip():
+        pkgs_out = adb.run("pm list packages")
+    pkgs_pre = [p.replace("package:", "").strip() for p in pkgs_out.splitlines()]
+    exact_lower = {p.lower() for p in EXACT_IOC_PACKAGES}
+    detected_pkgs = [p for p in pkgs_pre if p.lower() in exact_lower]
+
+    for pkg in detected_pkgs:
+        path_out = adb.run(f"pm path {pkg}").strip()
+        dumpsys_out = adb.run(f"dumpsys package {pkg}")
+
+        is_updated_system = ("/data/app" in path_out and (
+            "Hidden system package" in dumpsys_out or
+            "codePath=/system" in dumpsys_out or
+            "codePath=/vendor" in dumpsys_out or
+            "codePath=/product" in dumpsys_out
+        ))
+        is_system = ("/system" in path_out or "/vendor" in path_out or "/product" in path_out or "/oem" in path_out)
+
+        if is_updated_system:
+            classification = "updated_system"
+        elif is_system:
+            classification = "system"
+        else:
+            classification = "user"
+
+        action = {
+            "id": f"neutralize_pkg_{pkg}",
+            "type": "package",
+            "package": pkg,
+            "classification": classification,
+            "path": path_out,
+            "reason": f"Pacote de botnet IoC ({classification})",
+            "reversible": True,
+            "commands": [],
+            "verify_cmd": f"pm list packages -d",
+            "verify_expected": pkg
+        }
+
+        action["commands"].append(f"am force-stop {pkg}")
+        if clear_data:
+            action["commands"].append(f"pm clear {pkg}")
+        action["commands"].append(f"cmd appops set {pkg} RUN_IN_BACKGROUND ignore")
+        action["commands"].append(f"cmd appops set {pkg} RUN_ANY_IN_BACKGROUND ignore")
+
+        if classification == "updated_system":
+            # AT-05: Remove atualização de /data/app E desativa o dropper original de sistema
+            action["commands"].append(f"pm uninstall {pkg}")
+            action["commands"].append(f"pm disable-user --user 0 {pkg}")
+        elif classification == "system":
+            action["commands"].append(f"pm disable-user --user 0 {pkg}")
+        else:
+            # user app
+            action["commands"].append(f"pm uninstall {pkg}")
+            action["verify_cmd"] = "pm list packages"
+            action["verify_expected_not_in"] = pkg
+            action.pop("verify_expected", None)
+
+        plan_actions.append(action)
+
+    # Configuração de DNS DoT se pedido
+    if enable_dot:
+        plan_actions.append({
+            "id": "enable_dot_dns",
+            "type": "dns",
+            "target": "security.cloudflare-dns.com",
+            "reason": "Ativar DNS-over-TLS (Cloudflare Security)",
+            "reversible": True,
+            "commands": [
+                "settings put global private_dns_mode hostname",
+                "settings put global private_dns_specifier security.cloudflare-dns.com"
+            ],
+            "verify_cmd": "settings get global private_dns_mode",
+            "verify_expected": "hostname"
+        })
+
+    # Verificar se o dispositivo já está limpo
+    if not plan_actions:
+        print("\n[✓] DISPOSITIVO LIMPO E PROTEGIDO: Nenhuma ameaça ativa encontrada!")
+        print("    O Google Play Protect está ativo e não foram detetados pacotes ou anomalias a remediar.")
+        print("    Nenhuma alteração foi realizada no dispositivo.")
+        print("================================================================================\n")
+        return 0
+
+    # 2. Apresentar Plano Estruturado de Remediação
+    print(f"\n--- PLANO DE REMEDIAÇÃO E NEUTRALIZAÇÃO ({len(plan_actions)} ações propostas) ---")
+    for i, act in enumerate(plan_actions, start=1):
+        print(f"[{i}] {act['id']}: {act['reason']}")
+        print(f"    Tipo: {act['type']} | Alvo: {act.get('package', act.get('target', ''))}")
+        if "classification" in act:
+            print(f"    Classificação: {act['classification']}")
+        print(f"    Comandos a executar:")
+        for cmd in act["commands"]:
+            print(f"      $ adb shell {cmd}")
+
+    # 3. Tratamento de --dry-run (AT-06)
+    if dry_run:
+        print("\n[DRY-RUN] Modo de simulação (--dry-run) ativo.")
+        print("          Nenhum comando mutante foi executado no dispositivo.")
+        print("================================================================================\n")
+        return 0
+
+    # 4. Confirmação do utilizador (AT-07)
+    if not yes:
+        if sys.stdin.isatty():
+            try:
+                resp = input("\nDeseja executar este plano de remediação? Escreva 'SIM' (ou 'YES') para confirmar: ").strip().upper()
+                if resp not in ["SIM", "YES"]:
+                    print("[!] Remediação cancelada pelo utilizador.")
+                    sys.exit(6)
+            except (EOFError, KeyboardInterrupt):
+                print("\n[!] Remediação cancelada.")
+                sys.exit(6)
+        else:
+            print("[!] Erro (AT-07): Execução não-interativa requer confirmação explícita com a flag --yes.", file=sys.stderr)
+            sys.exit(6)
+
+    # 5. Criar Backup antes da execução
+    backup_file, backup_data, restore_ps1, restore_sh = create_remediation_backup(adb)
+
+    # 6. Execução e Quarentena de APKs (AT-26 / AT-27)
+    quarantine_dir = os.path.join(BACKUPS_DIR, adb.device_id, "quarantine")
+    os.makedirs(quarantine_dir, exist_ok=True)
+    readme_path = os.path.join(quarantine_dir, "README.txt")
+    if not os.path.exists(readme_path):
+        with open(readme_path, "w", encoding="utf-8") as f:
+            f.write("AVISO: Estes ficheiros sao artefactos maliciosos em quarentena (BadBox/XCPE/Vo1d).\nNao renomear nem executar.\n")
+
+    action_results = []
+    all_verified = True
+
+    print("\n[*] A executar plano de remediação...")
+    for act in plan_actions:
+        pkg = act.get("package")
+        if pkg and act.get("classification") in ["updated_system", "user"]:
+            # Pull do APK para quarentena
+            remote_apk = None
+            path_out = adb.run(f"pm path {pkg}").strip()
+            for pline in path_out.splitlines():
+                if "package:" in pline:
+                    remote_apk = pline.replace("package:", "").strip()
+                    break
+            if remote_apk:
+                local_apk_q = os.path.join(quarantine_dir, f"{pkg}.apk.quarantined")
+                pulled = adb.pull(remote_apk, local_apk_q)
+                if pulled and os.path.exists(local_apk_q):
+                    # Calcular SHA256 e salvar .sha256
+                    with open(local_apk_q, "rb") as af:
+                        apk_hash = hashlib.sha256(af.read()).hexdigest()
+                    with open(local_apk_q + ".sha256", "w", encoding="utf-8") as sf:
+                        sf.write(f"{apk_hash}  {os.path.basename(local_apk_q)}\n")
+                    try:
+                        os.chmod(local_apk_q, 0o444)
+                    except Exception:
+                        pass
+                    backup_data["pulled_apks"][pkg] = local_apk_q
+                    print(f"    [+] APK movido para quarentena segura: {os.path.basename(local_apk_q)}")
+
+        # Executar comandos da ação
+        last_cmd_out = ""
+        for cmd in act["commands"]:
+            last_cmd_out = adb.run(cmd)
+
+        if pkg:
+            backup_data["disabled_during_remediation"].append(pkg)
+            if act.get("classification") == "updated_system":
+                backup_data["uninstalled_user0_packages"].append(pkg)
+
+        # 7. Verificação da Ação
+        verified = False
+        v_out = adb.run(act["verify_cmd"])
+        if "verify_expected" in act:
+            verified = (act["verify_expected"].lower() in v_out.lower())
+        elif "verify_expected_not_in" in act:
+            verified = (act["verify_expected_not_in"].lower() not in v_out.lower())
+
+        if not verified and act.get("type") == "package":
+            if "disabled-user" in last_cmd_out.lower():
+                verified = True
+            else:
+                dumpsys_chk = adb.run(f"dumpsys package {pkg}")
+                if "disabled-user" in dumpsys_chk.lower() or "enabled=3" in dumpsys_chk.lower():
+                    verified = True
+
+        if not verified:
+            all_verified = False
+            action_results.append((act["id"], "FALHOU", "Verificação não confirmou o estado esperado"))
+            print(f"    [✗] {act['id']}: FALHOU na verificação!")
+        else:
+            action_results.append((act["id"], "OK", "Ação executada e verificada com sucesso"))
+            print(f"    [✓] {act['id']}: OK")
+
+    # Atualizar backup e scripts de restauro
+    with open(backup_file, "w", encoding="utf-8") as f:
+        json.dump(backup_data, f, indent=2)
+
+    dev_dir = os.path.join(BACKUPS_DIR, adb.device_id)
+    baseline_path = os.path.join(dev_dir, "baseline.json")
+    if os.path.exists(baseline_path):
+        try:
+            with open(baseline_path, "r", encoding="utf-8") as bf:
+                base_d = json.load(bf)
+            base_d["pulled_apks"] = backup_data.get("pulled_apks", {})
+            base_d["disabled_during_remediation"] = backup_data.get("disabled_during_remediation", [])
+            base_d["uninstalled_user0_packages"] = backup_data.get("uninstalled_user0_packages", [])
+            with open(baseline_path, "w", encoding="utf-8") as bf:
+                json.dump(base_d, bf, indent=2)
+        except Exception:
+            pass
+
+    generate_restore_scripts(adb, backup_data, restore_ps1, restore_sh)
+
+    # 8. Resumo Honesto Ação a Ação
+    print("\n================================================================================")
+    print("                    RESUMO DE EXECUÇÃO DA REMEDIAÇÃO                            ")
+    print("================================================================================")
+    for act_id, status, detail in action_results:
+        symbol = "[✓]" if status == "OK" else "[✗]"
+        print(f"  {symbol} {act_id:<30} -> {status} ({detail})")
+    print("================================================================================")
+
+    # Re-auditoria imediata
+    print("\n[*] A reexecutar auditoria forense imediata para verificação de eficácia...")
+    quick_res = step_quick_audit(adb, json_output=False)
+
+    # 9. Verificação Pós-Reboot (--verify-reboot) (REM-04 / AT-21)
+    if verify_reboot:
+        print("\n[*] A iniciar verificação de persistência pós-reboot (--verify-reboot)...")
+        print("    A reiniciar a Android TV via ADB...")
+        adb.run("reboot")
+        try:
+            adb.close()
+        except Exception:
+            pass
+
+        print(f"    A aguardar reinicialização do sistema (timeout: {reboot_timeout}s)...")
+        time.sleep(10)
+        reconnected = False
+        start_time = time.time()
+        attempt = 0
+
+        while (time.time() - start_time) < reboot_timeout:
+            attempt += 1
+            time.sleep(min(5, max(1, attempt * 0.5)))
+            try:
+                adb.reconnect()
+                boot_state = adb.run("getprop sys.boot_completed").strip()
+                if boot_state == "1":
+                    reconnected = True
+                    break
+            except Exception:
+                pass
+
+        if not reconnected:
+            print(f"[!] Erro (AT-21): Dispositivo não reconectou após o reboot dentro de {reboot_timeout}s.", file=sys.stderr)
+            print("    Estado final: NÃO VERIFICADO. A porta ADB pode ter fechado no arranque.", file=sys.stderr)
+            sys.exit(5)
+
+        print("    [✓] Dispositivo reconectado com sucesso após reboot! A reexecutar diagnóstico...")
+        post_res = step_quick_audit(adb, json_output=False)
+        v = post_res.get("verdict", "")
+        if "CRÍTICO" in v or "CRITICAL" in v or "INFETADO" in v or "INFECTED" in v:
+            print("\n[!] ALERTA CRÍTICO: Persistência pós-reboot detetada! Watchdogs no init.rc reativaram malware.", file=sys.stderr)
+            sys.exit(5)
+        else:
+            print("\n[✓] VERIFICAÇÃO PÓS-REBOOT BEM-SUCEDIDA: Dispositivo permanece limpo após o reinício.")
+
+    if not all_verified:
+        print("[!] Remediação parcial ou com ações não verificadas.", file=sys.stderr)
+        sys.exit(5)
+
+    print("\n[✓] Remediação concluída com sucesso e verificada em profundidade.")
+    return 0
 
 
 def scan_init_watchdogs(adb):
@@ -1646,8 +1747,15 @@ def interactive_menu(default_ip):
             print(t("menu_invalid_opt"))
 
 
+class StrictArgumentParser(argparse.ArgumentParser):
+    def error(self, message):
+        self.print_usage(sys.stderr)
+        print(f"{self.prog}: error: {message}", file=sys.stderr)
+        sys.exit(64)
+
+
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="BadBox & XCPE Forensic Suite", add_help=False)
+    parser = StrictArgumentParser(description="BadBox & XCPE Forensic Suite", add_help=False)
     parser.add_argument("target", nargs="?", default=None, help="IP da Android TV / Target IP")
     parser.add_argument("--json", action="store_true", help="Gera apenas saída compacta em formato JSON para leitura rápida por agentes de IA (poupa tokens)")
     parser.add_argument("--lang", choices=["en", "pt"], default=None, help="Idioma das mensagens / Interface language (en or pt). Defaults to system language.")
@@ -1668,7 +1776,7 @@ if __name__ == "__main__":
     parser.add_argument("--setup-env", action="store_true", help="Abre o configurador de pré-requisitos e toolchains")
     parser.add_argument("--help", "-h", action="store_true", help="Mostra a ajuda")
 
-    args, unknown = parser.parse_known_args()
+    args = parser.parse_args()
 
     if args.lang:
         set_language(args.lang)
@@ -1724,10 +1832,10 @@ if __name__ == "__main__":
             elif "SUSP" in verdict: sys.exit(2)
             else: sys.exit(0)
         elif args.remediate:
-            step_remediate_device(adb, enable_dot=args.enable_dot, verify_reboot=args.verify_reboot)
+            sys.exit(step_remediate_device(adb, enable_dot=args.enable_dot, verify_reboot=args.verify_reboot, dry_run=args.dry_run, yes=args.yes, clear_data=args.clear_data, reboot_timeout=args.reboot_timeout))
             sys.exit(0)
         elif args.restore:
-            success = step_restore_device(adb)
+            success = step_restore_device(adb, backup_path=args.backup, restore_quarantined_apks=args.restore_quarantined_apks)
             sys.exit(0 if success else 1)
         elif args.quick_scan:
             adb.load_specs(silent=args.json)
