@@ -124,7 +124,9 @@ IOC_PACKAGES = [
     "com.swe.dgbluancher", "com.hs.app", "com.google.android.gms.stable", "com.rmk.app.AllPlayer",
     "com.nasa.cook.CookInit", "com.sun.galaxy.lib.OceanInit", "com.goog1e.apps",
     "com.honeygain", "com.iproyal", "pawns.app", "packetstream", "peer2profit", "repocket", "earnapp", "bitping",
-    "sso.authHandler", "com.mz.sdk", "com.debby.devour", "com.ota.service", "com.videostrong.debugtool", "com.vs.tvonline2", "newtv.cboxtv"
+    "sso.authHandler", "com.mz.sdk", "com.debby.devour", "com.ota.service", "com.videostrong.debugtool", "com.vs.tvonline2", "newtv.cboxtv",
+    "com.yk.debugtools", "com.droidlogic.vsota", "com.abcproxy.proxysdk", "com.appdns.change.rc", "com.dnschecker.rc", "com.ecosaver.daemon",
+    "com.proxypeer.peerapp", "com.ycngmn.notubetv.service", "com.whale.screensaver", "com.yokatv.market", "com.yokatv.otaupdate"
 ]
 
 # 3. Ficheiros binários e scripts de persistência de malware no sistema (Vo1d, Corejava, ELF/SO)
@@ -170,9 +172,9 @@ SUSPICIOUS_CONTENT_PROVIDERS = [
 
 # 6. IPs e Portas Críticas de C2 da botnet (incluindo MQTT e WebSockets)
 C2_IPS_PORTS = [
-    "219.134.163.210", "121.4.8.146", "38.145.197.135", "38.145.197.30", "23.94.49.57",
+    "219.134.163.210", "121.4.8.146", "38.145.197.135", "38.145.197.30", "23.94.49.57", "120.55.60.139", "42.121.236.55",
     ":3885", ":3886", ":3887", ":22345", ":16000", ":12000", ":9992", ":9994", ":2375", ":2095", ":2082",
-    ":8082", ":8083", ":18083"
+    ":8082", ":8083", ":18083", ":2222", ":7000"
 ]
 
 # 5. Modelos de dispositivos historicamente visados pela botnet (Apenas Informativo - Requer Evidências)

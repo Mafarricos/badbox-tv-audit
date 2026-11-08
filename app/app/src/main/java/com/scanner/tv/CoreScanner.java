@@ -68,7 +68,7 @@ public class CoreScanner {
             "content://com.release.debug.provider".getBytes(StandardCharsets.UTF_8)
     };
 
-    // Pacotes conhecidos de Trojans, Proxies Residenciais, Loaders e Ad Fraud (XCPE & BadBox 2.0)
+    // Pacotes conhecidos de Trojans, Proxies Residenciais, Loaders e Ad Fraud (XCPE & BadBox 2.0 / Plume Whitepaper)
     private static final List<String> IOC_PACKAGES = Arrays.asList(
             "x.cpe", "com.oemservice", "com.abc.nexus", "sso.authHandler",
             "com.ota.service", "newtv.cboxtv", "com.vs.tvonline2",
@@ -76,12 +76,16 @@ public class CoreScanner {
             "com.debby.devour", "io.popanet", "gaganode", "linkfog",
             "appsalt", "traffmonetizer", "cboxtv", "hiddenview", "moyu", "spirit",
             "android-grass", "com.grass", "appdnschange", "SmartPrivilege",
-            "SmartEntertainment", "SmartThroughput", "EcoSaverDaemon", "titannet", "yokatv"
+            "SmartEntertainment", "SmartThroughput", "EcoSaverDaemon", "titannet", "yokatv",
+            "com.yk.debugtools", "com.droidlogic.vsota", "com.abcproxy.proxysdk", "com.appdns.change.rc",
+            "com.dnschecker.rc", "com.ecosaver.daemon", "com.proxypeer.peerapp", "com.ycngmn.notubetv.service",
+            "com.whale.screensaver", "com.yokatv.market", "com.yokatv.otaupdate"
     );
 
-    // Portas de C2 / Proxyware conhecidas (incluindo portas MQTT não-standard do XCPE)
+    // Portas de C2 / Proxyware conhecidas (incluindo portas MQTT, FRP e SSH reverso da Plume)
     private static final Set<Integer> SUSPICIOUS_PORTS = new HashSet<>(Arrays.asList(
-            3885, 3886, 3887, 8082, 8083, 16000, 18083, 4444, 5555, 6667, 8080, 8888, 9000, 9999, 5353
+            3885, 3886, 3887, 8082, 8083, 16000, 18083, 4444, 5555, 6667, 8080, 8888, 9000, 9999, 5353,
+            2222, 7000
     ));
 
     // Nomes de ficheiros de bibliotecas nativas e binários ELF maliciosos

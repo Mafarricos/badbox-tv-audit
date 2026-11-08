@@ -8486,6 +8486,34 @@
       "family": "XCPE / BadBox 2.0",
       "note": "IP Broker MQTT / C2 BadBox",
       "source": "Google GTIG / Mandiant"
+    },
+    {
+      "type": "ip",
+      "value": "120.55.60.139",
+      "family": "linkfog-frp",
+      "note": "Linkfog Fast Reverse Proxy server (port 7000) for persistent SSH backdoor.",
+      "source": "Plume Security Labs (XCPE Botnet Whitepaper 10-2026)"
+    },
+    {
+      "type": "ip",
+      "value": "42.121.236.55",
+      "family": "china-ota",
+      "note": "Unsecured HTTP OTA firmware updater endpoint for STV-2000 devices.",
+      "source": "Plume Security Labs (XCPE Botnet Whitepaper 10-2026)"
+    },
+    {
+      "type": "package",
+      "value": "com.yk.debugtools",
+      "family": "videostrong-debugtool",
+      "note": "Reverse SSH ADB backdoor shipping with embedded unencrypted private key.",
+      "source": "Plume Security Labs (XCPE Botnet Whitepaper 10-2026)"
+    },
+    {
+      "type": "package",
+      "value": "com.droidlogic.vsota",
+      "family": "videostrong-vsota",
+      "note": "Videostrong unencrypted HTTP OTA client fetching remote recovery ZIPs.",
+      "source": "Plume Security Labs (XCPE Botnet Whitepaper 10-2026)"
     }
   ],
   "c2_domains": [
@@ -8493,6 +8521,7 @@
     "bestipip.com",
     "bmw.bestipip.com",
     "catmore88.com",
+    "cdn2.bkdomain.cn",
     "cloudbrokerapi.xyz",
     "config.intermedia-arts.tv",
     "extstb.anyevonline.com",
@@ -8508,23 +8537,38 @@
     "mqtt.anyevonline.com",
     "mqtt.szbboys.com",
     "ott.szbboys.com",
+    "piaas.ndcpp.com",
     "rao.bestipip.com",
     "router.anyevonline.com",
     "song.bestipip.com",
     "stb9gms.anyevonline.com",
+    "tms.yokatvonline.com",
+    "webnest.linkfog.cn",
+    "www.china-ota.com",
     "zorapslwsnic.com"
   ],
   "botnet_packages": [
     "appsalt",
     "com.abc.nexus",
+    "com.abcproxy.proxysdk",
+    "com.appdns.change.rc",
     "com.debby.devour",
+    "com.dnschecker.rc",
+    "com.droidlogic.vsota",
+    "com.ecosaver.daemon",
     "com.hs.app",
     "com.mz.sdk",
     "com.oemservice",
     "com.ota.service",
+    "com.proxypeer.peerapp",
     "com.release.debug.provider",
     "com.videostrong.debugtool",
     "com.vs.tvonline2",
+    "com.whale.screensaver",
+    "com.ycngmn.notubetv.service",
+    "com.yk.debugtools",
+    "com.yokatv.market",
+    "com.yokatv.otaupdate",
     "gaganode",
     "io.popanet",
     "linkfog",
@@ -8534,9 +8578,11 @@
     "x.cpe"
   ],
   "suspicious_ports": [
+    2222,
     3885,
     3886,
     3887,
+    7000,
     8082,
     8083,
     16000,
