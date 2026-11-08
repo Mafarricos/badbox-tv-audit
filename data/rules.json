@@ -1,0 +1,180 @@
+{
+  "schema_version": 2,
+  "severities": {
+    "CRITICAL": 10,
+    "HIGH": 6,
+    "MEDIUM": 3,
+    "LOW": 1,
+    "INFO": 0
+  },
+  "rules": {
+    "PKG_IOC_ACTIVE": {
+      "severity": "CRITICAL",
+      "weight": 10,
+      "description": "Pacote malicioso de botnet/trojan ativo no dispositivo"
+    },
+    "C2_DOMAIN_QUERY": {
+      "severity": "CRITICAL",
+      "weight": 10,
+      "description": "Pedido DNS de resolução de domínio C2 malicioso conhecido"
+    },
+    "C2_IP_CONNECTION": {
+      "severity": "CRITICAL",
+      "weight": 10,
+      "description": "Conexão de rede ativa a endereço IP de servidor C2 conhecido"
+    },
+    "DEX_SIGNATURE_MATCH": {
+      "severity": "CRITICAL",
+      "weight": 10,
+      "description": "Assinatura ou bytecode DEX de botnet detetada em executável"
+    },
+    "HASH_IOC_MATCH": {
+      "severity": "CRITICAL",
+      "weight": 10,
+      "description": "Hash criptográfico de binário ou pacote coincide com IoC"
+    },
+    "FILE_IOC_PRESENT": {
+      "severity": "CRITICAL",
+      "weight": 10,
+      "description": "Ficheiro malicioso de persistência ou dropper detetado em partição de sistema"
+    },
+    "NATIVE_LIB_IOC": {
+      "severity": "CRITICAL",
+      "weight": 10,
+      "description": "Biblioteca nativa (.so) maliciosa detetada em partição de sistema"
+    },
+    "CONTENT_PROVIDER_IOC": {
+      "severity": "CRITICAL",
+      "weight": 10,
+      "description": "Content Provider C2 ou backdoor exposto no dispositivo"
+    },
+    "INIT_RC_IOC_REFERENCE": {
+      "severity": "HIGH",
+      "weight": 6,
+      "description": "Referência a serviço malicioso ou watchdog em scripts init.rc"
+    },
+    "INSTALL_RECOVERY_IOC": {
+      "severity": "HIGH",
+      "weight": 6,
+      "description": "Comando anómalo ou backdoor em install-recovery.sh"
+    },
+    "SDK_IOC_IN_DEX": {
+      "severity": "HIGH",
+      "weight": 6,
+      "description": "SDK de proxy residencial ou adware embutido em pacote"
+    },
+    "PLAY_PROTECT_CONSENT_DECLINED": {
+      "severity": "MEDIUM",
+      "weight": 3,
+      "description": "Envio de aplicações ao Play Protect recusado (package_verifier_user_consent = -1)"
+    },
+    "PACKAGE_VERIFIER_DISABLED": {
+      "severity": "MEDIUM",
+      "weight": 3,
+      "description": "Verificação de pacotes do Play Protect desativada (package_verifier_enable = 0)"
+    },
+    "IOC_IP_LOW_CONFIDENCE": {
+      "severity": "MEDIUM",
+      "weight": 3,
+      "description": "Conexão a IP de lista de ameaças de baixa confiança"
+    },
+    "APP_LABEL_IOC": {
+      "severity": "MEDIUM",
+      "weight": 3,
+      "description": "Nome visível da aplicação coincide com padrão de backdoor"
+    },
+    "PKG_IOC_DISABLED": {
+      "severity": "INFO",
+      "weight": 0,
+      "description": "Pacote de botnet desativado/congelado (neutralizado)"
+    },
+    "SUSPICIOUS_PORT_ONLY": {
+      "severity": "LOW",
+      "weight": 1,
+      "description": "Conexão remota a porta não habitual sem confirmação de IP/domínio C2"
+    },
+    "UNUSUAL_OUTBOUND_TRAFFIC": {
+      "severity": "LOW",
+      "weight": 1,
+      "description": "Tráfego de rede anómalo detetado em repouso"
+    },
+    "VENDOR_PROPERTY": {
+      "severity": "INFO",
+      "weight": 0,
+      "description": "Propriedade padrão do fabricante ou identificador de SoC"
+    },
+    "TARGETED_MODEL_FAMILY": {
+      "severity": "INFO",
+      "weight": 0,
+      "description": "Modelo de dispositivo ou família de hardware frequentemente visada por supply-chain"
+    },
+    "TEST_KEYS_BUILD": {
+      "severity": "INFO",
+      "weight": 0,
+      "description": "Firmware compilado com chaves de teste AOSP (test-keys)"
+    },
+    "OEM_SYSTEM_SHAREDUID_APP": {
+      "severity": "INFO",
+      "weight": 0,
+      "description": "Aplicação OEM pré-instalada com privilégios de sistema (sharedUserId=system)"
+    },
+    "TELEPHONY_FEATURE": {
+      "severity": "INFO",
+      "weight": 0,
+      "description": "Declaração de funcionalidade de telefonia em dispositivo Android TV"
+    },
+    "PROC_NET_RESTRICTED": {
+      "severity": "INFO",
+      "weight": 0,
+      "description": "Acesso a /proc/net restringido por SELinux em Android 10+"
+    },
+    "COVERAGE_GAP": {
+      "severity": "INFO",
+      "weight": 0,
+      "description": "Ficheiro ou biblioteca omitida do scan por quota de tempo ou tamanho"
+    },
+    "PLAY_PROTECT_TAMPERED_WITH_MALWARE": {
+      "severity": "CRITICAL",
+      "weight": 10,
+      "description": "Play Protect forçado a desligar no presença de malware/trojan ativo"
+    },
+    "KILL_SWITCH_PROP": {
+      "severity": "HIGH",
+      "weight": 6,
+      "description": "Propriedade de sistema associada a kill-switch ou bypass de verificação de botnet"
+    }
+  },
+  "modes": {
+    "quick_scan": {
+      "required_layers": [
+        "play_protect",
+        "packages",
+        "properties",
+        "content_providers",
+        "network_sockets",
+        "system_partitions"
+      ],
+      "optional_layers": []
+    },
+    "app_scan": {
+      "required_layers": [
+        "play_protect",
+        "packages",
+        "properties",
+        "dex_signatures",
+        "content_providers"
+      ],
+      "optional_layers": [
+        "proc_net"
+      ]
+    },
+    "auto_pipeline": {
+      "required_layers": [
+        "app_report"
+      ],
+      "optional_layers": [
+        "vpn_sentinel"
+      ]
+    }
+  }
+}

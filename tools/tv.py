@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+# Based on CleanYourTV (https://github.com/Gathin23/cleanyourtv)
+# Copyright (c) 2024-2026 Gathin23. Licensed under the MIT License.
+# See THIRD_PARTY_NOTICES.md for complete license details.
+
 """Minimal ADB-over-TCP client for an Android TV using adb_shell (no adb binary needed).
 
 Set TV_HOST to the TV's IP (or IP:port). Usage:
@@ -138,18 +142,31 @@ def split_host_port(endpoint):
     return endpoint, None
 
 
-_raw_host = os.environ.get("TV_HOST")
-if not _raw_host:
-    sys.exit("Set TV_HOST to your TV's IP address, e.g.  TV_HOST=192.168.1.50 tools/tv.py --probe\n"
-             "(find it under Settings → Network, or look for the TV in `arp -a`)")
+class AdbError(RuntimeError):
+    """Exceção de transporte e comunicação ADB."""
+    pass
+
+def get_endpoint(host=None, port=None):
+    raw_host = host or os.environ.get("TV_HOST")
+    if not raw_host:
+        raise AdbError("TV_HOST não definido. Especifique o IP do dispositivo.")
+    h, ep = split_host_port(raw_host)
+    p_str = str(port) if port is not None else (ep or os.environ.get("TV_PORT") or "5555")
+    try:
+        p = int(p_str)
+        if not (1 <= p <= 65535):
+            raise ValueError
+    except ValueError:
+        raise AdbError(f"Porta inválida: {p_str!r}")
+    return h, p
+
+# Fallbacks padrão para compatibilidade retroativa
+_raw_host = os.environ.get("TV_HOST", "127.0.0.1")
 HOST, _endpoint_port = split_host_port(_raw_host)
-_port_str = _endpoint_port or os.environ.get("TV_PORT") or "5555"
 try:
-    PORT = int(_port_str)
-    if not (1 <= PORT <= 65535):
-        raise ValueError
+    PORT = int(_endpoint_port or os.environ.get("TV_PORT") or "5555")
 except ValueError:
-    sys.exit(f"not a port number: {_port_str!r}")
+    PORT = 5555
 KEYDIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "adbkey")
 KEY = os.path.join(KEYDIR, "adbkey")
 # Reuse the stock adb key when the TV already trusts it (platform-tools / Android Studio users), so the
@@ -275,11 +292,12 @@ class NativeAdbDevice:
         pass  # Each subprocess is closed; leave the shared ADB server and transport alone.
 
 
-def connect(timeout=120):
+def connect(host=None, port=None, timeout=120):
+    target_host, target_port = get_endpoint(host, port)
     binary = os.environ.get("TV_ADB_BINARY")
     if binary:
-        return NativeAdbDevice(binary, HOST, PORT, timeout)
-    dev = AdbDeviceTcp(HOST, PORT, default_transport_timeout_s=float(timeout))
+        return NativeAdbDevice(binary, target_host, target_port, timeout)
+    dev = AdbDeviceTcp(target_host, target_port, default_transport_timeout_s=float(timeout))
     keys = [get_signer()]   # first, so the prompt asks for the same key as before
     stock = stock_signer()
     if stock is not None:

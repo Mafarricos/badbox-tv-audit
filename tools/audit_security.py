@@ -28,6 +28,9 @@ import tempfile
 import zipfile
 import argparse
 import subprocess
+import ipaddress
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from engine import GLOBAL_ENGINE, Finding, LayerResult, LayerStatus, VerdictState
 from i18n import t, set_language, get_language, detect_system_language
 
 # Configurar stdout/stderr para UTF-8 seguro em consolas Windows e Linux
@@ -47,11 +50,12 @@ os.makedirs(BACKUPS_DIR, exist_ok=True)
 
 class DualLogger:
     """
-    Espelha a saída para o terminal (informação visual em tempo real para humanos e agentes)
-    e grava simultaneamente num ficheiro de log persistente estruturado em logs/.
+    Espelha a saída para o terminal e grava num ficheiro de log estruturado.
+    Em modo JSON, mensagens humanas são redirecionadas para sys.stderr.
     """
-    def __init__(self, filename=None):
-        self.terminal = sys.stdout
+    def __init__(self, filename=None, json_mode=False):
+        self.json_mode = json_mode
+        self.terminal = sys.stderr if json_mode else sys.stdout
         if not filename:
             timestamp = time.strftime("%Y%m%d_%H%M%S")
             filename = os.path.join(LOGS_DIR, f"session_{timestamp}.log")
@@ -59,21 +63,29 @@ class DualLogger:
         self.log_path = filename
 
     def write(self, message):
-        self.terminal.write(message)
-        self.terminal.flush()
-        # Remove códigos de controlo de terminal para manter o ficheiro de log limpo
+        if not self.json_mode:
+            self.terminal.write(message)
+            self.terminal.flush()
         clean_msg = message.replace("\r", "\n") if "\r" in message and "\n" not in message else message
         self.log_file.write(clean_msg)
         self.log_file.flush()
 
     def flush(self):
-        self.terminal.flush()
+        if not self.json_mode:
+            self.terminal.flush()
         self.log_file.flush()
 
 
-# Ativa o logger global de sessão
-CURRENT_LOGGER = DualLogger()
-sys.stdout = CURRENT_LOGGER
+# Logger global configurado explicitamente no main()
+CURRENT_LOGGER = None
+
+def setup_logging(json_mode=False, log_filename=None):
+    global CURRENT_LOGGER
+    os.makedirs(LOGS_DIR, exist_ok=True)
+    os.makedirs(BACKUPS_DIR, exist_ok=True)
+    CURRENT_LOGGER = DualLogger(filename=log_filename, json_mode=json_mode)
+    if not json_mode:
+        sys.stdout = CURRENT_LOGGER
 
 
 # 1. Assinaturas de C2, Backdoors, SDKs e Infraestrutura Videostrong / Badbox
@@ -158,7 +170,10 @@ IOC_BINARY_PATHS = [
 SUSPICIOUS_SYSTEM_PROPS = [
     "persist.networkstack.uninstall",
     "persist.networkstack.skip_system_install",
-    "persist.networkstack.install_time",
+    "persist.networkstack.install_time"
+]
+
+VENDOR_PROPERTIES = [
     "ro.mecool.device.model",
     "ro.hardware.skyworthdigital.soc.chipid"
 ]
@@ -174,7 +189,7 @@ C2_IPS = {
     "23.94.49.57", "120.55.60.139", "42.121.236.55"
 }
 C2_REMOTE_PORTS = {
-    3885, 3886, 3887, 22345, 16000, 12000, 9992, 9994, 2375, 2095, 2082, 8082, 8083, 18083
+    3885, 3886, 3887, 22345, 16000, 12000, 9992, 9994, 2375, 2082, 8082, 8083, 18083
 }
 INFORMATIVE_PORTS = {2222, 7000}
 
@@ -211,32 +226,47 @@ TARGETED_HARDWARE_MODELS = [
 
 
 class AdbDevice:
-    def __init__(self, host):
+    def __init__(self, host, transport=None):
         self.host = host
-        self.device = None
+        self.device = transport
         self.specs = {}
-        self._init_connection()
+        if not self.device:
+            self._init_connection()
 
     def _init_connection(self):
         try:
             tools_dir = os.path.join(PROJECT_ROOT, "tools")
             if tools_dir not in sys.path:
                 sys.path.insert(0, tools_dir)
-            os.environ["TV_HOST"] = self.host
             import tv
-            self.device = tv.connect()
+            self.device = tv.connect(host=self.host)
         except Exception as e:
-            print(f"[!] Erro ao inicializar conexão ADB pura: {e}")
             self.device = None
 
     def run(self, cmd, timeout=30):
         if not self.device:
-            return ""
+            raise RuntimeError(f"Dispositivo {self.host} desconectado")
         try:
             res = self.device.shell(cmd, read_timeout_s=timeout)
             return res.decode("utf-8", errors="replace") if isinstance(res, bytes) else str(res)
         except Exception as e:
-            return f"Erro ADB: {e}"
+            raise RuntimeError(f"Erro ADB ao executar '{cmd}': {e}") from e
+
+    def run_checked(self, cmd, timeout=30):
+        wrapped = f"{cmd}; echo __RC=$?"
+        raw = self.run(wrapped, timeout=timeout)
+        lines = raw.rstrip().splitlines()
+        rc = 0
+        out_lines = []
+        for l in lines:
+            if l.startswith("__RC="):
+                try:
+                    rc = int(l[5:])
+                except ValueError:
+                    rc = 1
+            else:
+                out_lines.append(l)
+        return "\n".join(out_lines), rc
 
     def push(self, local_path, remote_path, timeout=60):
         if not self.device:
@@ -245,7 +275,7 @@ class AdbDevice:
             self.device.push(local_path, remote_path, transport_timeout_s=timeout, read_timeout_s=timeout)
             return True
         except Exception as e:
-            print(f"[!] Erro ao enviar ficheiro via ADB: {e}")
+            print(f"[!] Erro ao enviar ficheiro via ADB: {e}", file=sys.stderr)
             return False
 
     def pull(self, remote_path, local_path, timeout=60):
@@ -255,7 +285,7 @@ class AdbDevice:
             self.device.pull(remote_path, local_path, transport_timeout_s=timeout, read_timeout_s=timeout)
             return True
         except Exception as e:
-            print(f"[!] Erro ao descarregar ficheiro via ADB: {e}")
+            print(f"[!] Erro ao descarregar ficheiro via ADB: {e}", file=sys.stderr)
             return False
 
     def load_specs(self, silent=False):
@@ -287,125 +317,165 @@ class AdbDevice:
         return self.specs
 
 
-def evaluate_forensic_results(json_data, vpn_log_lines, device_specs=None):
+def discover_subnet_tvs(subnet_str: str, max_hosts: int = None) -> list:
     """
-    Motor determinístico de decisão baseado em regras e pontuação ponderada.
-    Sem dependência de modelos de IA.
+    Descobre dispositivos Android TV com porta ADB 5555 aberta numa sub-rede privada (RFC 1918).
+    Limita a sub-rede a no máximo /22 sem override explícito (--max-hosts).
     """
-    print("\n================================================================================")
-    print("                    MOTOR DE AVALIAÇÃO FORENSE DETERMINÍSTICO                   ")
-    print("================================================================================")
-    
-    score = 0
-    critical_reasons = []
-    suspicious_reasons = []
-    info_warnings = []
-
-    # 1. Avaliação do Relatório Estático (last_scan.json)
-    if json_data:
-        play_protect = json_data.get("play_protect", "")
-        has_other_critical = any("[CRÍTICO]" in f for f in json_data.get("findings", []))
-        if "user_consent=-1" in play_protect:
-            if has_other_critical:
-                critical_reasons.append("Play Protect forçado a desligar com ameaças ativas (package_verifier_user_consent = -1)")
-                score += 10
-            else:
-                suspicious_reasons.append("Play Protect desativado (sem pacotes maliciosos detetados - aviso de configuração)")
-                score += 2
-        elif "enable=0" in play_protect:
-            suspicious_reasons.append("Verificação de pacotes desligada (package_verifier_enable = 0)")
-            score += 2
-
-        for f in json_data.get("findings", []):
-            if "[CRÍTICO]" in f:
-                critical_reasons.append(f)
-                score += 8
-            elif "[SUSPEITO]" in f or "[ALERTA]" in f:
-                suspicious_reasons.append(f)
-                score += 2
-            elif "[AVISO INFORMATIVO]" in f:
-                info_warnings.append(f)
-
-    # 2. Avaliação dos Eventos de Rede da VPN (vpn_events.log)
-    if vpn_log_lines:
-        for line in vpn_log_lines:
-            if "[CRITICO]" in line:
-                critical_reasons.append("Rede: " + line.strip())
-                score += 10
-            elif "[ANOMALIA]" in line:
-                suspicious_reasons.append("Rede: " + line.strip())
-                score += 3
-
-    # 3. Verificação do Modelo de Hardware (Informativo - Não conta pontos sozinho)
-    if device_specs:
-        model_str = (device_specs.get("model", "") + " " + device_specs.get("brand", "") + " " + device_specs.get("manufacturer", "")).lower()
-        for targeted in TARGETED_HARDWARE_MODELS:
-            if targeted in model_str:
-                info_warnings.append(f"Dispositivo pertence à família '{targeted}' (linha visada pela campanha Videostrong/BadBox). Veredito depende estritamente das evidências técnicas.")
-                break
-
-    # 4. Veredito com Limiares de Decisão Exatos
-    # Só é INFETADO - CRÍTICO se houver evidências críticas comprovadas (Backdoor, C2, Play Protect desativado)
-    print(f"Pontuação de Risco Total: {score} pontos\n" if get_language() == "pt" else f"Total Risk Score: {score} points\n")
-
-    if len(critical_reasons) > 0:
-        verdict = "INFETADO - CRÍTICO" if get_language() == "pt" else "INFECTED - CRITICAL"
-        color_code = "[!]"
-        confidence = ">99%"
-        desc = t("verdict_crit_desc")
-    elif len(suspicious_reasons) > 0 or score >= 4:
-        verdict = "SUSPEITO" if get_language() == "pt" else "SUSPICIOUS"
-        color_code = "[?]"
-        confidence = "80%"
-        desc = t("verdict_susp_desc")
-    else:
-        verdict = "LIMPO / SEGURO" if get_language() == "pt" else "CLEAN / SAFE"
-        color_code = "[✓]"
-        confidence = ">98%"
-        desc = t("verdict_clean_desc")
-
-    header_verdict = t("verdict_crit") if "CRÍTICO" in verdict or "CRITICAL" in verdict else (t("verdict_susp") if "SUSP" in verdict else t("verdict_clean"))
-    print(f"{color_code} {header_verdict}")
-    print(f"    {desc}")
-
-    if critical_reasons:
-        print("\nEvidências Críticas:")
-        for cr in set(critical_reasons):
-            print(f"  * {cr}")
-
-    if suspicious_reasons:
-        print("\nAnomalias Reportadas:")
-        for sr in set(suspicious_reasons):
-            print(f"  * {sr}")
-
-    if info_warnings:
-        print("\nAvisos de Contexto do Hardware:")
-        for iw in set(info_warnings):
-            print(f"  * {iw}")
-
-    # Cria relatorio de submissao publica anonimizado
     try:
-        anonymized_specs = {k: v for k, v in (device_specs or {}).items() if k not in ["serial", "serialno", "mac", "wifi_mac", "ip"]}
-        anonymized_report = {
+        network = ipaddress.ip_network(subnet_str, strict=False)
+    except Exception as e:
+        print(f"[!] Sub-rede inválida: {subnet_str} ({e})", file=sys.stderr)
+        sys.exit(64)
+
+    if not network.is_private:
+        print(f"[!] Erro de segurança: Apenas sub-redes privadas (RFC 1918) são permitidas para scan: {subnet_str}", file=sys.stderr)
+        sys.exit(64)
+
+    num_addresses = network.num_addresses
+    if num_addresses > 1024 and max_hosts is None:
+        print(f"[!] Erro: Sub-rede demasiado grande ({num_addresses} endereços > /22). Use --max-hosts para autorizar.", file=sys.stderr)
+        sys.exit(64)
+
+    hosts = list(network.hosts())
+    if max_hosts and len(hosts) > max_hosts:
+        hosts = hosts[:max_hosts]
+
+    print(f"[*] A sondar porta ADB (5555) em {len(hosts)} endereços na sub-rede {network}...", file=sys.stderr)
+    print("    (Aviso: Dispositivos não autorizados poderão exibir diálogo de depuração no ecrã)", file=sys.stderr)
+
+    found_targets = []
+
+    def check_target(ip_obj):
+        ip_str = str(ip_obj)
+        try:
+            import socket
+            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            s.settimeout(0.35)
+            res = s.connect_ex((ip_str, 5555))
+            s.close()
+            if res == 0:
+                return ip_str
+        except Exception:
+            pass
+        return None
+
+    with ThreadPoolExecutor(max_workers=32) as executor:
+        futures = {executor.submit(check_target, ip): ip for ip in hosts}
+        for f in as_completed(futures):
+            res = f.result()
+            if res:
+                found_targets.append(res)
+
+    found_targets.sort(key=lambda x: [int(p) for p in x.split(".")])
+    return found_targets
+
+
+def generate_sanitized_community_submission(json_data, vpn_log_lines, device_specs=None, verdict="UNKNOWN", score=0):
+    try:
+        anon_specs = {}
+        if device_specs:
+            anon_specs = {k: v for k, v in device_specs.items() if k.lower() not in ["serial", "serialno", "mac", "wifi_mac", "ip", "device_id"]}
+        report = {
             "timestamp": time.strftime("%Y-%m-%d %H:%M:%S UTC", time.gmtime()),
-            "device": anonymized_specs,
-            "verdict": verdict,
+            "device": anon_specs,
+            "verdict": str(verdict),
             "risk_score": score,
-            "findings": json_data.get("findings", []) if json_data else [],
-            "critical_reasons": list(set(critical_reasons)),
-            "suspicious_reasons": list(set(suspicious_reasons)),
-            "hardware_warnings": list(set(info_warnings))
+            "has_app_report": bool(json_data),
+            "vpn_events_count": len(vpn_log_lines) if vpn_log_lines else 0
         }
         anon_path = os.path.join(PROJECT_ROOT, "community_audit_submission.json")
         with open(anon_path, "w", encoding="utf-8") as f:
-            json.dump(anonymized_report, f, indent=2, ensure_ascii=False)
-        print(f"[+] Relatorio sanitizado anonimo guardado em: {anon_path}")
-        print("    -> Pronto para submissao em GitHub Issues ou por e-mail (dados pessoais protegidos).\n")
+            json.dump(report, f, indent=2, ensure_ascii=False)
     except Exception:
         pass
 
+
+def evaluate_forensic_results(json_data, vpn_log_lines, device_specs=None):
+    """
+    Motor determinístico de decisão baseado em regras e pontuação ponderada.
+    Consome findings estruturados e aplica precedência formal (VER-01, VER-02).
+    """
+    findings = []
+    layers = []
+
+    # 1. Avaliação do Relatório Estático (last_scan.json)
+    if not json_data:
+        layers.append(LayerResult(id="app_report", status=LayerStatus.ERROR, detail="Relatório estático ausente ou inválido"))
+    else:
+        layers.append(LayerResult(id="app_report", status=LayerStatus.OK))
+        play_protect = json_data.get("play_protect", "")
+        if "user_consent=-1" in play_protect:
+            findings.append(GLOBAL_ENGINE.create_finding("PLAY_PROTECT_CONSENT_DECLINED", "play_protect", "Google Play Protect"))
+        if "enable=0" in play_protect:
+            findings.append(GLOBAL_ENGINE.create_finding("PACKAGE_VERIFIER_DISABLED", "play_protect", "Google Play Protect"))
+
+        raw_findings = json_data.get("findings", [])
+        for f in raw_findings:
+            if isinstance(f, dict):
+                code = f.get("code", "UNKNOWN")
+                findings.append(GLOBAL_ENGINE.create_finding(
+                    code=code,
+                    layer=f.get("layer", "app_report"),
+                    subject=f.get("subject", ""),
+                    evidence=f.get("evidence", {}),
+                    override_severity=f.get("severity")
+                ))
+            elif isinstance(f, str):
+                import unicodedata
+                f_norm = "".join(c for c in unicodedata.normalize('NFKD', f) if not unicodedata.combining(c)).upper()
+                if "CRITICO" in f_norm or "CRITICAL" in f_norm:
+                    subject = f.split(":")[-1].strip() if ":" in f else f
+                    code = "PKG_IOC_ACTIVE" if ("pacote" in f.lower() or "app" in f.lower() or "com." in f) else "FILE_IOC_PRESENT"
+                    findings.append(GLOBAL_ENGINE.create_finding(code, "app_report", subject, override_severity="CRITICAL"))
+                elif "SUSPEITO" in f_upper or "SUSPICIOUS" in f_upper or "ALERTA" in f_upper:
+                    subject = f.split(":")[-1].strip() if ":" in f else f
+                    code = "SDK_IOC_IN_DEX" if "sdk" in f.lower() else "APP_LABEL_IOC"
+                    findings.append(GLOBAL_ENGINE.create_finding(code, "app_report", subject, override_severity="MEDIUM"))
+                else:
+                    subject = f.split(":")[-1].strip() if ":" in f else f
+                    findings.append(GLOBAL_ENGINE.create_finding("COVERAGE_GAP", "app_report", subject, override_severity="INFO"))
+
+    # 2. Avaliação dos Eventos de Rede da VPN
+    if vpn_log_lines is None:
+        layers.append(LayerResult(id="vpn_sentinel", status=LayerStatus.SKIPPED, detail="Sentinela VPN não executada"))
+    else:
+        layers.append(LayerResult(id="vpn_sentinel", status=LayerStatus.OK))
+        for line in vpn_log_lines:
+            line_str = line.strip()
+            if not line_str:
+                continue
+            if line_str.startswith("{") and line_str.endswith("}"):
+                try:
+                    ev = json.loads(line_str)
+                    findings.append(GLOBAL_ENGINE.create_finding(
+                        code=ev.get("code", "UNUSUAL_OUTBOUND_TRAFFIC"),
+                        layer="vpn_sentinel",
+                        subject=f"{ev.get('proto', 'TCP')}:{ev.get('dst_ip', '')}:{ev.get('dst_port', '')}",
+                        evidence=ev,
+                        override_severity=ev.get("severity")
+                    ))
+                    continue
+                except Exception:
+                    pass
+            if "[CRITICO]" in line_str.upper():
+                findings.append(GLOBAL_ENGINE.create_finding("C2_IP_CONNECTION", "vpn_sentinel", line_str, override_severity="CRITICAL"))
+            elif "[ANOMALIA]" in line_str.upper():
+                findings.append(GLOBAL_ENGINE.create_finding("UNUSUAL_OUTBOUND_TRAFFIC", "vpn_sentinel", line_str, override_severity="LOW"))
+
+    # Avaliar veredito através do motor determinístico unificado
+    verdict_state, score, summary = GLOBAL_ENGINE.evaluate(findings, layers, mode="auto_pipeline")
+    display_verdict = verdict_state.display_name(get_language())
+
+    print("\n================================================================================")
+    print("                    MOTOR DE AVALIAÇÃO FORENSE DETERMINÍSTICO                   ")
+    print("================================================================================")
+    print(f"Pontuação de Risco Informativa: {score} pontos\n")
+    print(f"VEREDITO FINAL: {display_verdict}")
     print("================================================================================\n")
-    return verdict
+
+    generate_sanitized_community_submission(json_data, vpn_log_lines, device_specs, display_verdict, score)
+    return display_verdict
 
 
 def step_quick_audit(adb, json_output=False):
@@ -413,9 +483,9 @@ def step_quick_audit(adb, json_output=False):
         print("\n================================================================================")
         print(f"           {t('banner_quick_audit')}                      ")
         print("================================================================================")
-    
+
     if not adb.specs:
-        adb.load_specs()
+        adb.load_specs(silent=json_output)
 
     model_str = (adb.specs.get("model", "") + " " + adb.specs.get("brand", "")).lower()
     targeted_warning = None
@@ -430,11 +500,18 @@ def step_quick_audit(adb, json_output=False):
                 print("                   Será feita uma verificação rigorosa de evidências técnicas." if get_language() == "pt" else "                  A strict evidence-based verification will be performed.")
             break
 
+    findings = []
+    layers = []
+
     # Camada 1: Google Play Protect
     if not json_output:
         print(f"\n{t('layer_1_title')}")
     settings_out = adb.run("settings get global package_verifier_user_consent")
+    verifier_enable_out = adb.run("settings get global package_verifier_enable")
     play_protect_disabled = ("-1" in settings_out)
+    verifier_disabled = ("0" in verifier_enable_out)
+
+    layers.append(LayerResult(id="play_protect", status=LayerStatus.OK))
     if not json_output:
         print(f"    - package_verifier_user_consent: {settings_out.strip()}")
         if play_protect_disabled:
@@ -455,8 +532,12 @@ def step_quick_audit(adb, json_output=False):
         if p_name in exact_lower:
             if p_name in disabled_pkgs:
                 neutralized_ioc_pkgs.append(p_name)
+                findings.append(GLOBAL_ENGINE.create_finding("PKG_IOC_DISABLED", "packages", p_name))
             else:
                 found_ioc_pkgs.append(p_name)
+                findings.append(GLOBAL_ENGINE.create_finding("PKG_IOC_ACTIVE", "packages", p_name))
+
+    layers.append(LayerResult(id="packages", status=LayerStatus.OK))
     if not json_output:
         if found_ioc_pkgs:
             print(t("layer_2_active_threat", pkgs=found_ioc_pkgs))
@@ -469,8 +550,10 @@ def step_quick_audit(adb, json_output=False):
     if not json_output:
         print(f"\n{t('layer_3_title')}")
     build_tags = adb.run("getprop ro.build.tags").strip()
-    if "test-keys" in build_tags.lower() and not json_output:
-        print("    [INFO] ro.build.tags = test-keys (Firmware genérico AOSP compilado com chaves públicas de teste - 0 pontos)")
+    if "test-keys" in build_tags.lower():
+        findings.append(GLOBAL_ENGINE.create_finding("TEST_KEYS_BUILD", "properties", "ro.build.tags=test-keys"))
+        if not json_output:
+            print("    [INFO] ro.build.tags = test-keys (Firmware genérico AOSP compilado com chaves públicas de teste - 0 pontos)")
 
     props = adb.run("getprop").splitlines()
     found_suspicious_props = []
@@ -478,10 +561,17 @@ def step_quick_audit(adb, json_output=False):
         for target in TARGET_STRINGS:
             if target.decode("utf-8", errors="ignore").lower() in prop.lower():
                 found_suspicious_props.append(prop)
+                findings.append(GLOBAL_ENGINE.create_finding("KILL_SWITCH_PROP", "properties", prop))
         for sprop in SUSPICIOUS_SYSTEM_PROPS:
             if sprop.lower() in prop.lower():
                 if prop not in found_suspicious_props:
                     found_suspicious_props.append(prop)
+                    findings.append(GLOBAL_ENGINE.create_finding("KILL_SWITCH_PROP", "properties", prop))
+        for vprop in VENDOR_PROPERTIES:
+            if vprop.lower() in prop.lower():
+                findings.append(GLOBAL_ENGINE.create_finding("VENDOR_PROPERTY", "properties", prop))
+
+    layers.append(LayerResult(id="properties", status=LayerStatus.OK))
     if not json_output:
         if found_suspicious_props:
             print(t("layer_3_suspicious", props=found_suspicious_props))
@@ -496,6 +586,9 @@ def step_quick_audit(adb, json_output=False):
         prov_out = adb.run(f"content query --uri {prov_uri} 2>&1").strip()
         if "Row:" in prov_out or ("Exception" not in prov_out and "SecurityException" not in prov_out and "Error" not in prov_out and len(prov_out) > 0):
             found_providers.append(f"{prov_uri} -> {prov_out[:80]}")
+            findings.append(GLOBAL_ENGINE.create_finding("CONTENT_PROVIDER_IOC", "content_providers", prov_uri))
+
+    layers.append(LayerResult(id="content_providers", status=LayerStatus.OK))
     if not json_output:
         if found_providers:
             print(t("layer_4_provider_found", uri=found_providers))
@@ -517,8 +610,15 @@ def step_quick_audit(adb, json_output=False):
             remote_host, remote_port_str = addr_matches[1]
             try:
                 remote_port = int(remote_port_str)
-                if remote_host in C2_IPS or remote_port in C2_REMOTE_PORTS:
+                if remote_host in C2_IPS:
                     found_conn.append(f"{line_clean} -> [Alvo C2: {remote_host}:{remote_port}]")
+                    findings.append(GLOBAL_ENGINE.create_finding("C2_IP_CONNECTION", "network_sockets", f"{remote_host}:{remote_port}"))
+                elif remote_port in C2_REMOTE_PORTS:
+                    found_conn.append(f"{line_clean} -> [Porta C2: {remote_host}:{remote_port}]")
+                    findings.append(GLOBAL_ENGINE.create_finding("C2_IP_CONNECTION", "network_sockets", f"{remote_host}:{remote_port}"))
+                elif remote_port == 2095:
+                    findings.append(GLOBAL_ENGINE.create_finding("SUSPICIOUS_PORT_ONLY", "network_sockets", f"{remote_host}:2095"))
+                    info_conn.append(f"{line_clean} -> [Porta 2095 suspeita fora da lista de IPs C2 (LOW): {remote_host}:2095]")
                 elif remote_port in INFORMATIVE_PORTS:
                     info_conn.append(f"{line_clean} -> [Porta habitual não-crítica: {remote_port}]")
             except ValueError:
@@ -529,14 +629,18 @@ def step_quick_audit(adb, json_output=False):
                 port = int(port_str)
                 if host in C2_IPS or port in C2_REMOTE_PORTS:
                     found_conn.append(f"{line_clean} -> [Socket C2: {host}:{port}]")
+                    findings.append(GLOBAL_ENGINE.create_finding("C2_IP_CONNECTION", "network_sockets", f"{host}:{port}"))
+                elif port == 2095:
+                    findings.append(GLOBAL_ENGINE.create_finding("SUSPICIOUS_PORT_ONLY", "network_sockets", f"{host}:2095"))
             except ValueError:
                 pass
 
+    layers.append(LayerResult(id="network_sockets", status=LayerStatus.OK))
     if not json_output:
         if found_conn:
             print(t("layer_5_c2_found", conn=found_conn))
         elif info_conn:
-            print("    [INFO] Conexões em portas padrão detetadas (SSH/AirPlay - 0 pontos):")
+            print("    [INFO] Conexões em portas informativas/suspeitas isoladas:")
             for ic in info_conn:
                 print(f"       -> {ic}")
             print(t("layer_5_ok"))
@@ -549,14 +653,15 @@ def step_quick_audit(adb, json_output=False):
     oem_paths = adb.run("pm list packages -f -s").splitlines()
     if not json_output:
         print(t("layer_6_total", count=len(oem_paths)))
-    
+
     found_binaries = []
     for b_path in IOC_BINARY_PATHS:
         check = adb.run(f"ls -ld {b_path} 2>/dev/null").strip()
         if check and "No such file" not in check and "not found" not in check:
             found_binaries.append(b_path)
+            findings.append(GLOBAL_ENGINE.create_finding("FILE_IOC_PRESENT", "system_partitions", b_path))
 
-    # Inspeção de Conteúdo em /system/etc/install-recovery.sh (evita falso positivo em ficheiro legítimo)
+    # Inspeção de Conteúdo em /system/etc/install-recovery.sh
     recovery_sh = adb.run("cat /system/etc/install-recovery.sh 2>/dev/null").strip()
     if recovery_sh and "No such file" not in recovery_sh and "not found" not in recovery_sh:
         suspect_recovery = []
@@ -565,41 +670,43 @@ def step_quick_audit(adb, json_output=False):
                 suspect_recovery.append(s)
         if suspect_recovery:
             found_binaries.append(f"/system/etc/install-recovery.sh (Comandos anómalos: {', '.join(suspect_recovery)})")
+            findings.append(GLOBAL_ENGINE.create_finding("INSTALL_RECOVERY_IOC", "system_partitions", f"/system/etc/install-recovery.sh ({', '.join(suspect_recovery)})"))
         elif not json_output:
             print("    [INFO] /system/etc/install-recovery.sh existe (script flash_recovery padrão - 0 pontos)")
 
+    layers.append(LayerResult(id="system_partitions", status=LayerStatus.OK))
     if not json_output:
         if found_binaries:
             print(t("layer_6_bin_found", bins=found_binaries))
         else:
             print(t("layer_6_ok"))
 
-    # Cálculo Determinístico e Recalibrado de Risco
-    has_active_threats = bool(found_ioc_pkgs or found_conn or found_binaries)
-    risk_score = 0
+    # Avaliação das anomalias do Play Protect em combinação com ameaças
+    has_active_threats = bool(found_ioc_pkgs or found_conn or found_binaries or found_providers)
     if play_protect_disabled:
         if has_active_threats:
-            risk_score += 10
+            findings.append(GLOBAL_ENGINE.create_finding("PLAY_PROTECT_TAMPERED_WITH_MALWARE", "play_protect", "Google Play Protect"))
         else:
-            # Play Protect desligado isoladamente sem qualquer malware/C2 ativo (aviso de configuração)
-            risk_score += 2
+            findings.append(GLOBAL_ENGINE.create_finding("PLAY_PROTECT_CONSENT_DECLINED", "play_protect", "Google Play Protect"))
+    if verifier_disabled:
+        findings.append(GLOBAL_ENGINE.create_finding("PACKAGE_VERIFIER_DISABLED", "play_protect", "Google Play Protect"))
 
-    if found_ioc_pkgs: risk_score += 10 * len(found_ioc_pkgs)
-    if found_conn: risk_score += 10 * len(found_conn)
-    if found_binaries: risk_score += 10 * len(found_binaries)
-    if found_providers: risk_score += 10 * len(found_providers)
-    if found_suspicious_props: risk_score += 5 * len(found_suspicious_props)
+    # Avaliação determinística formal via GLOBAL_ENGINE
+    verdict_state, risk_score, summary = GLOBAL_ENGINE.evaluate(findings, layers, mode="quick_scan")
+    verdict = verdict_state.display_name(get_language())
 
-    if has_active_threats and risk_score >= 8:
-        verdict = "INFETADO - CRÍTICO" if get_language() == "pt" else "INFECTED - CRITICAL"
-    elif play_protect_disabled and not has_active_threats and risk_score < 8:
-        verdict = "AVISO / PLAY PROTECT DESATIVADO" if get_language() == "pt" else "WARNING / PLAY PROTECT DISABLED"
-    elif risk_score >= 3:
-        verdict = "SUSPEITO" if get_language() == "pt" else "SUSPICIOUS"
-    else:
-        verdict = "LIMPO / SEGURO" if get_language() == "pt" else "CLEAN / SAFE"
+    # Prepara resultado final
+    result = {
+        "verdict": verdict,
+        "score": risk_score,
+        "play_protect_tampered": play_protect_disabled,
+        "active_ioc_packages": found_ioc_pkgs,
+        "neutralized_ioc_packages": neutralized_ioc_pkgs,
+        "suspicious_binaries": found_binaries,
+        "active_c2_connections": found_conn
+    }
 
-    # Cria copia sanitizada para submissao publica
+    # Gera cópia sanitizada anonimizada
     anonymized_specs = {k: v for k, v in adb.specs.items() if k not in ["serial", "serialno", "mac", "wifi_mac", "ip"]}
     anonymized_report = {
         "timestamp": time.strftime("%Y-%m-%d %H:%M:%S UTC", time.gmtime()),
@@ -625,15 +732,10 @@ def step_quick_audit(adb, json_output=False):
     except Exception:
         pass
 
-    return {
-        "verdict": verdict,
-        "score": risk_score,
-        "play_protect_tampered": play_protect_disabled,
-        "active_ioc_packages": found_ioc_pkgs,
-        "neutralized_ioc_packages": neutralized_ioc_pkgs,
-        "suspicious_binaries": found_binaries,
-        "active_c2_connections": found_conn
-    }
+    if json_output:
+        print(json.dumps(result, indent=2, ensure_ascii=False))
+
+    return result
 
 
 def create_remediation_backup(adb):
@@ -686,6 +788,7 @@ def generate_restore_scripts(adb, backup_data, restore_ps1_path, restore_sh_path
     uninstalled = backup_data.get("uninstalled_user0_packages", [])
     pulled_apks = backup_data.get("pulled_apks", {})
     all_packages = list(dict.fromkeys(disabled + uninstalled))
+    norm_tools_dir = os.path.dirname(os.path.abspath(__file__)).replace("\\", "/")
 
     # 1. Gerar PowerShell script (.ps1)
     ps_content = f"""# =====================================================================
@@ -698,7 +801,7 @@ param(
     [string]$TvHost = "{adb.host}"
 )
 
-$toolsDir = "{PROJECT_ROOT.replace('\\', '/')}/tools"
+$toolsDir = "{norm_tools_dir}"
 Set-Location $toolsDir
 
 Write-Host ">>> A reverter remediação e restaurar estado da TV ($TvHost)..." -ForegroundColor Cyan
@@ -779,7 +882,7 @@ Write-Host "`\n>>> [✓] Restauro concluído com sucesso!" -ForegroundColor Gree
 
 TV_HOST="${{1:-{adb.host}}}"
 export TV_HOST
-TOOLS_DIR="{PROJECT_ROOT.replace('\\', '/')}/tools"
+TOOLS_DIR="{norm_tools_dir}"
 cd "$TOOLS_DIR" || exit 1
 
 echo ">>> A reverter remediação e restaurar estado da TV ($TV_HOST)..."
