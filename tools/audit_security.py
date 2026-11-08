@@ -311,6 +311,10 @@ class AdbDevice:
         board = self.run("getprop ro.product.board").strip()
         hardware = self.run("getprop ro.hardware").strip()
         sdk = self.run("getprop ro.build.version.sdk").strip()
+        build_display_id = self.run("getprop ro.build.display.id").strip()
+        build_incremental = self.run("getprop ro.build.version.incremental").strip()
+        build_date = self.run("getprop ro.build.date").strip()
+        build_fingerprint = self.run("getprop ro.build.fingerprint").strip()
         
         self.specs = {
             "brand": brand,
@@ -320,12 +324,22 @@ class AdbDevice:
             "security_patch": security_patch,
             "board": board,
             "hardware": hardware,
-            "sdk": sdk
+            "sdk": sdk,
+            "build_display_id": build_display_id,
+            "build_incremental": build_incremental,
+            "build_date": build_date,
+            "build_fingerprint": build_fingerprint
         }
         if not silent:
             print(t("specs_model", brand=brand, model=model, ver=android_ver, sdk=sdk))
             print(t("specs_soc", vendor=manufacturer, board=board, hw=hardware))
             print(t("specs_patch", patch=security_patch))
+            if build_display_id:
+                print(f"    - Build Display ID: {build_display_id}")
+            if build_incremental:
+                print(f"    - Versão Incremental: {build_incremental} (ROM: {build_date})")
+            if build_fingerprint:
+                print(f"    - Fingerprint: {build_fingerprint}")
         return self.specs
 
 
@@ -385,8 +399,9 @@ def discover_subnet_tvs(subnet_str: str, max_hosts: int = None) -> list:
 
 ALLOWED_SPECS_ALLOWLIST = {
     "manufacturer", "brand", "model", "product", "device", "board",
-    "hardware", "soc", "cpu_abi", "android_version", "sdk_version",
-    "build_id", "security_patch"
+    "hardware", "soc", "cpu_abi", "android_version", "sdk_version", "sdk",
+    "build_id", "security_patch", "build_display_id", "build_incremental",
+    "build_date", "build_fingerprint"
 }
 
 
@@ -402,7 +417,7 @@ def sanitize_community_data(device_specs, findings=None):
             if k_lower in ALLOWED_SPECS_ALLOWLIST:
                 val_str = str(v)
                 val_str = re.sub(r'\b(?:\d{1,3}\.){3}\d{1,3}\b', '[REDACTED_IP]', val_str)
-                val_str = re.sub(r'(?:[0-9a-fA-F]{1,4}:){2,7}[0-9a-fA-F]{1,4}', '[REDACTED_IP]', val_str)
+                val_str = re.sub(r'(?:[0-9a-fA-F]{1,4}:){6,7}[0-9a-fA-F]{1,4}|(?:[0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}', '[REDACTED_IP]', val_str)
                 val_str = re.sub(r'\b([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})\b', '[REDACTED_MAC]', val_str)
                 sanitized_specs[k_lower] = val_str
 
@@ -412,7 +427,7 @@ def sanitize_community_data(device_specs, findings=None):
             if isinstance(f, str):
                 f_str = f
                 f_str = re.sub(r'\b(?:\d{1,3}\.){3}\d{1,3}\b', '[REDACTED_IP]', f_str)
-                f_str = re.sub(r'(?:[0-9a-fA-F]{1,4}:){2,7}[0-9a-fA-F]{1,4}', '[REDACTED_IP]', f_str)
+                f_str = re.sub(r'(?:[0-9a-fA-F]{1,4}:){6,7}[0-9a-fA-F]{1,4}|(?:[0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}', '[REDACTED_IP]', f_str)
                 f_str = re.sub(r'\b([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})\b', '[REDACTED_MAC]', f_str)
                 sanitized_findings.append(f_str)
             elif isinstance(f, dict):
@@ -423,6 +438,7 @@ def sanitize_community_data(device_specs, findings=None):
                     elif fk == "subject":
                         sub_str = str(fv)
                         sub_str = re.sub(r'\b(?:\d{1,3}\.){3}\d{1,3}\b', '[REDACTED_IP]', sub_str)
+                        sub_str = re.sub(r'(?:[0-9a-fA-F]{1,4}:){6,7}[0-9a-fA-F]{1,4}|(?:[0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}', '[REDACTED_IP]', sub_str)
                         sub_str = re.sub(r'\b([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})\b', '[REDACTED_MAC]', sub_str)
                         clean_f[fk] = sub_str
                 sanitized_findings.append(clean_f)
@@ -765,9 +781,10 @@ def step_quick_audit(adb, json_output=False):
         "active_c2_connections": found_conn
     }
 
-    # Gera cópia sanitizada anonimizada
-    anonymized_specs = {k: v for k, v in adb.specs.items() if k not in ["serial", "serialno", "mac", "wifi_mac", "ip"]}
+    # Gera cópia sanitizada anonimizada usando allowlist estrita (PRIV-01)
+    anonymized_specs, _ = sanitize_community_data(adb.specs)
     anonymized_report = {
+        "schema_version": 2,
         "timestamp": time.strftime("%Y-%m-%d %H:%M:%S UTC", time.gmtime()),
         "device": anonymized_specs,
         "verdict": verdict,
