@@ -33,6 +33,7 @@ import shlex
 import ipaddress
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from engine import GLOBAL_ENGINE, Finding, LayerResult, LayerStatus, VerdictState
+from iocs import IOC_DB, parse_socket_address
 from i18n import t, set_language, get_language, detect_system_language
 
 # Configurar stdout/stderr para UTF-8 seguro em consolas Windows e Linux
@@ -196,7 +197,7 @@ C2_REMOTE_PORTS = {
 INFORMATIVE_PORTS = {2222, 7000}
 
 # Pacotes FQDN exatos para remediação sem riscos de remoção por substring acidental
-EXACT_IOC_PACKAGES = {
+EXACT_IOC_PACKAGES = set(p.lower() for p in IOC_DB.packages) if IOC_DB.packages else {
     "x.cpe", "com.oemservice", "com.abc.nexus", "sso.authhandler", "com.ota.service",
     "newtv.cboxtv", "com.vs.tvonline2", "com.release.debug.provider", "com.hs.app",
     "com.mz.sdk", "com.debby.devour", "com.videostrong.debugtool", "com.yk.debugtools",
@@ -606,7 +607,7 @@ def step_quick_audit(adb, json_output=False):
         else:
             print(t("layer_4_ok"))
 
-    # Camada 5: Sockets e Conexões C2 (Parsing numérico exato na porta remota)
+    # Camada 5: Sockets e Conexões C2 (Parsing posicional robusto via parse_socket_address - AT-16)
     if not json_output:
         print(f"\n{t('layer_5_title')}")
     netstat_out = adb.run("netstat -n -a 2>/dev/null || ss -tan 2>/dev/null")
@@ -616,35 +617,33 @@ def step_quick_audit(adb, json_output=False):
         line_clean = line.strip()
         if not line_clean or line_clean.startswith("Proto") or line_clean.startswith("State") or line_clean.startswith("Netid"):
             continue
-        addr_matches = re.findall(r'((?:\d{1,3}\.){3}\d{1,3}|\[[0-9a-fA-F:]+\]|\*|0\.0\.0\.0|:::?):(\d+)', line_clean)
-        if len(addr_matches) >= 2:
-            remote_host, remote_port_str = addr_matches[1]
-            try:
-                remote_port = int(remote_port_str)
-                if remote_host in C2_IPS:
-                    found_conn.append(f"{line_clean} -> [Alvo C2: {remote_host}:{remote_port}]")
-                    findings.append(GLOBAL_ENGINE.create_finding("C2_IP_CONNECTION", "network_sockets", f"{remote_host}:{remote_port}"))
-                elif remote_port in C2_REMOTE_PORTS:
-                    found_conn.append(f"{line_clean} -> [Porta C2: {remote_host}:{remote_port}]")
-                    findings.append(GLOBAL_ENGINE.create_finding("C2_IP_CONNECTION", "network_sockets", f"{remote_host}:{remote_port}"))
-                elif remote_port == 2095:
-                    findings.append(GLOBAL_ENGINE.create_finding("SUSPICIOUS_PORT_ONLY", "network_sockets", f"{remote_host}:2095"))
-                    info_conn.append(f"{line_clean} -> [Porta 2095 suspeita fora da lista de IPs C2 (LOW): {remote_host}:2095]")
-                elif remote_port in INFORMATIVE_PORTS:
-                    info_conn.append(f"{line_clean} -> [Porta habitual não-crítica: {remote_port}]")
-            except ValueError:
-                pass
-        elif len(addr_matches) == 1:
-            host, port_str = addr_matches[0]
-            try:
-                port = int(port_str)
-                if host in C2_IPS or port in C2_REMOTE_PORTS:
-                    found_conn.append(f"{line_clean} -> [Socket C2: {host}:{port}]")
-                    findings.append(GLOBAL_ENGINE.create_finding("C2_IP_CONNECTION", "network_sockets", f"{host}:{port}"))
-                elif port == 2095:
-                    findings.append(GLOBAL_ENGINE.create_finding("SUSPICIOUS_PORT_ONLY", "network_sockets", f"{host}:2095"))
-            except ValueError:
-                pass
+        # Analisar colunas de netstat/ss (Foreign Address / Peer Address)
+        parts = line_clean.split()
+        remote_host, remote_port = None, None
+        if len(parts) >= 5 and (parts[0].lower().startswith("tcp") or parts[0].lower().startswith("udp")):
+            # Formato netstat: Proto Recv-Q Send-Q Local Foreign State
+            remote_host, remote_port = parse_socket_address(parts[4])
+        elif len(parts) >= 5 and parts[0].lower() in ("tcp", "udp"):
+            # Formato ss: Netid State Recv-Q Send-Q Local:Port Peer:Port
+            remote_host, remote_port = parse_socket_address(parts[4])
+        else:
+            # Fallback regex para linhas com formatação irregular
+            addr_matches = re.findall(r'((?:\d{1,3}\.){3}\d{1,3}|\[[0-9a-fA-F:]+\]|::ffff:[\d.]+|:::?):(\d+)', line_clean)
+            if len(addr_matches) >= 2:
+                remote_host, remote_port = parse_socket_address(f"{addr_matches[1][0]}:{addr_matches[1][1]}")
+
+        if remote_host and remote_port:
+            if IOC_DB.is_c2_ip(remote_host) or remote_host in C2_IPS:
+                found_conn.append(f"{line_clean} -> [Alvo C2: {remote_host}:{remote_port}]")
+                findings.append(GLOBAL_ENGINE.create_finding("C2_IP_CONNECTION", "network_sockets", f"{remote_host}:{remote_port}"))
+            elif remote_port in C2_REMOTE_PORTS:
+                found_conn.append(f"{line_clean} -> [Porta C2: {remote_host}:{remote_port}]")
+                findings.append(GLOBAL_ENGINE.create_finding("C2_IP_CONNECTION", "network_sockets", f"{remote_host}:{remote_port}"))
+            elif remote_port == 2095:
+                findings.append(GLOBAL_ENGINE.create_finding("SUSPICIOUS_PORT_ONLY", "network_sockets", f"{remote_host}:2095"))
+                info_conn.append(f"{line_clean} -> [Porta 2095 fora da lista de IPs C2 (LOW): {remote_host}:2095]")
+            elif remote_port in INFORMATIVE_PORTS:
+                info_conn.append(f"{line_clean} -> [Porta habitual não-crítica: {remote_port}]")
 
     layers.append(LayerResult(id="network_sockets", status=LayerStatus.OK))
     if not json_output:
