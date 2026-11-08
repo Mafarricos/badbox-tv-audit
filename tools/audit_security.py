@@ -873,15 +873,18 @@ def step_remediate_device(adb, enable_dot=False, verify_reboot=False):
     # --- Pré-Verificação de Segurança: Não Tocar em Boxes Limpas ---
     user_consent_pre = adb.run("settings get global package_verifier_user_consent").strip()
     verifier_enable_pre = adb.run("settings get global package_verifier_enable").strip()
-    pkgs_pre = [p.replace("package:", "").strip().lower() for p in adb.run("pm list packages").splitlines()]
+    # Verificar apenas pacotes ativos (enabled); pacotes desinstalados ou congelados (-d) já estão neutralizados
+    pkgs_pre = [p.replace("package:", "").strip().lower() for p in adb.run("pm list packages -e").splitlines()]
     exact_lower = {p.lower() for p in EXACT_IOC_PACKAGES}
     detected_pkgs = [p for p in pkgs_pre if p in exact_lower]
 
     detected_bins = []
-    for b_path in IOC_BINARY_PATHS:
-        chk = adb.run(f"ls -ld {b_path} 2>/dev/null").strip()
-        if chk and "No such file" not in chk and "not found" not in chk:
-            detected_bins.append(b_path)
+    paths_str = " ".join(IOC_BINARY_PATHS)
+    raw_bins = adb.run(f"ls -d {paths_str} 2>/dev/null").splitlines()
+    for b in raw_bins:
+        b_clean = b.strip()
+        if b_clean and "No such file" not in b_clean and "not found" not in b_clean:
+            detected_bins.append(b_clean)
 
     # Verificar recovery.sh
     rec_check = adb.run("cat /system/etc/install-recovery.sh 2>/dev/null").strip()
@@ -892,8 +895,8 @@ def step_remediate_device(adb, enable_dot=False, verify_reboot=False):
                 break
 
     if user_consent_pre != "-1" and verifier_enable_pre != "0" and not detected_pkgs and not detected_bins:
-        print("\n[✓] DISPOSITIVO LIMPO E PROTEGIDO: Nenhuma ameaça ou adulteração encontrada!")
-        print("    O Google Play Protect está ativo e não existem pacotes maliciosos ou binários instalados.")
+        print("\n[✓] DISPOSITIVO LIMPO E PROTEGIDO: Nenhuma ameaça ativa encontrada!")
+        print("    O Google Play Protect está ativo e não existem pacotes maliciosos ativos ou binários no dispositivo.")
         print("    Nenhuma definição global ou pacote foi alterado no dispositivo.")
         print("================================================================================\n")
         return
@@ -980,13 +983,12 @@ def step_remediate_device(adb, enable_dot=False, verify_reboot=False):
 
     # 3. Terminar Processos e Neutralizar Ficheiros de Persistência
     print("\n[Passo 3/4] A terminar processos residuais e neutralizar binários de persistência...")
-    for ioc in exact_lower:
+    for ioc in backup_data.get("disabled_during_remediation", []):
         adb.run(f"am force-stop {ioc}")
         adb.run(f"killall {ioc} 2>/dev/null")
 
-    for b_path in IOC_BINARY_PATHS:
-        check = adb.run(f"ls -ld {b_path} 2>/dev/null").strip()
-        if check and "No such file" not in check and "not found" not in check:
+    for b_path in detected_bins:
+        if not b_path.endswith(")"):
             print(f"    [*] A neutralizar ficheiro de persistência malicioso: {b_path}")
             adb.run(f"rm -rf {b_path} 2>/dev/null")
             adb.run(f"touch {b_path} 2>/dev/null && chmod 000 {b_path} 2>/dev/null")
@@ -1129,6 +1131,52 @@ def step_restore_device(adb):
     print("  [✓] RESTAURO CONCLUÍDO COM SUCESSO! Dispositivo reposto no estado anterior.")
     print("================================================================================\n")
     return True
+
+
+def scan_init_watchdogs(adb):
+    """
+    Inspeciona scripts de inicialização init.rc (/system/etc/init, /vendor/etc/init, /odm/etc/init)
+    à procura de serviços de persistência e watchdogs que reativem a botnet no arranque.
+    """
+    print("\n================================================================================")
+    print(f"      PESQUISA DE WATCHDOGS & PERSISTÊNCIA EM INIT.RC ({adb.host})              ")
+    print("================================================================================")
+
+    init_dirs = ["/system/etc/init", "/vendor/etc/init", "/odm/etc/init", "/system_ext/etc/init", "/etc/init"]
+    suspect_terms = [
+        "package_verifier_user_consent", "oemservice", "x.cpe", "vo1d", "corejava",
+        "titannet", "getgrass", "traffmonetizer", "wd", "linkfog", "appdns", "szbboys"
+    ]
+
+    print("[*] A procurar scripts *.rc e gatilhos de arranque...")
+    found_watchdogs = []
+    existing_dirs = [d for d in init_dirs if "No such" not in adb.run(f"ls -d {d} 2>/dev/null")]
+    dirs_str = " ".join(existing_dirs)
+    if dirs_str:
+        for term in suspect_terms:
+            flag = "-rnw" if len(term) <= 3 else "-rn"
+            res = adb.run(f"grep {flag} '{term}' {dirs_str} 2>/dev/null").strip()
+            if res:
+                for line in res.splitlines():
+                    if line.strip() and not line.startswith("Binary file"):
+                        found_watchdogs.append(line.strip())
+
+    suspect_bins = ["wd", "vo1d", "oemservice", "corejava", "titannet", "linkfog"]
+    for sbin in suspect_bins:
+        for bdir in ["/system/bin", "/vendor/bin", "/data/local/tmp"]:
+            chk = adb.run(f"ls -ld {bdir}/{sbin} 2>/dev/null").strip()
+            if chk and "No such file" not in chk and "not found" not in chk:
+                found_watchdogs.append(f"Binário executável não-padrão detetado: {chk}")
+
+    if found_watchdogs:
+        print(f"    [!] ALERTA CRÍTICO: Foram detetadas {len(found_watchdogs)} referências a watchdogs/persistência:")
+        for w in set(found_watchdogs):
+            print(f"        -> {w}")
+    else:
+        print("    [✓] Nenhum script de persistência ou watchdog detetado nas partições init.")
+
+    print("================================================================================\n")
+    return found_watchdogs
 
 
 def ensure_build_environment():

@@ -12,6 +12,7 @@ Thumbs.db
 
 # Relatórios e telemetria gerados em auditorias locais
 last_scan_report.json
+community_audit_submission.json
 vpn_events.log
 backups/
 logs/
