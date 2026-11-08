@@ -1,5 +1,12 @@
 {
-  "cert_sha256": "TODO(MANTENEDOR)",
-  "sha256": "TODO(MANTENEDOR)",
-  "note": "A impressao digital SHA-256 do certificado de release e obrigatoria e estavel entre versoes. O sha256 do binario APK e opcional por versao."
+  "version": "2.0.0",
+  "build_date": "2026-11-08",
+  "apk": {
+    "file_name": "xcpe-scanner-tv.apk",
+    "sha256": "e7b9ba5f1f3d83eb78ed8d6e60d1bf7214edf81bfc0a47ef7e2d16ea6a10335b"
+  },
+  "signing_certificate": {
+    "distinguished_name": "CN=BadBox Scanner, OU=Security Research, O=Mafarricos, C=PT",
+    "sha256_fingerprint": "7F:F9:40:D2:71:E7:B6:44:A5:51:A7:7D:FB:F5:37:DB:9E:69:49:90:9D:E3:49:18:4A:A2:08:F2:22:54:7F:5E"
+  }
 }

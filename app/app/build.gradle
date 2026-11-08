@@ -3,17 +3,20 @@ plugins {
 }
 
 Properties keystoreProps = new Properties()
-File keystorePropsFile = file("../../keystore.properties")
+File keystorePropsFile = rootProject.file("keystore.properties")
+if (!keystorePropsFile.exists()) {
+    keystorePropsFile = file("../../keystore.properties")
+}
 if (keystorePropsFile.exists()) {
     keystorePropsFile.withInputStream { keystoreProps.load(it) }
 }
 
-def keystorePath = System.getenv("ANDROID_KEYSTORE_PATH") ?: keystoreProps.getProperty("storeFile")
-def keystorePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD") ?: keystoreProps.getProperty("storePassword")
-def keyAlias = System.getenv("ANDROID_KEY_ALIAS") ?: keystoreProps.getProperty("keyAlias")
-def keyPassword = System.getenv("ANDROID_KEY_PASSWORD") ?: keystoreProps.getProperty("keyPassword")
+def ksPath = System.getenv("ANDROID_KEYSTORE_PATH") ?: keystoreProps.getProperty("storeFile")
+def ksPassword = System.getenv("ANDROID_KEYSTORE_PASSWORD") ?: keystoreProps.getProperty("storePassword")
+def kAlias = System.getenv("ANDROID_KEY_ALIAS") ?: keystoreProps.getProperty("keyAlias")
+def kPassword = System.getenv("ANDROID_KEY_PASSWORD") ?: keystoreProps.getProperty("keyPassword")
 
-boolean hasReleaseSigning = keystorePath && file(keystorePath).exists() && keystorePassword && keyAlias && keyPassword
+boolean hasReleaseSigning = ksPath && file(ksPath).exists() && ksPassword && kAlias && kPassword
 
 android {
     namespace 'com.scanner.tv'
@@ -36,10 +39,10 @@ android {
     signingConfigs {
         if (hasReleaseSigning) {
             release {
-                storeFile file(keystorePath)
-                storePassword keystorePassword
-                keyAlias keyAlias
-                keyPassword keyPassword
+                storeFile file(ksPath)
+                storePassword ksPassword
+                keyAlias kAlias
+                keyPassword kPassword
             }
         }
     }
