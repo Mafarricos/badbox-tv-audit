@@ -33,3 +33,9 @@ def prevent_real_network_connections(monkeypatch):
         return real_socket_connect(self, address)
 
     monkeypatch.setattr(socket.socket, "connect", guarded_connect)
+
+@pytest.fixture(autouse=True)
+def fast_sleep(monkeypatch):
+    """Acelera a execução dos testes eliminando pausas reais de time.sleep."""
+    import time
+    monkeypatch.setattr(time, "sleep", lambda s: None)

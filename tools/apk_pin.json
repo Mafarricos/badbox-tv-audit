@@ -1,0 +1,5 @@
+{
+  "cert_sha256": "TODO(MANTENEDOR)",
+  "sha256": "TODO(MANTENEDOR)",
+  "note": "A impressao digital SHA-256 do certificado de release e obrigatoria e estavel entre versoes. O sha256 do binario APK e opcional por versao."
+}

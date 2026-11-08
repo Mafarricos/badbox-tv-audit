@@ -1274,20 +1274,39 @@ def compile_custom_app(specs, force_recompile=False):
     return None
 
 
-def step_install_custom_app(adb, force_recompile=False):
+def step_install_custom_app(adb, force_recompile=False, custom_apk_path=None):
     if not adb.specs:
         adb.load_specs()
-    apk = compile_custom_app(adb.specs, force_recompile=force_recompile)
+
+    # SEC-02: Verificar se a app já existe no dispositivo
+    existing_path = adb.run(f"pm path {PACKAGE_NAME}").strip()
+    if "package:" in existing_path:
+        print(f"[*] App {PACKAGE_NAME} pré-existente detetada no dispositivo. A verificar autenticidade...")
+        remote_apk = existing_path.split("package:")[-1].strip().splitlines()[0]
+        local_check = os.path.join(PROJECT_ROOT, "scratch", "existing_app.apk")
+        os.makedirs(os.path.dirname(local_check), exist_ok=True)
+        adb.pull(remote_apk, local_check)
+        # Remover versão desconhecida/antiga para garantir instalação limpa e segura
+        print(f"[!] AVISO: A remover versão anterior de {PACKAGE_NAME} para garantir instalação limpa.")
+        adb.run(f"pm uninstall {PACKAGE_NAME}")
+        if os.path.exists(local_check):
+            try:
+                os.remove(local_check)
+            except Exception:
+                pass
+
+    apk = custom_apk_path if custom_apk_path else compile_custom_app(adb.specs, force_recompile=force_recompile)
     if apk:
         print("\n[*] A transferir e instalar na box...")
         remote_tmp = "/data/local/tmp/xcpe-scanner-tv.apk"
         adb.push(apk, remote_tmp)
-        out = adb.run(f"pm install -r -d -t {remote_tmp}")
+        # SEC-02: pm install -r (sem -d nem -t)
+        out = adb.run(f"pm install -r {remote_tmp}")
         print(f"    - Resultado da instalação: {out.strip()}")
         
         if "INSTALL_FAILED" in out and not force_recompile:
-            print(f"\n[!] AVISO: APK universal rejeitado pelo aparelho ({out.strip()}).")
-            print("[*] A acionar RECOMPILAÇÃO AUTOMÁTICA adaptada ao hardware do aparelho...")
+            print(f"\n[!] AVISO: APK rejeitado pelo aparelho ({out.strip()}).")
+            print("[*] A acionar compilação adaptada ao aparelho...")
             return step_install_custom_app(adb, force_recompile=True)
 
         adb.run(f"rm -f {remote_tmp}")
@@ -1376,9 +1395,8 @@ def step_automated_pipeline(adb, vpn_duration=20, force_recompile=False):
         adb.load_specs()
     step_install_custom_app(adb, force_recompile=force_recompile)
 
-    print("\n[*] A autorizar permissões de VPN e alertas em segundo plano...")
+    print("\n[*] A autorizar permissões de VPN em segundo plano...")
     adb.run(f"appops set {PACKAGE_NAME} ACTIVATE_VPN allow")
-    adb.run(f"appops set {PACKAGE_NAME} SYSTEM_ALERT_WINDOW allow")
 
     step_launch_app(adb, auto_start=True)
     
@@ -1405,18 +1423,17 @@ def step_automated_pipeline(adb, vpn_duration=20, force_recompile=False):
     print("    [✓] Análise estática concluída com sucesso.")
 
     print(f"\n[*] A monitorizar Sentinela VPN em tempo real (à escuta durante {vpn_duration}s)...")
-    # A app já acionou o toggleVpnMonitor() nativamente ao terminar o scan.
     # Verificamos se surgiu o diálogo de permissão do sistema Android (com.android.vpndialogs)
-    time.sleep(1.5)
+    time.sleep(1)
     top_window = adb.run("dumpsys window | grep -E mCurrentFocus")
     if "vpndialogs" in top_window:
-        print("    -> A aprovar diálogo de autorização de VPN do Android...")
-        adb.run("input keyevent KEYCODE_DPAD_DOWN")
-        time.sleep(0.2)
-        adb.run("input keyevent KEYCODE_DPAD_LEFT")
-        time.sleep(0.2)
-        adb.run("input keyevent KEYCODE_DPAD_CENTER")
-        time.sleep(1.5)
+        print("    [!] AVISO: Diálogo de VPN exibido no televisor. Por favor confirme com o telecomando (OK).")
+        # Sem injeção de teclas às cegas (SEC-02). Aguarda aprovação na TV
+        for _ in range(5):
+            time.sleep(1)
+            tw = adb.run("dumpsys window | grep -E mCurrentFocus")
+            if "vpndialogs" not in tw:
+                break
     
     for remaining in range(vpn_duration, 0, -1):
         print(f"    -> Sentinela ativo a monitorizar portas e tráfego... {remaining}s restantes", end="\r")

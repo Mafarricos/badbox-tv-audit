@@ -2,6 +2,19 @@ plugins {
     id 'com.android.application'
 }
 
+Properties keystoreProps = new Properties()
+File keystorePropsFile = file("../../keystore.properties")
+if (keystorePropsFile.exists()) {
+    keystorePropsFile.withInputStream { keystoreProps.load(it) }
+}
+
+def keystorePath = System.getenv("ANDROID_KEYSTORE_PATH") ?: keystoreProps.getProperty("storeFile")
+def keystorePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD") ?: keystoreProps.getProperty("storePassword")
+def keyAlias = System.getenv("ANDROID_KEY_ALIAS") ?: keystoreProps.getProperty("keyAlias")
+def keyPassword = System.getenv("ANDROID_KEY_PASSWORD") ?: keystoreProps.getProperty("keyPassword")
+
+boolean hasReleaseSigning = keystorePath && file(keystorePath).exists() && keystorePassword && keyAlias && keyPassword
+
 android {
     namespace 'com.scanner.tv'
     compileSdk 34
@@ -10,27 +23,38 @@ android {
         applicationId "com.scanner.tv"
         minSdk 21
         targetSdk 34
-        versionCode 1
-        versionName "1.0"
+        versionCode 2
+        versionName "2.0.0"
+    }
+
+    sourceSets {
+        main {
+            assets.srcDirs = ["$rootDir/../data"]
+        }
     }
 
     signingConfigs {
-        release {
-            storeFile file("../release.keystore")
-            storePassword "badbox-release-2026"
-            keyAlias "badbox-release"
-            keyPassword "badbox-release-2026"
+        if (hasReleaseSigning) {
+            release {
+                storeFile file(keystorePath)
+                storePassword keystorePassword
+                keyAlias keyAlias
+                keyPassword keyPassword
+            }
         }
     }
 
     buildTypes {
         release {
-            signingConfig signingConfigs.release
+            if (hasReleaseSigning) {
+                signingConfig signingConfigs.release
+            } else {
+                println("[!] AVISO: Assinatura de release não configurada (sem segredos). O APK de release sairá não assinado.")
+            }
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
         debug {
-            signingConfig signingConfigs.release
             minifyEnabled false
             debuggable true
         }
@@ -44,4 +68,7 @@ android {
 dependencies {
     implementation 'androidx.appcompat:appcompat:1.6.1'
     implementation 'androidx.cardview:cardview:1.0.0'
+
+    testImplementation 'junit:junit:4.13.2'
+    testImplementation 'org.json:json:20240303'
 }
