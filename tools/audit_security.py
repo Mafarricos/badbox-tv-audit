@@ -1597,15 +1597,15 @@ def step_launch_app(adb, auto_start=False):
 
 def step_pull_report(adb):
     print("\n[*] A transferir os relatórios da box para o computador...")
-    # 1. Tenta cópia a partir do armazenamento externo da app (/sdcard/Android/data/com.scanner.tv/files/)
-    # acessível diretamente sem privilégios de root nem run-as em Android 11 a 15
-    ext_base = f"/sdcard/Android/data/{PACKAGE_NAME}/files"
-    adb.run(f"cp {ext_base}/last_scan.json /data/local/tmp/report.json 2>/dev/null")
-    adb.run(f"cp {ext_base}/audit_events.log /data/local/tmp/audit_events.log 2>/dev/null")
+    # 1. Tenta extração via run-as (o build debuggable permite ler de /data/user/0/com.scanner.tv/files/)
+    adb.run(f"run-as {PACKAGE_NAME} sh -c 'cat files/last_scan.json' > /data/local/tmp/report.json 2>/dev/null")
+    adb.run(f"run-as {PACKAGE_NAME} sh -c 'cat files/audit_events.log' > /data/local/tmp/audit_events.log 2>/dev/null")
 
-    # 2. Em fallback, tenta via run-as caso o build seja debuggable
-    adb.run(f"run-as {PACKAGE_NAME} cp files/last_scan.json /data/local/tmp/report.json 2>/dev/null")
-    adb.run(f"run-as {PACKAGE_NAME} cp files/audit_events.log /data/local/tmp/audit_events.log 2>/dev/null")
+    # 2. Em fallback, tenta cópia a partir do armazenamento externo da app
+    ext_base = f"/sdcard/Android/data/{PACKAGE_NAME}/files"
+    if not os.path.exists("/data/local/tmp/report.json"):
+        adb.run(f"cp {ext_base}/last_scan.json /data/local/tmp/report.json 2>/dev/null")
+        adb.run(f"cp {ext_base}/audit_events.log /data/local/tmp/audit_events.log 2>/dev/null")
     
     adb.run("chmod 666 /data/local/tmp/report.json /data/local/tmp/audit_events.log 2>/dev/null")
     local_json = os.path.join(PROJECT_ROOT, "last_scan_report.json")
@@ -1675,9 +1675,9 @@ def step_automated_pipeline(adb, vpn_duration=20, force_recompile=False):
     # Aguarda que o scan estático nativo termine (a app escreve 'SCAN_ESTATICO_CONCLUIDO' nos logs)
     print("    -> A aguardar conclusão da análise estática na TV...")
     scan_done = False
-    for _ in range(25):
+    for _ in range(35):
         time.sleep(1)
-        ext_log = adb.run(f"cat /sdcard/Android/data/{PACKAGE_NAME}/files/audit_events.log 2>/dev/null")
+        ext_log = adb.run(f"run-as {PACKAGE_NAME} cat files/audit_events.log 2>/dev/null") or adb.run(f"cat /sdcard/Android/data/{PACKAGE_NAME}/files/audit_events.log 2>/dev/null")
         if "SCAN_ESTATICO_CONCLUIDO" in ext_log:
             scan_done = True
             break
