@@ -1399,6 +1399,12 @@ def step_remediate_device(adb, enable_dot=False, verify_reboot=False, dry_run=Fa
         sys.exit(5)
 
     print("\n[✓] Remediação concluída com sucesso e verificada em profundidade.")
+    print("\n================================================================================")
+    print("  [!] RECOMENDAÇÃO DE SEGURANÇA (BOAS PRÁTICAS):")
+    print("      Aceda a Definições -> Sistema -> Opções de Programador na sua Android TV")
+    print("      e DESLIGUE a Depuração USB (USB Debugging).")
+    print("      Isto fecha a porta ADB na rede e impede acessos externos não autorizados.")
+    print("================================================================================\n")
     return 0
 
 
