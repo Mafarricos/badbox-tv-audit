@@ -177,7 +177,7 @@ def test_at09_baseline_preserved_across_remediations(monkeypatch):
 
         # Simular estado modificado
         import time
-        time.sleep(1.05)
+        time.sleep(1.5)
         fake.add_rule("settings get global package_verifier_user_consent", "1")
         fake.add_rule("settings get global package_verifier_enable", "1")
 

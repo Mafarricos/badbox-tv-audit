@@ -5,6 +5,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ---
 
+## [2.0.1] - 2026-11-10
+
+### Segurança e Heurísticas
+- **Portas Isoladas**: Conexões a portas remotas suspeitas ou endpoints de CDN (como 2095 e 2082) isoladas sem correspondência de IP C2 passam a ser classificadas rigorosamente como `LOW` / `SUSPICIOUS_PORT_ONLY`, eliminando falsos positivos de `CRITICAL`.
+- **Restauro de AppOps**: O comando `--restore` agora repõe integralmente o estado das permissões de AppOps (`RUN_IN_BACKGROUND allow`, etc.) gravadas durante a remediação.
+- **Confirmação no Menu Interativo**: A opção 8 do menu de terminal passa a exigir confirmação explícita (`yes=False`).
+- **Verificação de Integridade de APK**: Adicionada validação do hash SHA-256 do APK contra o manifesto oficial `tools/apk_pin.json` antes da instalação.
+
+### Aplicação Android TV
+- **Prevenção de Race Condition em DNS**: Criada cópia independente do buffer (`Arrays.copyOfRange`) na thread de resolução DNS do `PacketMonitorVpnService`.
+- **Proteção do UID 1000**: A Quarentena Sinkhole ignora pacotes com `uid == 1000` (partilhado com o `system_server`), prevenindo o bloqueio inadvertido do sistema e informando que a desativação de apps de sistema requer o comando ADB.
+- **Transparência de Desativação**: Mensagem honesta na interface alertando que o Android TV bloqueia nativamente o botão "Desativar" para apps de sistema (`canDisable = false`), direcionando para a remediação via ADB.
+- **Clarificação do Sentinela VPN**: Aviso explícito de que a inspeção passiva atua durante a janela de teste (DNS resolvido, tráfego IP sob inspeção).
+
+### CI / CD e Compatibilidade
+- **Assinatura Automática no CI**: O workflow `build-release.yml` agora assina formalmente os APKs de release no GitHub com chaves RSA de 2048 bits com manifesto `META-INF`, permitindo instalação direta.
+- **Compatibilidade Python 3.9 - 3.12**: Runners de CI ajustados para garantir compatibilidade e execução em Python 3.9, 3.10, 3.11 e 3.12.
+
 ## [2.0.0] - 2026-11-08
 
 ### Added

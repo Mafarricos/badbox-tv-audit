@@ -701,12 +701,9 @@ def step_quick_audit(adb, json_output=False):
             if IOC_DB.is_c2_ip(remote_host) or remote_host in C2_IPS:
                 found_conn.append(f"{line_clean} -> [Alvo C2: {remote_host}:{remote_port}]")
                 findings.append(GLOBAL_ENGINE.create_finding("C2_IP_CONNECTION", "network_sockets", f"{remote_host}:{remote_port}"))
-            elif remote_port in C2_REMOTE_PORTS:
-                found_conn.append(f"{line_clean} -> [Porta C2: {remote_host}:{remote_port}]")
-                findings.append(GLOBAL_ENGINE.create_finding("C2_IP_CONNECTION", "network_sockets", f"{remote_host}:{remote_port}"))
-            elif remote_port == 2095:
-                findings.append(GLOBAL_ENGINE.create_finding("SUSPICIOUS_PORT_ONLY", "network_sockets", f"{remote_host}:2095"))
-                info_conn.append(f"{line_clean} -> [Porta 2095 fora da lista de IPs C2 (LOW): {remote_host}:2095]")
+            elif remote_port in C2_REMOTE_PORTS or remote_port == 2095:
+                findings.append(GLOBAL_ENGINE.create_finding("SUSPICIOUS_PORT_ONLY", "network_sockets", f"{remote_host}:{remote_port}"))
+                info_conn.append(f"{line_clean} -> [Porta suspeita/Cloudflare isolada sem IP C2 (LOW): {remote_host}:{remote_port}]")
             elif remote_port in INFORMATIVE_PORTS:
                 info_conn.append(f"{line_clean} -> [Porta habitual não-crítica: {remote_port}]")
 
@@ -1292,6 +1289,7 @@ def step_remediate_device(adb, enable_dot=False, verify_reboot=False, dry_run=Fa
 
         if pkg:
             backup_data["disabled_during_remediation"].append(pkg)
+            backup_data["appops_modified"].append(pkg)
             if act.get("classification") == "updated_system":
                 backup_data["uninstalled_user0_packages"].append(pkg)
 
@@ -1332,6 +1330,7 @@ def step_remediate_device(adb, enable_dot=False, verify_reboot=False, dry_run=Fa
             base_d["pulled_apks"] = backup_data.get("pulled_apks", {})
             base_d["disabled_during_remediation"] = backup_data.get("disabled_during_remediation", [])
             base_d["uninstalled_user0_packages"] = backup_data.get("uninstalled_user0_packages", [])
+            base_d["appops_modified"] = backup_data.get("appops_modified", [])
             with open(baseline_path, "w", encoding="utf-8") as bf:
                 json.dump(base_d, bf, indent=2)
         except Exception:
@@ -1572,6 +1571,20 @@ def step_install_custom_app(adb, force_recompile=False, custom_apk_path=None):
 
     apk = custom_apk_path if custom_apk_path else compile_custom_app(adb.specs, force_recompile=force_recompile)
     if apk:
+        pin_file = os.path.join(PROJECT_ROOT, "tools", "apk_pin.json")
+        if os.path.exists(pin_file) and "release" in os.path.basename(apk).lower():
+            try:
+                with open(pin_file, "r", encoding="utf-8") as pf:
+                    pin_data = json.load(pf)
+                expected_hash = pin_data.get("apk", {}).get("sha256")
+                with open(apk, "rb") as af:
+                    actual_hash = hashlib.sha256(af.read()).hexdigest()
+                if expected_hash and actual_hash != expected_hash:
+                    print(f"    [!] AVISO: Hash SHA-256 do APK ({actual_hash[:16]}...) diverge do pin oficial em apk_pin.json.")
+                else:
+                    print(f"    [✓] Integridade do APK verificada contra apk_pin.json ({expected_hash[:16]}...).")
+            except Exception:
+                pass
         print("\n[*] A transferir e instalar na box...")
         remote_tmp = "/data/local/tmp/xcpe-scanner-tv.apk"
         adb.push(apk, remote_tmp)
@@ -1784,7 +1797,7 @@ def interactive_menu(default_ip):
             step_remove_app(adb)
             input(t("menu_press_enter"))
         elif choice == "8":
-            step_remediate_device(adb)
+            step_remediate_device(adb, yes=False)
             input(t("menu_press_enter"))
         elif choice == "9":
             step_restore_device(adb)

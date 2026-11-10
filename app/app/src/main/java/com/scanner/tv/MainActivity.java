@@ -273,7 +273,12 @@ public class MainActivity extends AppCompatActivity {
             }
         }
 
-        appendColoredLog("\n[✓] Ações de remediação processadas com sucesso!", Color.parseColor("#22C55E"));
+        if (!mPendingSysPackages.isEmpty()) {
+            appendColoredLog("\n[!] NOTA TÉCNICA: O Android TV bloqueia nativamente o botão 'Desativar' para apps com permissão de sistema ('canDisable=false').", Color.parseColor("#F59E0B"));
+            appendColoredLog("    Para congelamento definitivo de implantes da ROM, utilize o script PC/ADB: tools/audit_security.py <IP> --remediate", Color.parseColor("#38BDF8"));
+        } else {
+            appendColoredLog("\n[✓] Ações de remediação processadas com sucesso!", Color.parseColor("#22C55E"));
+        }
         appendColoredLog(">>> Prima 'ANALISAR BOX' para validar o estado de limpeza!\n", Color.parseColor("#38BDF8"));
         btnScan.requestFocus();
     }

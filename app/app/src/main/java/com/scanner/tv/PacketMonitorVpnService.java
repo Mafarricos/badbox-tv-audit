@@ -49,8 +49,7 @@ public class PacketMonitorVpnService extends VpnService implements Runnable {
             16000,                  // APSolo Proxy relay (bmw.bestipip.com)
             12000,                  // Jaguar cleartext controller
             9992, 9994,             // Linkfog agent deployment channels (bkdomain.cn)
-            2375,                   // VS/SOFT backup router (router.anyevonline.com)
-            2095, 2082              // UOTA updater endpoints (uota.club / uota.xyz)
+            2375                    // VS/SOFT backup router (router.anyevonline.com)
     ));
 
     private static final Set<String> CRITICAL_C2_IPS = new HashSet<>(Arrays.asList(
@@ -169,8 +168,14 @@ public class PacketMonitorVpnService extends VpnService implements Runnable {
                 builder.addAddress("10.99.99.2", 32);
                 builder.addRoute("0.0.0.0", 0);
                 builder.addDnsServer("127.0.0.1");
+                android.content.pm.PackageManager pm = getPackageManager();
                 for (String pkg : mQuarantinePackages) {
                     try {
+                        android.content.pm.ApplicationInfo ai = pm.getApplicationInfo(pkg, 0);
+                        if (ai.uid == 1000) {
+                            AuditLogger.log("AVISO", "QUARANTINE", "Pacote " + pkg + " utiliza UID 1000 (sistema). Quarentena de rede requer 'pm disable-user --user 0' para não afetar o sistema.");
+                            continue;
+                        }
                         builder.addAllowedApplication(pkg);
                         AuditLogger.log("INFO", "QUARANTINE", "Pacote isolado via Sinkhole: " + pkg);
                     } catch (Exception e) {
@@ -297,6 +302,9 @@ public class PacketMonitorVpnService extends VpnService implements Runnable {
         int dnsLen = length - dnsOffset;
         if (dnsLen <= 0) return;
 
+        // Evita race condition no buffer: cópia isolada antes de enviar para a thread
+        byte[] queryData = Arrays.copyOfRange(data, dnsOffset, dnsOffset + dnsLen);
+
         new Thread(() -> {
             DatagramSocket socket = null;
             try {
@@ -304,7 +312,7 @@ public class PacketMonitorVpnService extends VpnService implements Runnable {
                 protect(socket);
                 socket.setSoTimeout(3000);
                 InetAddress dnsServer = InetAddress.getByName(destIp.equals("127.0.0.1") || destIp.startsWith("10.10.") ? "8.8.8.8" : destIp);
-                DatagramPacket queryPacket = new DatagramPacket(data, dnsOffset, dnsLen, dnsServer, 53);
+                DatagramPacket queryPacket = new DatagramPacket(queryData, queryData.length, dnsServer, 53);
                 socket.send(queryPacket);
 
                 byte[] respBuf = new byte[1500];

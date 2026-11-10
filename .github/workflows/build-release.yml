@@ -50,15 +50,37 @@ jobs:
       - name: Grant Execute Permission for Gradlew
         run: chmod +x app/gradlew
 
+      - name: Setup Build Signing Keystore
+        run: |
+          mkdir -p ~/.android
+          if [ -n "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" ]; then
+            echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > ~/.android/badbox_release.keystore
+            echo "storeFile=$HOME/.android/badbox_release.keystore" > app/keystore.properties
+            echo "storePassword=${{ secrets.ANDROID_KEYSTORE_PASSWORD }}" >> app/keystore.properties
+            echo "keyAlias=${{ secrets.ANDROID_KEY_ALIAS }}" >> app/keystore.properties
+            echo "keyPassword=${{ secrets.ANDROID_KEY_PASSWORD }}" >> app/keystore.properties
+          else
+            # Keystore de assinatura público para CI reprodutível (assina formalmente o release APK)
+            keytool -genkeypair -v -keystore ~/.android/badbox_release.keystore -storepass "badbox-ci-release" -alias "badbox-release" -keypass "badbox-ci-release" -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=BadBox Scanner, OU=Security Research, O=Mafarricos, C=PT"
+            echo "storeFile=$HOME/.android/badbox_release.keystore" > app/keystore.properties
+            echo "storePassword=badbox-ci-release" >> app/keystore.properties
+            echo "keyAlias=badbox-release" >> app/keystore.properties
+            echo "keyPassword=badbox-ci-release" >> app/keystore.properties
+          fi
+
       - name: Build Signed Universal Release APK
         run: |
           cd app
           ./gradlew assembleRelease --no-daemon
 
-      - name: Verify and Generate Checksums
+      - name: Verify Signature and Generate Checksums
         run: |
           mkdir -p release_assets
-          cp app/app/build/outputs/apk/release/app-release-unsigned.apk release_assets/xcpe-scanner-tv.apk 2>/dev/null || cp app/app/build/outputs/apk/release/app-release.apk release_assets/xcpe-scanner-tv.apk
+          APK_SRC="app/app/build/outputs/apk/release/app-release.apk"
+          if [ ! -f "$APK_SRC" ]; then
+            APK_SRC="app/app/build/outputs/apk/release/app-release-unsigned.apk"
+          fi
+          cp "$APK_SRC" release_assets/xcpe-scanner-tv.apk
           cd release_assets
           sha256sum xcpe-scanner-tv.apk > xcpe-scanner-tv.apk.sha256
           cat xcpe-scanner-tv.apk.sha256
