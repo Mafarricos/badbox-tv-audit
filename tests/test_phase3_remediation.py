@@ -175,9 +175,10 @@ def test_at09_baseline_preserved_across_remediations(monkeypatch):
             base_data1 = json.load(f)
         assert base_data1["settings"]["package_verifier_user_consent"] == "-1"
 
-        # Simular estado modificado
+        # Simular estado modificado e avanco no tempo
         import time
-        time.sleep(1.5)
+        base_t = time.time()
+        monkeypatch.setattr(time, "time", lambda: base_t + 5.0)
         fake.add_rule("settings get global package_verifier_user_consent", "1")
         fake.add_rule("settings get global package_verifier_enable", "1")
 
