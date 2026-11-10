@@ -43,9 +43,9 @@ def test_at01_no_keystores_or_apks_versioned_and_no_hardcoded_passwords():
             "AT-01 falhou: Bloco debug ainda está a usar signingConfig de release!"
         )
 
-    # Versão atualizada para 2.0.0 e versionCode 2
-    assert 'versionCode 2' in gradle_content, "versionCode deve ser 2"
-    assert 'versionName "2.0.0"' in gradle_content, "versionName deve ser 2.0.0"
+    # Versão atualizada (>= 2.0.0 e versionCode >= 2)
+    assert re.search(r'versionCode\s+[2-9]\d*', gradle_content), "versionCode deve ser >= 2"
+    assert re.search(r'versionName\s+"2\.\d+\.\d+"', gradle_content), "versionName deve ser 2.x.x"
 
 
 def test_at22_automated_pipeline_safety(monkeypatch):
@@ -71,6 +71,8 @@ def test_at22_automated_pipeline_safety(monkeypatch):
     fake.add_rule(f"pm uninstall {PACKAGE_NAME}", "Success")
 
     monkeypatch.setattr(AdbDevice, "_init_connection", lambda self: setattr(self, "device", fake))
+    monkeypatch.setattr("audit_security.compile_custom_app", lambda specs, force_recompile=False: "/tmp/fake_scanner.apk")
+    monkeypatch.setattr("audit_security.verify_apk_pin", lambda apk_path, pin_file=None: True)
     dev = AdbDevice("192.168.1.50")
     dev.device = fake
 
@@ -90,8 +92,38 @@ def test_at22_automated_pipeline_safety(monkeypatch):
 
     # 3. pm install deve usar apenas -r, sem as flags -d nem -t
     install_cmds = [c for c in fake.commands if c.startswith("pm install")]
+    assert install_cmds, "AT-22 falhou: comando pm install não foi executado"
     for icmd in install_cmds:
         # Verificar se as flags -d ou -t foram passadas como opções de linha de comando isoladas
         flags = icmd.split()
         assert "-d" not in flags, f"AT-22 falhou: flag -d encontrada em: {icmd}"
         assert "-t" not in flags, f"AT-22 falhou: flag -t encontrada em: {icmd}"
+
+
+def test_at23_apk_pin_aborts_on_untrusted_certificate(monkeypatch, tmp_path):
+    """
+    AT-23: step_install_custom_app verifica sempre o certificado contra apk_pin.json
+    (independentemente do nome do ficheiro) e aborta a instalação quando não coincide.
+    """
+    from audit_security import AdbDevice, step_install_custom_app, PACKAGE_NAME
+    from tests.fakes import FakeTransport
+
+    fake = FakeTransport("192.168.1.50")
+    fake.set_specs()
+    fake.add_rule(f"pm path {PACKAGE_NAME}", "")
+    fake.add_rule("pm install -r /data/local/tmp/xcpe-scanner-tv.apk", "Success")
+
+    monkeypatch.setattr(AdbDevice, "_init_connection", lambda self: setattr(self, "device", fake))
+    dev = AdbDevice("192.168.1.50")
+    dev.device = fake
+
+    # Criar um ficheiro APK fictício sem o certificado oficial
+    fake_apk = tmp_path / "xcpe-scanner-tv.apk"
+    fake_apk.write_bytes(b"PK\x03\x04fake-unsigned-apk-bytes")
+
+    # Tentar instalar -> deve falhar e devolver False SEM executar adb push ou pm install
+    result = step_install_custom_app(dev, custom_apk_path=str(fake_apk))
+    assert result is False, "A instalação deveria ter sido abortada quando o certificado não coincide com apk_pin.json!"
+    install_cmds = [c for c in fake.commands if c.startswith("pm install")]
+    assert not install_cmds, f"pm install não deveria ter sido chamado para APK não verificado: {install_cmds}"
+

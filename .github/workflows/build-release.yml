@@ -2,7 +2,11 @@ name: Build APK, Verify Scripts & Release
 
 on:
   push:
-    tags: [ "v*" ]
+    branches: [ main, master ]
+    tags:
+      - 'v*'
+  pull_request:
+    branches: [ main, master ]
   workflow_dispatch:
 
 permissions:
@@ -21,16 +25,16 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Validate Python Scripts Syntax
+      - name: Install Dependencies
         run: |
-          python -m py_compile tools/audit_security.py
-          python -m py_compile tools/deep_forensics.py
-          python -m py_compile tools/i18n.py
-          python -m py_compile tools/setup_env.py
-          python -m py_compile tools/export_blocklist.py
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
 
-      - name: Validate IoC Database JSON Integrity
-        run: python tools/validate_iocs.py
+      - name: Verify Python Syntax & CLI Help
+        run: |
+          python -m py_compile tools/audit_security.py tools/setup_env.py tools/tv.py tools/validate_iocs.py tools/export_blocklist.py
+          python tools/validate_iocs.py
+          python tools/audit_security.py --help
 
   build-apk:
     name: Build Android TV APK
@@ -51,36 +55,47 @@ jobs:
         run: chmod +x app/gradlew
 
       - name: Setup Build Signing Keystore
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASS: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
-          mkdir -p ~/.android
-          if [ -n "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" ]; then
-            echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > ~/.android/badbox_release.keystore
-            echo "storeFile=$HOME/.android/badbox_release.keystore" > app/keystore.properties
-            echo "storePassword=${{ secrets.ANDROID_KEYSTORE_PASSWORD }}" >> app/keystore.properties
-            echo "keyAlias=${{ secrets.ANDROID_KEY_ALIAS }}" >> app/keystore.properties
-            echo "keyPassword=${{ secrets.ANDROID_KEY_PASSWORD }}" >> app/keystore.properties
-          else
-            # Keystore de assinatura público para CI reprodutível (assina formalmente o release APK)
-            keytool -genkeypair -v -keystore ~/.android/badbox_release.keystore -storepass "badbox-ci-release" -alias "badbox-release" -keypass "badbox-ci-release" -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=BadBox Scanner, OU=Security Research, O=Mafarricos, C=PT"
-            echo "storeFile=$HOME/.android/badbox_release.keystore" > app/keystore.properties
-            echo "storePassword=badbox-ci-release" >> app/keystore.properties
-            echo "keyAlias=badbox-release" >> app/keystore.properties
-            echo "keyPassword=badbox-ci-release" >> app/keystore.properties
+          if [ -z "$KEYSTORE_B64" ] || [ -z "$KEYSTORE_PASS" ] || [ -z "$KEY_ALIAS" ] || [ -z "$KEY_PASS" ]; then
+            echo "::error::Segredos de assinatura de release ausentes (ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD). Recusando gerar chave descartavel."
+            exit 1
           fi
+          mkdir -p ~/.android
+          echo "$KEYSTORE_B64" | base64 -d > ~/.android/badbox_release.keystore
+          echo "storeFile=$HOME/.android/badbox_release.keystore" > app/keystore.properties
+          echo "storePassword=$KEYSTORE_PASS" >> app/keystore.properties
+          echo "keyAlias=$KEY_ALIAS" >> app/keystore.properties
+          echo "keyPassword=$KEY_PASS" >> app/keystore.properties
 
       - name: Build Signed Universal Release APK
         run: |
           cd app
           ./gradlew assembleRelease --no-daemon
 
-      - name: Verify Signature and Generate Checksums
+      - name: Verify Certificate against apk_pin.json and Generate Checksums
         run: |
           mkdir -p release_assets
           APK_SRC="app/app/build/outputs/apk/release/app-release.apk"
           if [ ! -f "$APK_SRC" ]; then
-            APK_SRC="app/app/build/outputs/apk/release/app-release-unsigned.apk"
+            echo "::error::APK assinado app-release.apk nao encontrado! Build falhou na assinatura."
+            exit 1
           fi
           cp "$APK_SRC" release_assets/xcpe-scanner-tv.apk
+          CERT_OUT=$(keytool -printcert -jarfile release_assets/xcpe-scanner-tv.apk)
+          echo "$CERT_OUT"
+          ACTUAL_FP=$(echo "$CERT_OUT" | grep -oE "SHA256: [0-9A-Fa-f:]+" | awk '{print $2}')
+          EXPECTED_FP=$(python3 -c "import json; print(json.load(open('tools/apk_pin.json'))['signing_certificate']['sha256_fingerprint'])")
+          echo "Certificado esperado (apk_pin.json): $EXPECTED_FP"
+          echo "Certificado obtido no APK:           $ACTUAL_FP"
+          if [ "$ACTUAL_FP" != "$EXPECTED_FP" ]; then
+            echo "::error::O certificado de assinatura do APK ($ACTUAL_FP) nao corresponde ao pin oficial ($EXPECTED_FP)!"
+            exit 1
+          fi
           cd release_assets
           sha256sum xcpe-scanner-tv.apk > xcpe-scanner-tv.apk.sha256
           cat xcpe-scanner-tv.apk.sha256

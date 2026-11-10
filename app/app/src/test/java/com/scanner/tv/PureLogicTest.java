@@ -195,4 +195,21 @@ public class PureLogicTest {
         readBuffer[1] = (byte) 0xFF;
         assertEquals(0x02, dispatched[0][0]);
     }
+
+    @Test
+    public void testJT08_vpnEndpointSeverityClassification() {
+        // JT-08: Uma porta isolada (mesmo 3885, 2082, 2095, 8082) num IP qualquer dá apenas "SUSPICIOUS" (LOW),
+        // e "CRITICO" é reservado para quando o IP coincide com a lista de C2 conhecidos.
+        assertEquals("SUSPICIOUS", PacketMonitorVpnService.classifyEndpointSeverity("104.16.123.96", 2082));
+        assertEquals("SUSPICIOUS", PacketMonitorVpnService.classifyEndpointSeverity("104.16.123.96", 2095));
+        assertEquals("SUSPICIOUS", PacketMonitorVpnService.classifyEndpointSeverity("1.1.1.1", 3885));
+        assertEquals("SUSPICIOUS", PacketMonitorVpnService.classifyEndpointSeverity("8.8.8.8", 8082));
+
+        // IP de C2 conhecido -> CRITICO (independentemente da porta)
+        assertEquals("CRITICO", PacketMonitorVpnService.classifyEndpointSeverity("38.145.197.135", 443));
+        assertEquals("CRITICO", PacketMonitorVpnService.classifyEndpointSeverity("38.145.197.135", 3885));
+
+        // IP normal e porta normal -> null
+        assertNull(PacketMonitorVpnService.classifyEndpointSeverity("142.250.184.14", 443));
+    }
 }

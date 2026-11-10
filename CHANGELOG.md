@@ -5,6 +5,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ---
 
+## [2.0.2] - 2026-11-10
+
+### Correções Críticas e Auditoria Externa (Review #3)
+- **Prevenção de Blackout na Quarentena Sinkhole (0 Pacotes Associados)**:
+  - Quando todos os implantes detetados têm `uid == 1000` (ex.: `com.oemservice` de fábrica) ou falham no `getApplicationInfo`, o `PacketMonitorVpnService` contabiliza `addedCount` e **aborta antes de chamar `builder.establish()`**, limpa o estado persistente em `SharedPreferences` (`KEY_ACTIVE = false`), desativa o `START_STICKY` e encerra o serviço (`stopSelf()`), impedindo que o Android aplique a VPN Sinkhole a toda a box e corte a internet globalmente.
+  - A `MainActivity` pré-filtra pacotes `uid == 1000` antes de iniciar a quarentena e apresenta apenas a instrução direta de desativação via ADB (`adb shell pm disable-user --user 0 <pacote>`).
+- **Portas Isoladas na VPN (`PacketMonitorVpnService.java` e `audit_security.py`)**:
+  - Todas as portas remotas suspeitas (`2082, 2095, 8082, 8083, 3885-3887, 1080, 9050, 4145, 7777, 6667, 22345, 16000, 12000, 9992, 9994, 2375`) passaram para `SUSPICIOUS_MALWARE_PORTS`.
+  - Uma porta isolada num IP desconhecido gera apenas `"AVISO [SUSPICIOUS]"` (mapeado para `SUSPICIOUS_PORT_ONLY` / severidade `LOW` no motor forense), reservando `"PERIGO [CRÍTICO]"` exclusivamente para correspondências exatas com IPs ou domínios de C2.
+- **Aviso Explícito sobre Retenção de Tráfego durante a Monitorização VPN**:
+  - Adicionado aviso claro na interface da TV (`MainActivity.java` e `strings.xml` PT/EN), no terminal (`step_automated_pipeline` em `tools/audit_security.py`) e na documentação (`README.md` e `README.pt.md`) explicando que durante a janela de captura da Sentinela VPN apenas o DNS (UDP 53) é reencaminhado e o restante tráfego TCP/UDP é inspecionado e descartado.
+- **Mensagem do Botão "Desativar" em Apps de Sistema (`MainActivity.java`)**:
+  - Corrigida a instrução prévia à abertura das Definições do Android TV para não indicar o clique em `'Desativar'` em apps de sistema onde o botão está bloqueado.
+- **Assinatura Oficial no CI (`build-release.yml`) e Pinning Estrito (`apk_pin.json`)**:
+  - Configurados os segredos oficiais de assinatura no GitHub Actions (`ANDROID_KEYSTORE_BASE64`, etc.), removida a geração de chaves descartáveis (`keytool -genkeypair`) e adicionada validação em CI que exige correspondência exata do certificado SHA-256 com `tools/apk_pin.json`.
+  - Em `tools/audit_security.py` (`step_install_custom_app` / `verify_apk_pin`), o certificado de assinatura do APK é agora verificado sempre (independentemente do nome do ficheiro) contra `tools/apk_pin.json`, abortando imediatamente a instalação (`return False`) caso não coincida.
+- **Estabilidade de Testes em CI (`test_at09`)**:
+  - Isolado o relógio de geração de snapshots de backup face ao fixture `fast_sleep`, garantindo nomes únicos em execuções rápidas consecutivas em Python 3.9–3.12.
+
 ## [2.0.1] - 2026-11-10
 
 ### Segurança e Heurísticas

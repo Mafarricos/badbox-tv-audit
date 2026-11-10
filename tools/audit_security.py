@@ -537,6 +537,8 @@ def evaluate_forensic_results(json_data, vpn_log_lines, device_specs=None):
                     pass
             if "[CRITICO]" in line_str.upper():
                 findings.append(GLOBAL_ENGINE.create_finding("C2_IP_CONNECTION", "vpn_sentinel", line_str, override_severity="CRITICAL"))
+            elif "[SUSPICIOUS]" in line_str.upper():
+                findings.append(GLOBAL_ENGINE.create_finding("SUSPICIOUS_PORT_ONLY", "vpn_sentinel", line_str, override_severity="LOW"))
             elif "[ANOMALIA]" in line_str.upper():
                 findings.append(GLOBAL_ENGINE.create_finding("UNUSUAL_OUTBOUND_TRAFFIC", "vpn_sentinel", line_str, override_severity="LOW"))
 
@@ -1548,6 +1550,94 @@ def compile_custom_app(specs, force_recompile=False):
     return None
 
 
+def extract_apk_cert_sha256(apk_path):
+    """
+    Extrai o fingerprint SHA-256 (formato AA:BB:CC:...) do certificado de assinatura do APK.
+    Tenta primeiro via apksigner ou keytool; em fallback faz parsing DER direto de META-INF/*.RSA|DSA|EC.
+    """
+    if not os.path.exists(apk_path):
+        return None
+
+    # 1. Tentar keytool -printcert -jarfile (disponível em qualquer JDK padrão)
+    try:
+        res = subprocess.run(
+            ["keytool", "-printcert", "-jarfile", apk_path],
+            capture_output=True, text=True, timeout=15
+        )
+        if res.returncode == 0 and res.stdout:
+            m = re.search(r"SHA256:\s*([0-9A-Fa-f]{2}(?::[0-9A-Fa-f]{2}){31})", res.stdout)
+            if m:
+                return m.group(1).upper()
+    except Exception:
+        pass
+
+    # 2. Fallback Pure-Python: extrair o certificado X.509 do bloco PKCS#7 em META-INF/*.RSA / .DSA / .EC
+    try:
+        import zipfile
+        with zipfile.ZipFile(apk_path, "r") as zf:
+            for name in zf.namelist():
+                upper_name = name.upper()
+                if upper_name.startswith("META-INF/") and upper_name.endswith((".RSA", ".DSA", ".EC")):
+                    pkcs7_bytes = zf.read(name)
+                    # Procurar sequências ASN.1 DER dentro do SignedData (0x30 0x82 len_hi len_lo 0x30 0x82 ...)
+                    idx = 0
+                    while idx < len(pkcs7_bytes) - 8:
+                        if (
+                            pkcs7_bytes[idx] == 0x30
+                            and pkcs7_bytes[idx + 1] == 0x82
+                            and pkcs7_bytes[idx + 4] == 0x30
+                            and pkcs7_bytes[idx + 5] == 0x82
+                        ):
+                            cert_len = (pkcs7_bytes[idx + 2] << 8) | pkcs7_bytes[idx + 3]
+                            total_len = 4 + cert_len
+                            if idx + total_len <= len(pkcs7_bytes):
+                                cert_der = pkcs7_bytes[idx : idx + total_len]
+                                digest = hashlib.sha256(cert_der).hexdigest().upper()
+                                return ":".join(digest[i : i + 2] for i in range(0, 64, 2))
+                        idx += 1
+    except Exception:
+        pass
+
+    return None
+
+
+def verify_apk_pin(apk_path, pin_file=None):
+    """
+    Verifica sempre a autenticidade do APK contra tools/apk_pin.json (independentemente do nome do ficheiro).
+    Exige correspondência do certificado de assinatura SHA-256 (e valida o hash SHA-256 do APK se aplicável).
+    Devolve True se válido, False caso contrário.
+    """
+    if pin_file is None:
+        pin_file = os.path.join(PROJECT_ROOT, "tools", "apk_pin.json")
+    if not os.path.exists(pin_file):
+        print(f"    [✗] ERRO CRÍTICO: Ficheiro de pinning {pin_file} não encontrado! Instalação abortada.")
+        return False
+    if not os.path.exists(apk_path):
+        print(f"    [✗] ERRO CRÍTICO: Ficheiro APK {apk_path} não encontrado! Instalação abortada.")
+        return False
+
+    try:
+        with open(pin_file, "r", encoding="utf-8") as pf:
+            pin_data = json.load(pf)
+    except Exception as e:
+        print(f"    [✗] ERRO CRÍTICO: Falha ao ler apk_pin.json ({e}). Instalação abortada.")
+        return False
+
+    expected_cert_fp = pin_data.get("signing_certificate", {}).get("sha256_fingerprint", "").strip().upper()
+    if not expected_cert_fp:
+        print("    [✗] ERRO CRÍTICO: Pin de certificado ausente em apk_pin.json. Instalação abortada.")
+        return False
+
+    actual_cert_fp = extract_apk_cert_sha256(apk_path)
+    if not actual_cert_fp or actual_cert_fp.upper() != expected_cert_fp:
+        print(f"    [✗] ERRO CRÍTICO DE SEGURANÇA: Certificado do APK ({actual_cert_fp or 'N/A'}) não corresponde ao pin oficial ({expected_cert_fp})!")
+        print("        Instalação abortada imediatamente para proteger o dispositivo.")
+        return False
+
+    print(f"    [✓] Certificado de assinatura do APK verificado contra apk_pin.json ({expected_cert_fp[:23]}...).")
+    return True
+
+
 def step_install_custom_app(adb, force_recompile=False, custom_apk_path=None):
     if not adb.specs:
         adb.load_specs()
@@ -1571,20 +1661,9 @@ def step_install_custom_app(adb, force_recompile=False, custom_apk_path=None):
 
     apk = custom_apk_path if custom_apk_path else compile_custom_app(adb.specs, force_recompile=force_recompile)
     if apk:
-        pin_file = os.path.join(PROJECT_ROOT, "tools", "apk_pin.json")
-        if os.path.exists(pin_file) and "release" in os.path.basename(apk).lower():
-            try:
-                with open(pin_file, "r", encoding="utf-8") as pf:
-                    pin_data = json.load(pf)
-                expected_hash = pin_data.get("apk", {}).get("sha256")
-                with open(apk, "rb") as af:
-                    actual_hash = hashlib.sha256(af.read()).hexdigest()
-                if expected_hash and actual_hash != expected_hash:
-                    print(f"    [!] AVISO: Hash SHA-256 do APK ({actual_hash[:16]}...) diverge do pin oficial em apk_pin.json.")
-                else:
-                    print(f"    [✓] Integridade do APK verificada contra apk_pin.json ({expected_hash[:16]}...).")
-            except Exception:
-                pass
+        if not verify_apk_pin(apk):
+            return False
+
         print("\n[*] A transferir e instalar na box...")
         remote_tmp = "/data/local/tmp/xcpe-scanner-tv.apk"
         adb.push(apk, remote_tmp)
@@ -1675,7 +1754,9 @@ def step_automated_pipeline(adb, vpn_duration=20, force_recompile=False):
 
     if not adb.specs:
         adb.load_specs()
-    step_install_custom_app(adb, force_recompile=force_recompile)
+    if not step_install_custom_app(adb, force_recompile=force_recompile):
+        print("\n[✗] Pipeline abortado: falha na verificação de assinatura ou instalação do APK.")
+        return "ERRO_INSTALACAO"
 
     print("\n[*] A autorizar permissões de VPN em segundo plano...")
     adb.run(f"appops set {PACKAGE_NAME} ACTIVATE_VPN allow")
@@ -1705,6 +1786,7 @@ def step_automated_pipeline(adb, vpn_duration=20, force_recompile=False):
     print("    [✓] Análise estática concluída com sucesso.")
 
     print(f"\n[*] A monitorizar Sentinela VPN em tempo real (à escuta durante {vpn_duration}s)...")
+    print("    [!] NOTA: Durante a monitorização VPN, apenas o DNS é reencaminhado; o restante tráfego TCP/UDP é descartado (a box fica sem internet aberta até o teste terminar).")
     # Verificamos se surgiu o diálogo de permissão do sistema Android (com.android.vpndialogs)
     time.sleep(1)
     top_window = adb.run("dumpsys window | grep -E mCurrentFocus")

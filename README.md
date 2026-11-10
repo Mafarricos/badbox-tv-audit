@@ -83,11 +83,13 @@ The application is localized automatically (Portuguese if device is set to Portu
 
 1. **Button 1: SCAN TV BOX (STATIC):** Audits `/oem/`, `/vendor/`, Play Protect integrity, trojan artifacts (Vo1d, XCPE), and inspects package signatures in seconds.
 2. **Button 2: MONITOR NETWORK (VPN):** Local loopback sentinel alerting in real time:
-   - **RED (`[CRITICAL]`):** If the TV initiates connections to known C2 servers or proxy ports.
+   - **RED (`[CRITICAL]`):** If the TV initiates connections to known C2 servers or malicious domains.
+   - **ORANGE (`[SUSPICIOUS]`):** If a connection is made to a known botnet/proxy port without matching a known C2 IP/domain.
    - **YELLOW (`[ANOMALY]`):** If unusual high-port network traffic is detected while the TV is idle.
+   - > **Note on Network Connectivity during Monitoring:** During the VPN Sentinel window, DNS queries (UDP port 53) are actively inspected and forwarded so malware domain lookups succeed, while direct TCP/UDP data packets are inspected and dropped in the loopback interface. Consequently, general internet browsing/streaming is temporarily paused while the monitor is active and immediately resumes once the VPN is stopped.
 3. **Button 3: NEUTRALIZE THREATS (Appears when anomalies are detected):**
    - **User Packages & Updates (/data/app):** Launches sequential uninstallation prompts.
-   - **System Implants (/system, /vendor):** Isolates traffic via persistent **VpnService Quarantine Sinkhole** mode and guides operator through system Settings to force-stop/disable, or provides exact ADB command (`pm disable-user --user 0`).
+   - **System Implants (/system, /vendor):** Isolates eligible packages via **VpnService Quarantine Sinkhole** mode. For factory packages sharing `android.uid.system` (UID 1000, such as `com.oemservice`), VPN quarantine is skipped so as not to block core Android system services, and the app displays the exact ADB command (`adb shell pm disable-user --user 0 <package>`) required to freeze them safely. Also notes that Android TV Settings disables the graphical "Disable" button (`canDisable=false`) for platform-signed system apps.
    - Shortcut to verify and re-enable Google Play Protect verification.
 
 ### 🛡️ Building & Signing the App

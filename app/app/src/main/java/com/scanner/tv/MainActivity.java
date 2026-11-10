@@ -2,6 +2,7 @@ package com.scanner.tv;
 
 import android.content.Intent;
 import android.content.pm.ApplicationInfo;
+import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.net.Uri;
 import android.net.VpnService;
@@ -46,6 +47,7 @@ public class MainActivity extends AppCompatActivity {
     private final List<String> detectedMaliciousPackages = new ArrayList<>();
     private final List<String> mPendingUninstalls = new ArrayList<>();
     private final List<String> mPendingSysPackages = new ArrayList<>();
+    private final List<String> mEligibleQuarantinePkgs = new ArrayList<>();
 
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
@@ -101,9 +103,16 @@ public class MainActivity extends AppCompatActivity {
                 btnRemediate.setVisibility(View.VISIBLE);
                 btnVpnMonitor.setNextFocusDownId(R.id.btnRemediate);
             });
-        } else if ("ANOMALIA".equals(level)) {
+        } else if ("SUSPICIOUS".equals(level) || "ANOMALIA".equals(level)) {
             anomalyThreatsCount++;
             appendColoredLog("[?] " + logMessage, Color.parseColor("#F59E0B"));
+        } else if ("QUARANTINE_ABORTED".equals(level)) {
+            appendColoredLog("[!] " + logMessage, Color.parseColor("#F59E0B"));
+            mainHandler.post(() -> {
+                isVpnRunning = false;
+                btnVpnMonitor.setText(getString(R.string.btn_vpn_monitor));
+                btnVpnMonitor.setBackgroundResource(R.drawable.btn_green_focused);
+            });
         } else {
             appendColoredLog(logMessage, Color.WHITE);
         }
@@ -196,6 +205,7 @@ public class MainActivity extends AppCompatActivity {
 
         mPendingUninstalls.clear();
         mPendingSysPackages.clear();
+        mEligibleQuarantinePkgs.clear();
 
         if (lastResult != null) {
             mPendingUninstalls.addAll(lastResult.userThreatPackages);
@@ -226,27 +236,55 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void finishRemediationSteps() {
-        // 2. Isolamento de Implantes de Sistema (/system, /vendor) via Quarentena Sinkhole
+        // 2. Isolamento de Implantes de Sistema (/system, /vendor)
         if (!mPendingSysPackages.isEmpty()) {
             appendColoredLog("\n[Passo 2/3] Implantes de sistema detetados (/system ou /vendor):", Color.parseColor("#EF4444"));
-            appendColoredLog("   Nota: Sem ADB/PC, o Android TV bloqueia a desinstalação direta de apps de fábrica.", Color.parseColor("#F59E0B"));
-            appendColoredLog("   [*] A ativar Quarentena de Rede (VpnService Sinkhole) para cortar ligações C2...", Color.parseColor("#22C55E"));
+            appendColoredLog("   Nota: Sem ADB/PC, o Android TV bloqueia a desinstalação/desativação direta de apps de fábrica.", Color.parseColor("#F59E0B"));
 
-            Intent vpnPrep = VpnService.prepare(this);
-            if (vpnPrep == null) {
-                Intent qIntent = new Intent(this, PacketMonitorVpnService.class);
-                qIntent.setAction(PacketMonitorVpnService.ACTION_QUARANTINE);
-                qIntent.putStringArrayListExtra(PacketMonitorVpnService.EXTRA_QUARANTINE_PKGS, new ArrayList<>(mPendingSysPackages));
-                startService(qIntent);
-                isVpnRunning = true;
-                btnVpnMonitor.setText(getString(R.string.btn_stop_vpn));
-                btnVpnMonitor.setBackgroundResource(R.drawable.btn_red_focused);
-                appendColoredLog("   [✓] Quarentena Sinkhole ATIVA: Tráfego de rede dos implantes foi travado!", Color.parseColor("#22C55E"));
-            } else {
-                startActivityForResult(vpnPrep, VPN_REQUEST_CODE);
+            PackageManager pm = getPackageManager();
+            mEligibleQuarantinePkgs.clear();
+            List<String> uid1000Pkgs = new ArrayList<>();
+
+            for (String pkg : mPendingSysPackages) {
+                try {
+                    ApplicationInfo ai = pm.getApplicationInfo(pkg, 0);
+                    if (ai.uid == 1000) {
+                        uid1000Pkgs.add(pkg);
+                    } else {
+                        mEligibleQuarantinePkgs.add(pkg);
+                    }
+                } catch (Exception ignored) {}
             }
 
-            appendColoredLog("   [*] A abrir ecrã de detalhes da app (prima 'Forçar Paragem' e 'Desativar' no telecomando):", Color.parseColor("#38BDF8"));
+            if (!uid1000Pkgs.isEmpty()) {
+                for (String sPkg : uid1000Pkgs) {
+                    appendColoredLog("   [!] O pacote '" + sPkg + "' partilha o UID 1000 (android.uid.system).", Color.parseColor("#F59E0B"));
+                    appendColoredLog("       -> A quarentena VPN não é aplicável a UID 1000 (bloquearia toda a rede do Android).", Color.parseColor("#F59E0B"));
+                    appendColoredLog("       -> Para desativá-lo em segurança, execute num PC via ADB:", Color.parseColor("#38BDF8"));
+                    appendColoredLog("          adb shell pm disable-user --user 0 " + sPkg, Color.parseColor("#38BDF8"));
+                }
+            }
+
+            if (!mEligibleQuarantinePkgs.isEmpty()) {
+                appendColoredLog("   [*] A ativar Quarentena de Rede (VpnService Sinkhole) para " + mEligibleQuarantinePkgs.size() + " pacote(s) elegível(is)...", Color.parseColor("#22C55E"));
+                Intent vpnPrep = VpnService.prepare(this);
+                if (vpnPrep == null) {
+                    Intent qIntent = new Intent(this, PacketMonitorVpnService.class);
+                    qIntent.setAction(PacketMonitorVpnService.ACTION_QUARANTINE);
+                    qIntent.putStringArrayListExtra(PacketMonitorVpnService.EXTRA_QUARANTINE_PKGS, new ArrayList<>(mEligibleQuarantinePkgs));
+                    startService(qIntent);
+                    isVpnRunning = true;
+                    btnVpnMonitor.setText(getString(R.string.btn_stop_vpn));
+                    btnVpnMonitor.setBackgroundResource(R.drawable.btn_red_focused);
+                    appendColoredLog("   [✓] Quarentena Sinkhole ATIVA para: " + mEligibleQuarantinePkgs, Color.parseColor("#22C55E"));
+                } else {
+                    startActivityForResult(vpnPrep, VPN_REQUEST_CODE);
+                }
+            } else {
+                appendColoredLog("   [i] Nenhum pacote elegível para isolamento via VPN (0 pacotes associados). A rede geral da box mantém-se intacta.", Color.WHITE);
+            }
+
+            appendColoredLog("   [*] A abrir ecrã de informações da app (Nota: o Android TV bloqueia o botão 'Desativar' em apps de sistema; use 'Forçar Paragem' ou ADB):", Color.parseColor("#38BDF8"));
             for (String pkg : mPendingSysPackages) {
                 try {
                     Intent detailsIntent = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
@@ -274,17 +312,19 @@ public class MainActivity extends AppCompatActivity {
         }
 
         if (!mPendingSysPackages.isEmpty()) {
-            appendColoredLog("\n[!] NOTA TÉCNICA: O Android TV bloqueia nativamente o botão 'Desativar' para apps com permissão de sistema ('canDisable=false').", Color.parseColor("#F59E0B"));
-            appendColoredLog("    Para congelamento definitivo de implantes da ROM, utilize o script PC/ADB: tools/audit_security.py <IP> --remediate", Color.parseColor("#38BDF8"));
+            appendColoredLog("\n[!] NOTA TÉCNICA: O Android TV bloqueia nativamente o botão 'Desativar' para apps assinadas pela plataforma ('canDisable=false').", Color.parseColor("#F59E0B"));
+            appendColoredLog("    Para congelamento definitivo de implantes da ROM, utilize o script PC/ADB: python tools/audit_security.py <IP> --remediate", Color.parseColor("#38BDF8"));
         } else {
-            appendColoredLog("\n[✓] Ações de remediação processadas com sucesso!", Color.parseColor("#22C55E"));
+            appendColoredLog("\n[✓] Ações de remediação de pacotes de utilizador concluídas!", Color.parseColor("#22C55E"));
         }
-        appendColoredLog(">>> Prima 'ANALISAR BOX' para validar o estado de limpeza!\n", Color.parseColor("#38BDF8"));
+        appendColoredLog(">>> Prima 'ANALISAR BOX' para validar o estado atual!\n", Color.parseColor("#38BDF8"));
         btnScan.requestFocus();
     }
 
     private void toggleVpnMonitor() {
         if (!isVpnRunning) {
+            mEligibleQuarantinePkgs.clear();
+            appendColoredLog("\n[!] AVISO DE REDE: Durante a monitorização VPN Sentinel, apenas o DNS é reencaminhado; o restante tráfego TCP/UDP é intercetado e retido (a box fica temporariamente sem navegação aberta enquanto o teste corre).", Color.parseColor("#F59E0B"));
             Intent intent = VpnService.prepare(this);
             if (intent != null) {
                 startActivityForResult(intent, VPN_REQUEST_CODE);
@@ -299,7 +339,7 @@ public class MainActivity extends AppCompatActivity {
             btnVpnMonitor.setText(getString(R.string.btn_vpn_monitor));
             btnVpnMonitor.setBackgroundResource(R.drawable.btn_green_focused);
             btnVpnMonitor.requestFocus();
-            appendColoredLog("\n[i] Monitor de rede VPN parado.", Color.WHITE);
+            appendColoredLog("\n[i] Monitor de rede VPN parado. Ligação normal à Internet restabelecida.", Color.WHITE);
         }
     }
 
@@ -310,9 +350,9 @@ public class MainActivity extends AppCompatActivity {
             processNextUninstall();
         } else if (requestCode == VPN_REQUEST_CODE && resultCode == RESULT_OK) {
             Intent intent = new Intent(this, PacketMonitorVpnService.class);
-            if (!mPendingSysPackages.isEmpty()) {
+            if (!mEligibleQuarantinePkgs.isEmpty()) {
                 intent.setAction(PacketMonitorVpnService.ACTION_QUARANTINE);
-                intent.putStringArrayListExtra(PacketMonitorVpnService.EXTRA_QUARANTINE_PKGS, new ArrayList<>(mPendingSysPackages));
+                intent.putStringArrayListExtra(PacketMonitorVpnService.EXTRA_QUARANTINE_PKGS, new ArrayList<>(mEligibleQuarantinePkgs));
             }
             startService(intent);
             isVpnRunning = true;

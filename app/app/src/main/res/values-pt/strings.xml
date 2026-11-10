@@ -18,5 +18,5 @@
     <string name="btn_vpn_monitor">MONITORIZAR REDE (VPN)</string>
     <string name="btn_stop_vpn">PARAR MONITOR VPN</string>
     <string name="btn_remediate">NEUTRALIZAR AMEAÇAS</string>
-    <string name="log_initial_help">Painel de Diagnóstico &amp; Remediação Pronto.\n\n[1. Analisar Box]: Varre partições /oem/, pacotes maliciosos e Play Protect.\n[2. Monitor VPN]: Deteta ligações em tempo real a servidores de Comando e Controlo (C2).\n[3. Neutralizar]: Desinstala apps suspeitas no ecrã e orienta para reposição de defesas.\n</string>
+    <string name="log_initial_help">Painel de Diagnóstico &amp; Remediação Pronto.\n\n[1. Analisar Box]: Varre partições /oem/, pacotes maliciosos e Play Protect.\n[2. Monitor VPN]: Deteta ligações em tempo real a servidores C2 (Nota: durante a monitorização, só o DNS é reencaminhado e o restante tráfego TCP/UDP é descartado; pare a VPN ao terminar).\n[3. Neutralizar]: Desinstala apps de utilizador no ecrã e instrui comando ADB para implantes de sistema.\n</string>
 </resources>

@@ -80,11 +80,13 @@ A aplicação deteta o idioma da box automaticamente (em Português se a TV esti
 
 1. **Botão 1: ANALISAR BOX (ESTÁTICO):** Varre partições `/oem/`, `/vendor/`, integridade do Play Protect, artefactos de trojans (Vo1d, XCPE) e enumera pacotes instalados em segundos.
 2. **Botão 2: MONITORIZAR REDE (VPN):** Sentinela local loopback que alerta em tempo real:
-   - **A Vermelho (`[CRÍTICO]`):** Se a box tentar falar com servidores C2 ou portas MQTT/proxy conhecidas.
+   - **A Vermelho (`[CRÍTICO]`):** Se a box tentar comunicar com IPs ou domínios de servidores C2 conhecidos.
+   - **A Laranja (`[SUSPICIOUS]`):** Se houver tentativa de ligação a uma porta associada a botnets/proxies sem correspondência direta de IP/domínio C2.
    - **A Amarelo (`[ANOMALIA]`):** Se houver tráfego anómalo em portas altas enquanto a TV devia estar em repouso.
+   - > **Nota sobre a Ligação à Internet durante a Monitorização:** Durante a janela do Sentinela VPN, os pedidos de DNS (UDP porta 53) são inspecionados e reencaminhados (permitindo que a box resolva nomes para detetar domínios C2), mas o restante tráfego TCP/UDP é lido e descartado na interface local. Por esse motivo, enquanto a monitorização estiver ativa, a box fica temporariamente sem navegação aberta, retomando o acesso normal assim que a VPN é desligada.
 3. **Botão 3: NEUTRALIZAR AMEAÇAS (Aparece se forem detetadas anomalias):**
    - **Aplicações de Utilizador e Atualizações (/data/app):** Abre o diálogo nativo de desinstalação sequencial.
-   - **Implantes de Sistema (/system, /vendor):** Bloqueia o tráfego ativando o modo de **Quarentena Sinkhole via VpnService** e guia o operador nas Definições do sistema para forçar paragem/desativar, indicando também o comando ADB (`pm disable-user --user 0`).
+   - **Implantes de Sistema (/system, /vendor):** Isola pacotes elegíveis em modo de **Quarentena Sinkhole via VpnService**. Caso o implante partilhe o UID 1000 (`android.uid.system`, como o `com.oemservice`), a quarentena VPN não lhe é aplicada para não bloquear a rede dos serviços vitais do Android, exibindo no ecrã a instrução exata para desativação via PC/ADB (`adb shell pm disable-user --user 0 <pacote>`). Avisa também que as Definições da Android TV bloqueiam nativamente o botão "Desativar" (`canDisable=false`) para apps de sistema assinadas pela plataforma.
    - Atalho direto para reativar a verificação de aplicações do Google Play Protect.
 
 ### 🛡️ Compilação e Assinatura da App
