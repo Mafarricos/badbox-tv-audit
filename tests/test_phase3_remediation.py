@@ -175,10 +175,11 @@ def test_at09_baseline_preserved_across_remediations(monkeypatch):
             base_data1 = json.load(f)
         assert base_data1["settings"]["package_verifier_user_consent"] == "-1"
 
-        # Simular estado modificado e avanco no tempo
-        import time
+        # Simular estado modificado e avanco no tempo no modulo audit_security
+        import time, audit_security
         base_t = time.time()
-        monkeypatch.setattr(time, "time", lambda: base_t + 5.0)
+        monkeypatch.setattr(audit_security.time, "time", lambda: base_t + 5.0)
+        monkeypatch.setattr(audit_security.time, "strftime", lambda fmt, *args: "20261110_000525_999" if "%Y%m%d_%H%M%S" in fmt else time.strftime(fmt, *args))
         fake.add_rule("settings get global package_verifier_user_consent", "1")
         fake.add_rule("settings get global package_verifier_enable", "1")
 
