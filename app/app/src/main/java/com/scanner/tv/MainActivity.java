@@ -243,23 +243,25 @@ public class MainActivity extends AppCompatActivity {
 
             PackageManager pm = getPackageManager();
             mEligibleQuarantinePkgs.clear();
-            List<String> uid1000Pkgs = new ArrayList<>();
+            List<String> sharedOrSysUidPkgs = new ArrayList<>();
 
             for (String pkg : mPendingSysPackages) {
                 try {
                     ApplicationInfo ai = pm.getApplicationInfo(pkg, 0);
-                    if (ai.uid == 1000) {
-                        uid1000Pkgs.add(pkg);
+                    String[] pkgsForUid = pm.getPackagesForUid(ai.uid);
+                    boolean isSharedOrLowUid = ai.uid < 10000 || (pkgsForUid != null && pkgsForUid.length > 1);
+                    if (isSharedOrLowUid) {
+                        sharedOrSysUidPkgs.add(pkg);
                     } else {
                         mEligibleQuarantinePkgs.add(pkg);
                     }
                 } catch (Exception ignored) {}
             }
 
-            if (!uid1000Pkgs.isEmpty()) {
-                for (String sPkg : uid1000Pkgs) {
-                    appendColoredLog("   [!] O pacote '" + sPkg + "' partilha o UID 1000 (android.uid.system).", Color.parseColor("#F59E0B"));
-                    appendColoredLog("       -> A quarentena VPN não é aplicável a UID 1000 (bloquearia toda a rede do Android).", Color.parseColor("#F59E0B"));
+            if (!sharedOrSysUidPkgs.isEmpty()) {
+                for (String sPkg : sharedOrSysUidPkgs) {
+                    appendColoredLog("   [!] O pacote '" + sPkg + "' partilha UID de sistema ou múltiplo com outros componentes da ROM.", Color.parseColor("#F59E0B"));
+                    appendColoredLog("       -> A quarentena VPN não é aplicável a UIDs partilhados/sistema (bloquearia a rede de outras partes do Android).", Color.parseColor("#F59E0B"));
                     appendColoredLog("       -> Para desativá-lo em segurança, execute num PC via ADB:", Color.parseColor("#38BDF8"));
                     appendColoredLog("          adb shell pm disable-user --user 0 " + sPkg, Color.parseColor("#38BDF8"));
                 }
@@ -324,7 +326,7 @@ public class MainActivity extends AppCompatActivity {
     private void toggleVpnMonitor() {
         if (!isVpnRunning) {
             mEligibleQuarantinePkgs.clear();
-            appendColoredLog("\n[!] AVISO DE REDE: Durante a monitorização VPN Sentinel, apenas o DNS é reencaminhado; o restante tráfego TCP/UDP é intercetado e retido (a box fica temporariamente sem navegação aberta enquanto o teste corre).", Color.parseColor("#F59E0B"));
+            appendColoredLog("\n[!] AVISO DE REDE: Durante a monitorização VPN Sentinel, apenas o DNS é reencaminhado; o restante tráfego TCP/UDP é descartado (a box fica temporariamente sem navegação aberta enquanto o teste corre).", Color.parseColor("#F59E0B"));
             Intent intent = VpnService.prepare(this);
             if (intent != null) {
                 startActivityForResult(intent, VPN_REQUEST_CODE);

@@ -5,7 +5,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ---
 
-## [2.0.2] - 2026-11-10
+## [2.0.2] - 2026-11-11
+
+### Correções e Endurecimento Criptográfico (Auditoria Externa Review #4)
+- **Verificação Robusta com `apksigner` Oficial**:
+  - A verificação de certificados no instalador (`tools/audit_security.py`) agora invoca estritamente o `apksigner verify --print-certs` oficial da Google, validando esquemas v1, v2 e v3 como o Android 7+ faz nativamente.
+  - O fallback ingénuo para parser de blocos PKCS#7 em `META-INF` foi totalmente removido para prevenir evasões com assinaturas v2 truncadas ou adulteradas. Se o `apksigner` não estiver disponível, a instalação aborta com segurança.
+- **Resolução do `--auto-pipeline` em Clones Novos**:
+  - Quando a pasta `tools/` não contém o APK universal compilado e assinado, o pipeline agora descarrega-o automaticamente da Release oficial do GitHub e verifica-o criptograficamente com o `apksigner` contra `tools/apk_pin.json`.
+  - Para utilizadores que compilam o APK localmente via `./gradlew assembleDebug`, o instalador deteta a compilação local e autoriza a chave debug emitindo um aviso explícito de segurança em terminal.
+- **Filtro Geral de UIDs de Sistema e Partilhados na Quarentena**:
+  - O filtro de quarentena da VPN na `MainActivity` e no `PacketMonitorVpnService` foi generalizado para além do UID 1000: qualquer pacote com `uid < 10000` (ex.: `android.uid.phone`, 1001) ou com UIDs partilhados por múltiplos pacotes (`getPackagesForUid(uid).length > 1`) é salvaguardado da quarentena Sinkhole e direcionado para neutralização segura via ADB, prevenindo o corte de rede em serviços essenciais da ROM.
+- **Precisão Semântica sobre Tráfego na TV**:
+  - Atualizadas as mensagens no ecrã da TV (`MainActivity.java`) e nos recursos (`strings.xml` PT/EN) para indicar com precisão técnica que o tráfego não-DNS é **"descartado"** (dropped) em vez de "retido".
+
+---
+
+## [2.0.2-rc1] - 2026-11-10
 
 ### Correções Críticas e Auditoria Externa (Review #3)
 - **Prevenção de Blackout na Quarentena Sinkhole (0 Pacotes Associados)**:

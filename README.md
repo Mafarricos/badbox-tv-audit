@@ -94,6 +94,8 @@ The application is localized automatically (Portuguese if device is set to Portu
 
 ### 🛡️ Building & Signing the App
 To protect repository integrity against binary supply-chain attacks, keystores and prebuilt APKs are not tracked in git (SEC-01).
+- **Official Release APK**: The pipeline automatically downloads and verifies the official signed APK release (`xcpe-scanner-tv.apk`) into `tools/` with `apksigner` against `tools/apk_pin.json`. You can also manually download it from [GitHub Releases](https://github.com/Mafarricos/badbox-tv-audit/releases) and place it in `tools/xcpe-scanner-tv.apk`.
+- **Compile Local Debug Build**: If you build the app locally with `./gradlew assembleDebug`, the pipeline detects local builds and allows the debug key with an explicit security warning.
 - Compile debug build: `cd app && ./gradlew assembleDebug`
 - Unit tests: `cd app && ./gradlew testDebugUnitTest`
 - Release signing documentation: [`docs/RELEASE_SIGNING.md`](docs/RELEASE_SIGNING.md)

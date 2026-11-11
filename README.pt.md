@@ -91,6 +91,8 @@ A aplicação deteta o idioma da box automaticamente (em Português se a TV esti
 
 ### 🛡️ Compilação e Assinatura da App
 Para garantir a integridade da cadeia de fornecimento, não são versionadas chaves criptográficas nem APKs pré-compilados no git (SEC-01).
+- **APK Oficial da Release**: O pipeline transfere e valida automaticamente o APK oficial assinado (`xcpe-scanner-tv.apk`) para `tools/` com `apksigner` contra `tools/apk_pin.json`. Também pode descarregá-lo manualmente das [Releases do GitHub](https://github.com/Mafarricos/badbox-tv-audit/releases) e colocá-lo em `tools/xcpe-scanner-tv.apk`.
+- **Compilação Local de Debug**: Se compilar a aplicação localmente com `./gradlew assembleDebug`, o pipeline deteta a compilação local e autoriza a chave de depuração emitindo um aviso explícito de segurança.
 - Compilação de debug: `cd app && ./gradlew assembleDebug`
 - Testes unitários puros: `cd app && ./gradlew testDebugUnitTest`
 - Procedimento de assinatura de release: [`docs/RELEASE_SIGNING.md`](docs/RELEASE_SIGNING.md)

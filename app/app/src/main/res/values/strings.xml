@@ -18,5 +18,5 @@
     <string name="btn_vpn_monitor">MONITOR NETWORK (VPN)</string>
     <string name="btn_stop_vpn">STOP VPN MONITOR</string>
     <string name="btn_remediate">NEUTRALIZE THREATS</string>
-    <string name="log_initial_help">Diagnostic &amp; Remediation Panel Ready.\n\n[1. Scan TV Box]: Scans /oem/ partitions, malicious packages and Play Protect.\n[2. Monitor VPN]: Real-time detection of C2 servers (Note: while monitoring runs, only DNS is forwarded and other TCP/UDP traffic is held/dropped; stop VPN when finished).\n[3. Neutralize]: On-screen user app uninstallation and ADB guidance for system implants.\n</string>
+    <string name="log_initial_help">Diagnostic &amp; Remediation Panel Ready.\n\n[1. Scan TV Box]: Scans /oem/ partitions, malicious packages and Play Protect.\n[2. Monitor VPN]: Real-time detection of C2 servers (Note: while monitoring runs, only DNS is forwarded and other TCP/UDP traffic is dropped; stop VPN when finished).\n[3. Neutralize]: On-screen user app uninstallation and ADB guidance for system implants.\n</string>
 </resources>

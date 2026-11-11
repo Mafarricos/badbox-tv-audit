@@ -164,7 +164,7 @@ public class PacketMonitorVpnService extends VpnService implements Runnable {
         if (mThread == null || !mThread.isAlive()) {
             AuditLogger.log("INFO", "VPN", isQuarantineMode
                     ? "Interface de Quarentena Sinkhole a iniciar..."
-                    : "Interface de monitorização VPN iniciada (Aviso: durante a monitorização só o DNS é reencaminhado; o restante tráfego TCP/UDP é retido).");
+                    : "Interface de monitorização VPN iniciada (Aviso: durante a monitorização só o DNS é reencaminhado; o restante tráfego TCP/UDP é descartado).");
             mThread = new Thread(this, "VpnMonitorThread");
             isRunning = true;
             mThread.start();
@@ -207,8 +207,10 @@ public class PacketMonitorVpnService extends VpnService implements Runnable {
                 for (String pkg : mQuarantinePackages) {
                     try {
                         android.content.pm.ApplicationInfo ai = pm.getApplicationInfo(pkg, 0);
-                        if (ai.uid == 1000) {
-                            String warnMsg = "Pacote " + pkg + " utiliza UID 1000 (android.uid.system). Quarentena VPN ignorada para não bloquear a internet da box. Use ADB: adb shell pm disable-user --user 0 " + pkg;
+                        String[] pkgsForUid = pm.getPackagesForUid(ai.uid);
+                        boolean isSharedOrLowUid = ai.uid < 10000 || (pkgsForUid != null && pkgsForUid.length > 1);
+                        if (isSharedOrLowUid) {
+                            String warnMsg = "Pacote " + pkg + " utiliza UID de sistema/partilhado (" + ai.uid + "). Quarentena VPN ignorada para não bloquear outras funções da box. Use ADB: adb shell pm disable-user --user 0 " + pkg;
                             AuditLogger.log("AVISO", "QUARANTINE", warnMsg);
                             if (sListener != null) {
                                 sListener.onPacketEvent("SUSPICIOUS", warnMsg);
@@ -223,12 +225,12 @@ public class PacketMonitorVpnService extends VpnService implements Runnable {
                     }
                 }
 
-                // Se nenhum pacote pôde ser associado (ex: todos têm UID 1000 ou falharam),
+                // Se nenhum pacote pôde ser associado (ex: todos têm UID de sistema/partilhado ou falharam),
                 // NUNCA chamar builder.establish(), senão o Android aplica a VPN a todo o sistema e deixa a box sem internet!
                 if (addedCount == 0) {
                     SharedPreferences prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
                     prefs.edit().putBoolean(KEY_ACTIVE, false).remove(KEY_PACKAGES).apply();
-                    String abortMsg = "Quarentena VPN cancelada: 0 pacotes elegíveis (implantes com UID 1000 requerem neutralização via PC/ADB: pm disable-user --user 0 <pacote>).";
+                    String abortMsg = "Quarentena VPN cancelada: 0 pacotes elegíveis (implantes com UID de sistema/partilhado requerem neutralização via PC/ADB: pm disable-user --user 0 <pacote>).";
                     AuditLogger.log("AVISO", "QUARANTINE", abortMsg);
                     if (sListener != null) {
                         sListener.onPacketEvent("QUARANTINE_ABORTED", abortMsg);

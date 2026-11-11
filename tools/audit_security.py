@@ -31,6 +31,7 @@ import subprocess
 import hashlib
 import shlex
 import ipaddress
+import glob
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from engine import GLOBAL_ENGINE, Finding, LayerResult, LayerStatus, VerdictState
 from iocs import IOC_DB, parse_socket_address
@@ -1507,6 +1508,12 @@ def compile_custom_app(specs, force_recompile=False):
     if os.path.exists(apk_prebuilt) and not force_recompile:
         return apk_prebuilt
 
+    if not os.path.exists(apk_prebuilt) and not force_recompile:
+        # Se não existir APK em tools/ e o utilizador não pediu explicitamente recompilação local,
+        # tentar descarregar automaticamente o APK oficial assinado da release do GitHub
+        if download_official_release_apk(apk_prebuilt):
+            return apk_prebuilt
+
     print("\n================================================================================")
     print(f"[*] A RECOMPILAR APLICAÇÃO À MEDIDA DO DISPOSITIVO (Android {specs.get('android_version','?')}, API {specs.get('sdk','?')})")
     print("================================================================================")
@@ -1550,62 +1557,98 @@ def compile_custom_app(specs, force_recompile=False):
     return None
 
 
-def extract_apk_cert_sha256(apk_path):
+def find_apksigner_bin():
     """
-    Extrai o fingerprint SHA-256 (formato AA:BB:CC:...) do certificado de assinatura do APK.
-    Tenta primeiro via apksigner ou keytool; em fallback faz parsing DER direto de META-INF/*.RSA|DSA|EC.
+    Localiza o binário ou script executável do apksigner no sistema ou no Android SDK.
     """
-    if not os.path.exists(apk_path):
-        return None
+    apksigner_env = shutil.which("apksigner")
+    if apksigner_env:
+        return apksigner_env
 
-    # 1. Tentar keytool -printcert -jarfile (disponível em qualquer JDK padrão)
-    try:
-        res = subprocess.run(
-            ["keytool", "-printcert", "-jarfile", apk_path],
-            capture_output=True, text=True, timeout=15
-        )
-        if res.returncode == 0 and res.stdout:
-            m = re.search(r"SHA256:\s*([0-9A-Fa-f]{2}(?::[0-9A-Fa-f]{2}){31})", res.stdout)
-            if m:
-                return m.group(1).upper()
-    except Exception:
-        pass
+    android_home = os.environ.get("ANDROID_HOME")
+    candidates_dirs = []
+    if android_home:
+        candidates_dirs.append(android_home)
+    for c in [r"C:\AndroidSDK", os.path.expanduser("~/Android/Sdk"), os.path.expandvars(r"%LOCALAPPDATA%\Android\Sdk")]:
+        if os.path.exists(c) and c not in candidates_dirs:
+            candidates_dirs.append(c)
 
-    # 2. Fallback Pure-Python: extrair o certificado X.509 do bloco PKCS#7 em META-INF/*.RSA / .DSA / .EC
-    try:
-        import zipfile
-        with zipfile.ZipFile(apk_path, "r") as zf:
-            for name in zf.namelist():
-                upper_name = name.upper()
-                if upper_name.startswith("META-INF/") and upper_name.endswith((".RSA", ".DSA", ".EC")):
-                    pkcs7_bytes = zf.read(name)
-                    # Procurar sequências ASN.1 DER dentro do SignedData (0x30 0x82 len_hi len_lo 0x30 0x82 ...)
-                    idx = 0
-                    while idx < len(pkcs7_bytes) - 8:
-                        if (
-                            pkcs7_bytes[idx] == 0x30
-                            and pkcs7_bytes[idx + 1] == 0x82
-                            and pkcs7_bytes[idx + 4] == 0x30
-                            and pkcs7_bytes[idx + 5] == 0x82
-                        ):
-                            cert_len = (pkcs7_bytes[idx + 2] << 8) | pkcs7_bytes[idx + 3]
-                            total_len = 4 + cert_len
-                            if idx + total_len <= len(pkcs7_bytes):
-                                cert_der = pkcs7_bytes[idx : idx + total_len]
-                                digest = hashlib.sha256(cert_der).hexdigest().upper()
-                                return ":".join(digest[i : i + 2] for i in range(0, 64, 2))
-                        idx += 1
-    except Exception:
-        pass
+    for base in candidates_dirs:
+        pattern = os.path.join(base, "build-tools", "*", "apksigner.bat" if sys.platform == "win32" else "apksigner")
+        matches = glob.glob(pattern)
+        if matches:
+            matches.sort(reverse=True)
+            return matches[0]
 
     return None
 
 
-def verify_apk_pin(apk_path, pin_file=None):
+def verify_apk_with_apksigner(apk_path):
     """
-    Verifica sempre a autenticidade do APK contra tools/apk_pin.json (independentemente do nome do ficheiro).
-    Exige correspondência do certificado de assinatura SHA-256 (e valida o hash SHA-256 do APK se aplicável).
-    Devolve True se válido, False caso contrário.
+    Verifica a integridade criptográfica da assinatura do APK através do apksigner oficial da Google,
+    assegurando a validação das assinaturas v1, v2 e v3 como o Android 7+ faz nativamente.
+    Devolve uma tupla (is_valid, cert_sha256_list, error_msg).
+    """
+    if not os.path.exists(apk_path):
+        return False, [], f"APK {apk_path} não encontrado."
+
+    apksigner = find_apksigner_bin()
+    if not apksigner:
+        return False, [], "apksigner não encontrado no PATH nem no Android SDK."
+
+    cmd = [apksigner, "verify", "--print-certs", apk_path]
+    try:
+        res = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+        output = (res.stdout or "") + "\n" + (res.stderr or "")
+        if res.returncode != 0:
+            return False, [], f"apksigner rejeitou a assinatura do APK:\n{output.strip()}"
+
+        # Extrair fingerprints SHA-256 de todos os signatários reconhecidos
+        # Padrão: Signer #1 certificate SHA-256 digest: <hex>
+        digests = re.findall(r"certificate SHA-256 digest:\s*([0-9a-fA-F]{64})", output)
+        formatted_digests = []
+        for d in digests:
+            d_upper = d.upper()
+            formatted = ":".join(d_upper[i:i+2] for i in range(0, 64, 2))
+            formatted_digests.append(formatted)
+
+        if not formatted_digests:
+            return False, [], f"apksigner não encontrou nenhum certificado válido no APK:\n{output.strip()}"
+
+        return True, formatted_digests, None
+    except Exception as e:
+        return False, [], f"Erro ao executar apksigner: {e}"
+
+
+def download_official_release_apk(target_path, version="v2.0.2"):
+    """
+    Descarrega o APK oficial compilado e assinado das releases do GitHub para a pasta tools/.
+    """
+    url = f"https://github.com/Mafarricos/badbox-tv-audit/releases/download/{version}/xcpe-scanner-tv.apk"
+    print(f"\n[*] APK pré-compilado não encontrado localmente.")
+    print(f"[*] A descarregar o APK oficial assinado da release {version} do GitHub...")
+    print(f"    URL: {url}")
+    try:
+        import urllib.request
+        os.makedirs(os.path.dirname(target_path), exist_ok=True)
+        urllib.request.urlretrieve(url, target_path)
+        if os.path.exists(target_path) and os.path.getsize(target_path) > 10000:
+            print(f"    [✓] Transferência concluída com sucesso: {target_path} ({os.path.getsize(target_path)} bytes)")
+            return True
+        else:
+            print("    [✗] O ficheiro descarregado é inválido ou está vazio.")
+            return False
+    except Exception as e:
+        print(f"    [✗] Falha ao descarregar APK oficial da release ({e}).")
+        return False
+
+
+def verify_apk_pin(apk_path, pin_file=None, allow_local_build=False):
+    """
+    Verifica a autenticidade do APK através do apksigner verify --print-certs.
+    Exige correspondência exata do fingerprint SHA-256 com tools/apk_pin.json.
+    Se allow_local_build for True (build compilada localmente pelo próprio utilizador via gradlew),
+    permite a chave debug local emitindo um aviso explícito de segurança.
     """
     if pin_file is None:
         pin_file = os.path.join(PROJECT_ROOT, "tools", "apk_pin.json")
@@ -1628,14 +1671,27 @@ def verify_apk_pin(apk_path, pin_file=None):
         print("    [✗] ERRO CRÍTICO: Pin de certificado ausente em apk_pin.json. Instalação abortada.")
         return False
 
-    actual_cert_fp = extract_apk_cert_sha256(apk_path)
-    if not actual_cert_fp or actual_cert_fp.upper() != expected_cert_fp:
-        print(f"    [✗] ERRO CRÍTICO DE SEGURANÇA: Certificado do APK ({actual_cert_fp or 'N/A'}) não corresponde ao pin oficial ({expected_cert_fp})!")
+    is_valid, cert_fps, err_msg = verify_apk_with_apksigner(apk_path)
+    if not is_valid:
+        print(f"    [✗] ERRO CRÍTICO DE ASSINATURA: Falha na validação com apksigner!")
+        print(f"        {err_msg}")
         print("        Instalação abortada imediatamente para proteger o dispositivo.")
         return False
 
-    print(f"    [✓] Certificado de assinatura do APK verificado contra apk_pin.json ({expected_cert_fp[:23]}...).")
-    return True
+    if any(fp.upper() == expected_cert_fp for fp in cert_fps):
+        print(f"    [✓] Assinatura do APK verificada com apksigner (v1/v2/v3) contra apk_pin.json ({expected_cert_fp[:23]}...).")
+        return True
+
+    # Se for uma build local direta em app/build/outputs e allow_local_build for True
+    if allow_local_build:
+        print("    [!] AVISO DE BUILD LOCAL: O APK foi compilado localmente na máquina com chave de depuração (Android Debug).")
+        print(f"        Certificado detetado: {cert_fps[0]}")
+        print("        O pin de release oficial foi contornado por se tratar de compilação local explícita do utilizador.")
+        return True
+
+    print(f"    [✗] ERRO CRÍTICO DE SEGURANÇA: Certificado do APK ({cert_fps[0]}) não corresponde ao pin oficial ({expected_cert_fp})!")
+    print("        Instalação abortada imediatamente para proteger o dispositivo.")
+    return False
 
 
 def step_install_custom_app(adb, force_recompile=False, custom_apk_path=None):
@@ -1661,7 +1717,9 @@ def step_install_custom_app(adb, force_recompile=False, custom_apk_path=None):
 
     apk = custom_apk_path if custom_apk_path else compile_custom_app(adb.specs, force_recompile=force_recompile)
     if apk:
-        if not verify_apk_pin(apk):
+        # Se o ficheiro vier da pasta de compilação local (app/build/outputs), permitir chave debug com aviso
+        is_local_build = "app-debug.apk" in os.path.basename(apk).lower() or "build" in os.path.abspath(apk).lower()
+        if not verify_apk_pin(apk, allow_local_build=is_local_build):
             return False
 
         print("\n[*] A transferir e instalar na box...")
