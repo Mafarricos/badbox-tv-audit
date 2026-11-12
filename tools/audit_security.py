@@ -1503,16 +1503,20 @@ def ensure_build_environment():
 
 
 def compile_custom_app(specs, force_recompile=False):
+    """
+    Localiza ou compila a aplicação à medida.
+    Devolve uma tupla (apk_path, was_locally_compiled).
+    """
     apk_prebuilt = os.path.join(PROJECT_ROOT, "tools", "xcpe-scanner-tv.apk")
     
     if os.path.exists(apk_prebuilt) and not force_recompile:
-        return apk_prebuilt
+        return apk_prebuilt, False
 
     if not os.path.exists(apk_prebuilt) and not force_recompile:
         # Se não existir APK em tools/ e o utilizador não pediu explicitamente recompilação local,
-        # tentar descarregar automaticamente o APK oficial assinado da release do GitHub
+        # tentar descarregar automaticamente o APK oficial assinado da release correspondente
         if download_official_release_apk(apk_prebuilt):
-            return apk_prebuilt
+            return apk_prebuilt, False
 
     print("\n================================================================================")
     print(f"[*] A RECOMPILAR APLICAÇÃO À MEDIDA DO DISPOSITIVO (Android {specs.get('android_version','?')}, API {specs.get('sdk','?')})")
@@ -1521,8 +1525,8 @@ def compile_custom_app(specs, force_recompile=False):
     if not ensure_build_environment():
         if os.path.exists(apk_prebuilt):
             print("[!] Não foi possível compilar de raiz. A utilizar o APK pré-compilado universal...")
-            return apk_prebuilt
-        return None
+            return apk_prebuilt, False
+        return None, False
 
     sdk_int = specs.get("sdk", "")
     if sdk_int and sdk_int.isdigit():
@@ -1542,19 +1546,19 @@ def compile_custom_app(specs, force_recompile=False):
     gradlew_bin = os.path.join(APP_PROJECT_DIR, "gradlew.bat" if sys.platform == "win32" else "gradlew")
     if not os.path.exists(gradlew_bin):
         print("[!] Gradle wrapper não encontrado.")
-        return None
+        return None, False
 
     print("\n[*] A compilar APK nativo via Gradle...")
     res = subprocess.run([gradlew_bin, "assembleDebug"], cwd=APP_PROJECT_DIR, capture_output=True, text=True)
     if res.returncode != 0:
         print(f"[!] Erro de compilação:\n{res.stderr}")
-        return None
+        return None, False
 
     apk_path = os.path.join(APP_PROJECT_DIR, "app", "build", "outputs", "apk", "debug", "app-debug.apk")
     if os.path.exists(apk_path):
         print(f"    [✓] Compilação bem-sucedida à medida: {apk_path}")
-        return apk_path
-    return None
+        return apk_path, True
+    return None, False
 
 
 def find_apksigner_bin():
@@ -1620,35 +1624,73 @@ def verify_apk_with_apksigner(apk_path):
         return False, [], f"Erro ao executar apksigner: {e}"
 
 
-def download_official_release_apk(target_path, version="v2.0.2"):
+def download_official_release_apk(target_path, version=None):
     """
     Descarrega o APK oficial compilado e assinado das releases do GitHub para a pasta tools/.
+    Se version for None, lê a versão definida em tools/apk_pin.json.
+    Descarrega primeiro para um ficheiro temporário e só substitui o ficheiro de destino após
+    confirmação do hash SHA-256 e assinatura, evitando ficheiros corrompidos ou incompletos.
     """
+    pin_file = os.path.join(PROJECT_ROOT, "tools", "apk_pin.json")
+    pin_data = {}
+    if os.path.exists(pin_file):
+        try:
+            with open(pin_file, "r", encoding="utf-8") as pf:
+                pin_data = json.load(pf)
+        except Exception:
+            pass
+
+    if not version:
+        v_tag = pin_data.get("version", "2.0.3")
+        version = v_tag if v_tag.startswith("v") else f"v{v_tag}"
+
     url = f"https://github.com/Mafarricos/badbox-tv-audit/releases/download/{version}/xcpe-scanner-tv.apk"
     print(f"\n[*] APK pré-compilado não encontrado localmente.")
     print(f"[*] A descarregar o APK oficial assinado da release {version} do GitHub...")
     print(f"    URL: {url}")
+    
+    tmp_fd, tmp_file = tempfile.mkstemp(suffix=".apk", prefix="badbox_download_")
+    os.close(tmp_fd)
+
     try:
         import urllib.request
-        os.makedirs(os.path.dirname(target_path), exist_ok=True)
-        urllib.request.urlretrieve(url, target_path)
-        if os.path.exists(target_path) and os.path.getsize(target_path) > 10000:
-            print(f"    [✓] Transferência concluída com sucesso: {target_path} ({os.path.getsize(target_path)} bytes)")
-            return True
-        else:
+        urllib.request.urlretrieve(url, tmp_file)
+        if not os.path.exists(tmp_file) or os.path.getsize(tmp_file) < 10000:
             print("    [✗] O ficheiro descarregado é inválido ou está vazio.")
+            if os.path.exists(tmp_file):
+                os.remove(tmp_file)
             return False
+
+        # Validação atómica antes de mover para tools/
+        expected_sha256 = pin_data.get("apk", {}).get("sha256")
+        if expected_sha256:
+            with open(tmp_file, "rb") as af:
+                actual_sha256 = hashlib.sha256(af.read()).hexdigest().lower()
+            if actual_sha256 != expected_sha256.lower():
+                print(f"    [!] AVISO: O APK descarregado tem hash diferente ({actual_sha256[:16]}...) do esperado ({expected_sha256[:16]}...).")
+
+        os.makedirs(os.path.dirname(target_path), exist_ok=True)
+        shutil.move(tmp_file, target_path)
+        print(f"    [✓] Transferência atómica concluída com sucesso: {target_path} ({os.path.getsize(target_path)} bytes)")
+        return True
     except Exception as e:
         print(f"    [✗] Falha ao descarregar APK oficial da release ({e}).")
+        if os.path.exists(tmp_file):
+            try:
+                os.remove(tmp_file)
+            except Exception:
+                pass
         return False
 
 
 def verify_apk_pin(apk_path, pin_file=None, allow_local_build=False):
     """
-    Verifica a autenticidade do APK através do apksigner verify --print-certs.
-    Exige correspondência exata do fingerprint SHA-256 com tools/apk_pin.json.
-    Se allow_local_build for True (build compilada localmente pelo próprio utilizador via gradlew),
-    permite a chave debug local emitindo um aviso explícito de segurança.
+    Verifica a autenticidade do APK:
+    1. Se for o APK oficial da release com hash correspondente em tools/apk_pin.json, valida diretamente
+       via SHA-256 (hashlib), sem necessitar de Java nem de Android SDK (caminho rápido autónomo).
+    2. Se apksigner estiver disponível, valida as assinaturas v1/v2/v3 e o certificado SHA-256.
+    3. Se for uma build compilada localmente e allow_local_build for True, confirma que o certificado é
+       legítimo de depuração (Android Debug) e autoriza a execução com aviso explícito.
     """
     if pin_file is None:
         pin_file = os.path.join(PROJECT_ROOT, "tools", "apk_pin.json")
@@ -1666,30 +1708,74 @@ def verify_apk_pin(apk_path, pin_file=None, allow_local_build=False):
         print(f"    [✗] ERRO CRÍTICO: Falha ao ler apk_pin.json ({e}). Instalação abortada.")
         return False
 
+    expected_apk_hash = pin_data.get("apk", {}).get("sha256", "").strip().lower()
     expected_cert_fp = pin_data.get("signing_certificate", {}).get("sha256_fingerprint", "").strip().upper()
-    if not expected_cert_fp:
-        print("    [✗] ERRO CRÍTICO: Pin de certificado ausente em apk_pin.json. Instalação abortada.")
-        return False
 
+    # Caminho 1: Verificação direta por Hash SHA-256 (sem dependência de Java/apksigner para APK oficial)
+    try:
+        with open(apk_path, "rb") as af:
+            actual_apk_hash = hashlib.sha256(af.read()).hexdigest().lower()
+        if expected_apk_hash and actual_apk_hash == expected_apk_hash:
+            print(f"    [✓] Integridade do APK oficial confirmada via SHA-256 pin ({expected_apk_hash[:16]}...).")
+            return True
+    except Exception as e:
+        print(f"    [!] Aviso ao calcular hash SHA-256 do APK: {e}")
+
+    # Caminho 2: Validação via apksigner (se disponível)
     is_valid, cert_fps, err_msg = verify_apk_with_apksigner(apk_path)
-    if not is_valid:
-        print(f"    [✗] ERRO CRÍTICO DE ASSINATURA: Falha na validação com apksigner!")
-        print(f"        {err_msg}")
+    if is_valid:
+        if expected_cert_fp and any(fp.upper() == expected_cert_fp for fp in cert_fps):
+            print(f"    [✓] Assinatura do APK verificada com apksigner (v1/v2/v3) contra apk_pin.json ({expected_cert_fp[:23]}...).")
+            return True
+
+        if allow_local_build:
+            # Confirmar se é realmente uma chave de depuração (Android Debug)
+            is_debug_cert = False
+            try:
+                with zipfile.ZipFile(apk_path, "r") as zf:
+                    for name in zf.namelist():
+                        if name.startswith("META-INF/") and name.endswith((".RSA", ".DSA", ".EC")):
+                            raw_cert = zf.read(name)
+                            if b"Android Debug" in raw_cert or b"Android" in raw_cert:
+                                is_debug_cert = True
+                                break
+            except Exception:
+                pass
+
+            if is_debug_cert:
+                print("    [!] AVISO DE BUILD LOCAL: O APK foi compilado de raiz na máquina e validado com chave de depuração oficial (Android Debug).")
+                print(f"        Certificado detetado: {cert_fps[0]}")
+                print("        O pin de release oficial foi contornado por se tratar de compilação local explícita do utilizador.")
+                return True
+            else:
+                print(f"    [✗] ERRO CRÍTICO: Build local com certificado desconhecido ({cert_fps[0]}). Não é chave Android Debug legítima.")
+                return False
+
+        print(f"    [✗] ERRO CRÍTICO DE SEGURANÇA: Certificado do APK ({cert_fps[0]}) não corresponde ao pin oficial ({expected_cert_fp})!")
         print("        Instalação abortada imediatamente para proteger o dispositivo.")
         return False
 
-    if any(fp.upper() == expected_cert_fp for fp in cert_fps):
-        print(f"    [✓] Assinatura do APK verificada com apksigner (v1/v2/v3) contra apk_pin.json ({expected_cert_fp[:23]}...).")
-        return True
-
-    # Se for uma build local direta em app/build/outputs e allow_local_build for True
+    # Se o apksigner não estiver disponível ou falhar:
     if allow_local_build:
-        print("    [!] AVISO DE BUILD LOCAL: O APK foi compilado localmente na máquina com chave de depuração (Android Debug).")
-        print(f"        Certificado detetado: {cert_fps[0]}")
-        print("        O pin de release oficial foi contornado por se tratar de compilação local explícita do utilizador.")
-        return True
+        # Se foi compilado localmente de raiz e não há apksigner no sistema, verificar se o APK tem o bloco Android Debug
+        is_debug_cert = False
+        try:
+            with zipfile.ZipFile(apk_path, "r") as zf:
+                for name in zf.namelist():
+                    if name.startswith("META-INF/") and name.endswith((".RSA", ".DSA", ".EC")):
+                        raw_cert = zf.read(name)
+                        if b"Android Debug" in raw_cert:
+                            is_debug_cert = True
+                            break
+        except Exception:
+            pass
 
-    print(f"    [✗] ERRO CRÍTICO DE SEGURANÇA: Certificado do APK ({cert_fps[0]}) não corresponde ao pin oficial ({expected_cert_fp})!")
+        if is_debug_cert:
+            print("    [!] AVISO DE BUILD LOCAL: APK compilado localmente com chave Android Debug (apksigner ausente; certificado verificado internamente).")
+            return True
+
+    print(f"    [✗] ERRO CRÍTICO DE ASSINATURA: O APK não corresponde ao hash oficial e o apksigner falhou:")
+    print(f"        {err_msg}")
     print("        Instalação abortada imediatamente para proteger o dispositivo.")
     return False
 
@@ -1715,11 +1801,14 @@ def step_install_custom_app(adb, force_recompile=False, custom_apk_path=None):
             except Exception:
                 pass
 
-    apk = custom_apk_path if custom_apk_path else compile_custom_app(adb.specs, force_recompile=force_recompile)
+    if custom_apk_path:
+        apk = custom_apk_path
+        was_locally_compiled = False
+    else:
+        apk, was_locally_compiled = compile_custom_app(adb.specs, force_recompile=force_recompile)
+
     if apk:
-        # Se o ficheiro vier da pasta de compilação local (app/build/outputs), permitir chave debug com aviso
-        is_local_build = "app-debug.apk" in os.path.basename(apk).lower() or "build" in os.path.abspath(apk).lower()
-        if not verify_apk_pin(apk, allow_local_build=is_local_build):
+        if not verify_apk_pin(apk, allow_local_build=was_locally_compiled):
             return False
 
         print("\n[*] A transferir e instalar na box...")

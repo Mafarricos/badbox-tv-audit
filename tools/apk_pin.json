@@ -1,6 +1,6 @@
 {
-  "version": "2.0.2",
-  "build_date": "2026-11-10",
+  "version": "2.0.3",
+  "build_date": "2026-11-12",
   "apk": {
     "file_name": "xcpe-scanner-tv.apk",
     "sha256": "e96e4995943725dc9f7170b72b83b13c9075e86fb9e425aeddfb84035042af35"

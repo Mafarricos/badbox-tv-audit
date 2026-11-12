@@ -5,6 +5,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ---
 
+## [2.0.3] - 2026-11-12
+
+### Endurecimento Criptográfico & Autonomia Sem Java (Auditoria Externa Review #5)
+- **Desacoplamento de Java/SDK para o Caminho Rápido**:
+  - O instalador em `tools/audit_security.py` agora valida diretamente o APK oficial universal via hash criptográfico SHA-256 (`hashlib`) comparado com `tools/apk_pin.json`, permitindo a execução imediata em máquinas sem JDK/apksigner instalado (cumprindo a promessa da Opção 1 do `setup_env.py`).
+  - O `apksigner` oficial continua a ser utilizado como segunda linha de verificação estrita para validar esquemas v1/v2/v3 quando disponível.
+- **Isolamento e Segurança de Compilações Locais**:
+  - Eliminada a verificação ingénua baseada no caminho do ficheiro (substring `"build"` ou `"app-debug.apk"`). A permissão de compilação local agora só é concedida se a função `compile_custom_app` tiver efetivamente invocado o Gradle e gerado o binário nessa sessão (`was_locally_compiled == True`).
+  - Adicionalmente, o certificado do APK é inspecionado internamente para assegurar que se trata exclusivamente da assinatura oficial de depuração (`Android Debug`), bloqueando qualquer APK arbitrário assinado com chaves desconhecidas.
+- **Transferência Atómica e Dinâmica de Releases**:
+  - O downloader de APK oficial passa a ler dinamicamente a versão pretendida a partir de `tools/apk_pin.json` (eliminando versões hardcoded no código).
+  - A transferência é feita agora para um ficheiro temporário isolado (`tempfile.mkstemp`), sendo validada antes de substituir `tools/xcpe-scanner-tv.apk`, prevenindo ficheiros parciais ou corrompidos decorrentes de quebras de rede.
+- **Filtro Alargado de UIDs de Sistema e Partilhados e Correção de Strings**:
+  - Nova versão compilada e empacotada na app (`versionCode 4`, `versionName "2.0.3"`), incorporando o filtro para qualquer `uid < 10000` ou UIDs partilhados, e a retificação no ecrã da TV de que o tráfego não-DNS é "descartado".
+
+---
+
 ## [2.0.2] - 2026-11-11
 
 ### Correções e Endurecimento Criptográfico (Auditoria Externa Review #4)

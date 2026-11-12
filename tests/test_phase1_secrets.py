@@ -71,7 +71,7 @@ def test_at22_automated_pipeline_safety(monkeypatch):
     fake.add_rule(f"pm uninstall {PACKAGE_NAME}", "Success")
 
     monkeypatch.setattr(AdbDevice, "_init_connection", lambda self: setattr(self, "device", fake))
-    monkeypatch.setattr("audit_security.compile_custom_app", lambda specs, force_recompile=False: "/tmp/fake_scanner.apk")
+    monkeypatch.setattr("audit_security.compile_custom_app", lambda specs, force_recompile=False: ("/tmp/fake_scanner.apk", False))
     monkeypatch.setattr("audit_security.verify_apk_pin", lambda apk_path, pin_file=None, allow_local_build=False: True)
     dev = AdbDevice("192.168.1.50")
     dev.device = fake

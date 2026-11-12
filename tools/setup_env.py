@@ -9,6 +9,7 @@ import sys
 import os
 import subprocess
 import shutil
+import glob
 
 # Configurar stdout/stderr UTF-8
 if sys.platform == "win32":
@@ -98,6 +99,14 @@ def check_and_configure_sdk():
     with open(local_prop, "w", encoding="utf-8") as f:
         f.write(f"sdk.dir={escaped}\n")
     print(f"    [✓] app/local.properties configurado com: {android_home}")
+
+    # Verificar existência de build-tools (incluindo apksigner)
+    bt_pattern = os.path.join(android_home, "build-tools", "*", "apksigner.bat" if sys.platform == "win32" else "apksigner")
+    if not glob.glob(bt_pattern):
+        print("    [!] AVISO: Android SDK build-tools (apksigner) não detetadas.")
+        print("        Recomenda-se instalar 'build-tools;34.0.0' via sdkmanager para permitir verificação v2/v3.")
+    else:
+        print("    [✓] Android SDK build-tools (apksigner) detetadas e prontas.")
     return True
 
 
