@@ -3,7 +3,7 @@
   "build_date": "2026-11-12",
   "apk": {
     "file_name": "xcpe-scanner-tv.apk",
-    "sha256": "e96e4995943725dc9f7170b72b83b13c9075e86fb9e425aeddfb84035042af35"
+    "sha256": "0564f5a081728b047e7e2d4f33360ad71d3c5ed9906664b96795b16f135625cd"
   },
   "signing_certificate": {
     "distinguished_name": "CN=BadBox Scanner, OU=Security Research, O=Mafarricos, C=PT",
