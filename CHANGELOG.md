@@ -5,6 +5,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ---
 
+## [2.0.4] - 2026-11-14
+
+### Correções de Atualização e Integridade (Auditoria Externa)
+- **Substituição automática de APK desatualizado em `tools/`**: `compile_custom_app` verifica o SHA-256 do APK pré-existente contra `tools/apk_pin.json` e descarrega a versão atualizada se divergir.
+- **Rejeição estrita de downloads com hash inválido**: `download_official_release_apk` apaga o ficheiro temporário e devolve `False` se o SHA-256 não coincidir com `apk_pin.json`.
+- **Aviso honesto de build local**: Removida a verificação por string em `META-INF/*.RSA` em `verify_apk_pin`, mantendo apenas a flag `allow_local_build` quando o Gradle compila na sessão.
+- **Pin sincronizado na tag**: `tools/apk_pin.json` atualizado com o SHA-256 exato antes da criação da tag `v2.0.4`.
+
+---
+
 ## [2.0.3] - 2026-11-12
 
 ### Endurecimento Criptográfico & Autonomia Sem Java (Auditoria Externa Review #5)
