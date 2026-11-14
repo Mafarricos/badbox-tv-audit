@@ -1510,7 +1510,28 @@ def compile_custom_app(specs, force_recompile=False):
     apk_prebuilt = os.path.join(PROJECT_ROOT, "tools", "xcpe-scanner-tv.apk")
     
     if os.path.exists(apk_prebuilt) and not force_recompile:
-        return apk_prebuilt, False
+        # Verificar se o APK pré-existente em tools/ corresponde ao hash oficial atual em apk_pin.json
+        pin_file = os.path.join(PROJECT_ROOT, "tools", "apk_pin.json")
+        expected_sha256 = None
+        if os.path.exists(pin_file):
+            try:
+                with open(pin_file, "r", encoding="utf-8") as pf:
+                    expected_sha256 = json.load(pf).get("apk", {}).get("sha256", "").strip().lower()
+            except Exception:
+                pass
+        if expected_sha256:
+            try:
+                with open(apk_prebuilt, "rb") as af:
+                    actual_sha256 = hashlib.sha256(af.read()).hexdigest().lower()
+                if actual_sha256 == expected_sha256:
+                    return apk_prebuilt, False
+                print(f"[!] APK em tools/ ({actual_sha256[:12]}...) está desatualizado face ao pin oficial ({expected_sha256[:12]}...). A transferir atualização...")
+                if download_official_release_apk(apk_prebuilt):
+                    return apk_prebuilt, False
+            except Exception:
+                pass
+        else:
+            return apk_prebuilt, False
 
     if not os.path.exists(apk_prebuilt) and not force_recompile:
         # Se não existir APK em tools/ e o utilizador não pediu explicitamente recompilação local,
@@ -1667,7 +1688,9 @@ def download_official_release_apk(target_path, version=None):
             with open(tmp_file, "rb") as af:
                 actual_sha256 = hashlib.sha256(af.read()).hexdigest().lower()
             if actual_sha256 != expected_sha256.lower():
-                print(f"    [!] AVISO: O APK descarregado tem hash diferente ({actual_sha256[:16]}...) do esperado ({expected_sha256[:16]}...).")
+                print(f"    [✗] ERRO CRÍTICO: O APK descarregado tem hash inválido ({actual_sha256[:16]}...) face ao esperado ({expected_sha256[:16]}...). Ficheiro rejeitado.")
+                os.remove(tmp_file)
+                return False
 
         os.makedirs(os.path.dirname(target_path), exist_ok=True)
         shutil.move(tmp_file, target_path)
@@ -1729,27 +1752,10 @@ def verify_apk_pin(apk_path, pin_file=None, allow_local_build=False):
             return True
 
         if allow_local_build:
-            # Confirmar se é realmente uma chave de depuração (Android Debug)
-            is_debug_cert = False
-            try:
-                with zipfile.ZipFile(apk_path, "r") as zf:
-                    for name in zf.namelist():
-                        if name.startswith("META-INF/") and name.endswith((".RSA", ".DSA", ".EC")):
-                            raw_cert = zf.read(name)
-                            if b"Android Debug" in raw_cert or b"Android" in raw_cert:
-                                is_debug_cert = True
-                                break
-            except Exception:
-                pass
-
-            if is_debug_cert:
-                print("    [!] AVISO DE BUILD LOCAL: O APK foi compilado de raiz na máquina e validado com chave de depuração oficial (Android Debug).")
-                print(f"        Certificado detetado: {cert_fps[0]}")
-                print("        O pin de release oficial foi contornado por se tratar de compilação local explícita do utilizador.")
-                return True
-            else:
-                print(f"    [✗] ERRO CRÍTICO: Build local com certificado desconhecido ({cert_fps[0]}). Não é chave Android Debug legítima.")
-                return False
+            print("    [!] AVISO DE BUILD LOCAL: O APK foi compilado localmente nesta sessão via Gradle.")
+            print(f"        Certificado detetado: {cert_fps[0]}")
+            print("        O pin da release oficial foi ignorado por se tratar de compilação local explícita.")
+            return True
 
         print(f"    [✗] ERRO CRÍTICO DE SEGURANÇA: Certificado do APK ({cert_fps[0]}) não corresponde ao pin oficial ({expected_cert_fp})!")
         print("        Instalação abortada imediatamente para proteger o dispositivo.")
@@ -1757,22 +1763,8 @@ def verify_apk_pin(apk_path, pin_file=None, allow_local_build=False):
 
     # Se o apksigner não estiver disponível ou falhar:
     if allow_local_build:
-        # Se foi compilado localmente de raiz e não há apksigner no sistema, verificar se o APK tem o bloco Android Debug
-        is_debug_cert = False
-        try:
-            with zipfile.ZipFile(apk_path, "r") as zf:
-                for name in zf.namelist():
-                    if name.startswith("META-INF/") and name.endswith((".RSA", ".DSA", ".EC")):
-                        raw_cert = zf.read(name)
-                        if b"Android Debug" in raw_cert:
-                            is_debug_cert = True
-                            break
-        except Exception:
-            pass
-
-        if is_debug_cert:
-            print("    [!] AVISO DE BUILD LOCAL: APK compilado localmente com chave Android Debug (apksigner ausente; certificado verificado internamente).")
-            return True
+        print("    [!] AVISO DE BUILD LOCAL: APK compilado localmente nesta sessão via Gradle (apksigner ausente; pin da release ignorado).")
+        return True
 
     print(f"    [✗] ERRO CRÍTICO DE ASSINATURA: O APK não corresponde ao hash oficial e o apksigner falhou:")
     print(f"        {err_msg}")
