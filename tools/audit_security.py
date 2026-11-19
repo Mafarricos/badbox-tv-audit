@@ -2069,7 +2069,7 @@ if __name__ == "__main__":
     parser.add_argument("--backup", metavar="PATH", help="Caminho para o ficheiro JSON de backup a utilizar no restauro (--restore)")
     parser.add_argument("--restore-quarantined-apks", action="store_true", help="Permite a reinstalação de APKs em quarentena durante o restauro (--restore)")
     parser.add_argument("--reboot-timeout", type=int, default=180, help="Tempo limite de reconexão em segundos para validação pós-reboot (padrão: 180s)")
-    parser.add_argument("--enable-dot", action="store_true", help="Ativa DNS-over-TLS (Cloudflare Security DoT) durante a remediação")
+    parser.add_argument("--enable-dot", action="store_true", help="Ativa DNS-over-TLS (Cloudflare Security DoT) durante a remediação. Nota: em algumas Google TVs pode impedir a Play Store de carregar; reverter com 'adb shell settings put global private_dns_mode off'.")
     parser.add_argument("--verify-reboot", action="store_true", help="Reinicia a Android TV e valida se ameaças ressuscitaram após o arranque")
     parser.add_argument("--vpn-duration", type=int, default=20, help="Duração da captura do Sentinel VPN no auto-pipeline em segundos (padrão: 20)")
     parser.add_argument("--scan-init-watchdogs", action="store_true", help="Inspeciona scripts init.rc e binários não-standard à procura de persistências de watchdogs")

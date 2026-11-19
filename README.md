@@ -129,6 +129,7 @@ python tools/audit_security.py <TV_IP> --remediate
 python tools/audit_security.py <TV_IP> --remediate --yes
 
 # 4.2 Remediation with Post-Reboot Persistence Check & Cloudflare DoT
+# (Note: on some Google TV 14 devices, strict DoT can cause Play Store to spin infinitely; revert with: adb shell settings put global private_dns_mode off)
 python tools/audit_security.py <TV_IP> --remediate --yes --verify-reboot --enable-dot
 
 # 5. Restore Previous State (Rollback from snapshot)

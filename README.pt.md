@@ -126,6 +126,7 @@ python tools/audit_security.py <IP_DA_TV> --remediate
 python tools/audit_security.py <IP_DA_TV> --remediate --yes
 
 # 4.2 Remediação com Validação de Ressurreição Pós-Reboot e Cloudflare DoT
+# (Nota: em algumas Google TV 14, o DoT estrito pode deixar a Play Store a carregar infinitamente; reverter com: adb shell settings put global private_dns_mode off)
 python tools/audit_security.py <IP_DA_TV> --remediate --yes --verify-reboot --enable-dot
 
 # 5. Reversão e Restauro do Estado Anterior a partir de Backup
