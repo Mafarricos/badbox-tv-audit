@@ -1,7 +1,7 @@
 {
   "name": "seed-bundled",
   "version": 2,
-  "updated": "2026-07-04",
+  "updated": "2026-11-23",
   "entries": [
     {
       "type": "domain",
@@ -12182,6 +12182,116 @@
       "confidence": "high",
       "match": "exact",
       "added": "2026-07-04"
+    },
+    {
+      "type": "domain",
+      "value": "api.drgdj.top",
+      "family": "badbox-3.0",
+      "note": "BADBOX 3.0 primary backdoor C2 check-in and module catalog.",
+      "source": "HUMAN Security Satori / Spectrum Security / Brandefense (BADBOX 3.0)",
+      "confidence": "high",
+      "match": "exact",
+      "added": "2026-11-23"
+    },
+    {
+      "type": "domain",
+      "value": "file.drgdj.top",
+      "family": "badbox-3.0",
+      "note": "BADBOX 3.0 payload and file-hosting server.",
+      "source": "HUMAN Security Satori / Spectrum Security / Brandefense (BADBOX 3.0)",
+      "confidence": "high",
+      "match": "exact",
+      "added": "2026-11-23"
+    },
+    {
+      "type": "domain",
+      "value": "gh.drgdj.top",
+      "family": "badbox-3.0",
+      "note": "BADBOX 3.0 GitHub mirror/proxy for module fetching.",
+      "source": "HUMAN Security Satori / Spectrum Security / Brandefense (BADBOX 3.0)",
+      "confidence": "high",
+      "match": "exact",
+      "added": "2026-11-23"
+    },
+    {
+      "type": "domain",
+      "value": "shzhtxcz.com",
+      "family": "badbox-3.0",
+      "note": "BADBOX 3.0 TXCZ manufacturer-linked C2 infrastructure.",
+      "source": "HUMAN Security Satori / Spectrum Security / Brandefense (BADBOX 3.0)",
+      "confidence": "high",
+      "match": "exact",
+      "added": "2026-11-23"
+    },
+    {
+      "type": "ip",
+      "value": "47.113.90.237",
+      "family": "badbox-3.0",
+      "note": "BADBOX 3.0 C2 endpoint (port 8081).",
+      "source": "HUMAN Security Satori / Spectrum Security / Brandefense (BADBOX 3.0)",
+      "confidence": "high",
+      "match": "exact",
+      "added": "2026-11-23"
+    },
+    {
+      "type": "ip",
+      "value": "39.108.226.196",
+      "family": "badbox-3.0",
+      "note": "BADBOX 3.0 module downloader C2 (port 8801).",
+      "source": "HUMAN Security Satori / Spectrum Security / Brandefense (BADBOX 3.0)",
+      "confidence": "high",
+      "match": "exact",
+      "added": "2026-11-23"
+    },
+    {
+      "type": "ip",
+      "value": "47.106.197.183",
+      "family": "badbox-3.0",
+      "note": "BADBOX 3.0 secondary module downloader C2 (port 8802).",
+      "source": "HUMAN Security Satori / Spectrum Security / Brandefense (BADBOX 3.0)",
+      "confidence": "high",
+      "match": "exact",
+      "added": "2026-11-23"
+    },
+    {
+      "type": "ip",
+      "value": "129.227.67.234",
+      "family": "badbox-3.0-pxyedge",
+      "note": "PXYEDGE residential proxy command/myic server.",
+      "source": "HUMAN Security Satori / Spectrum Security / Brandefense (BADBOX 3.0)",
+      "confidence": "high",
+      "match": "exact",
+      "added": "2026-11-23"
+    },
+    {
+      "type": "ip",
+      "value": "128.14.141.107",
+      "family": "badbox-3.0-pxyedge",
+      "note": "PXYEDGE residential proxy data relay plane.",
+      "source": "HUMAN Security Satori / Spectrum Security / Brandefense (BADBOX 3.0)",
+      "confidence": "high",
+      "match": "exact",
+      "added": "2026-11-23"
+    },
+    {
+      "type": "ip",
+      "value": "107.151.239.17",
+      "family": "badbox-3.0-pxyedge",
+      "note": "PXYEDGE residential proxy frontend/API server.",
+      "source": "HUMAN Security Satori / Spectrum Security / Brandefense (BADBOX 3.0)",
+      "confidence": "high",
+      "match": "exact",
+      "added": "2026-11-23"
+    },
+    {
+      "type": "package",
+      "value": "com.google.system",
+      "family": "badbox-3.0",
+      "note": "BADBOX 3.0 system-level masquerading module.",
+      "source": "HUMAN Security Satori / Spectrum Security / Brandefense (BADBOX 3.0)",
+      "confidence": "high",
+      "match": "exact",
+      "added": "2026-11-23"
     }
   ],
   "c2_domains": [
@@ -12213,7 +12323,11 @@
     "tms.yokatvonline.com",
     "webnest.linkfog.cn",
     "www.china-ota.com",
-    "zorapslwsnic.com"
+    "zorapslwsnic.com",
+    "api.drgdj.top",
+    "file.drgdj.top",
+    "gh.drgdj.top",
+    "shzhtxcz.com"
   ],
   "botnet_packages": [
     "appsalt",
@@ -12243,7 +12357,8 @@
     "newtv.cboxtv",
     "sso.authHandler",
     "traffmonetizer",
-    "x.cpe"
+    "x.cpe",
+    "com.google.system"
   ],
   "suspicious_ports": [
     2222,
