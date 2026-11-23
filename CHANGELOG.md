@@ -5,6 +5,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ---
 
+## [2.0.5] - 2026-11-23
+
+### Inteligência de Ameaças (BADBOX 3.0 & PXYEDGE)
+- **Novos IoCs BADBOX 3.0**: Adicionados 11 novos indicadores à base de dados (`data/iocs_database.json`, total de 1229 entradas), incluindo os domínios C2 `api.drgdj.top`, `file.drgdj.top`, `gh.drgdj.top`, `shzhtxcz.com`, IPs C2/PXYEDGE (`47.113.90.237`, `39.108.226.196`, `47.106.197.183`, `129.227.67.234`, `128.14.141.107`, `107.151.239.17`) e o pacote `com.google.system`.
+- **APK atualizado (`versionCode 6`, `versionName "2.0.5"`)**: Base de dados de IoCs atualizada empacotada nos `assets` da app Android TV.
+- **Documentação `--enable-dot`**: Adicionado aviso sobre possível bloqueio da Play Store (círculo infinito) em Google TV 14 com DoT estrito e comando de reversão.
+
+---
+
 ## [2.0.4] - 2026-11-14
 
 ### Correções de Atualização e Integridade (Auditoria Externa)
