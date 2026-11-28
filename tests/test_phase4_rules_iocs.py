@@ -177,3 +177,82 @@ def test_at28_neutralized_state_when_ioc_package_is_disabled(monkeypatch):
     res = step_quick_audit(dev, json_output=False)
     v = res.get("verdict", "")
     assert "NEUTRALIZADO" in v or "NEUTRALIZED" in v
+
+
+def test_at29_init_rc_delayed_play_protect_tampering_detected(monkeypatch):
+    """
+    AT-29: Mesmo que package_verifier_user_consent arranque a 1, um gatilho em init.rc
+    que o force a -1 mais tarde é detetado no --quick-scan e eleva o veredito a SUSPEITO.
+    """
+    from audit_security import AdbDevice, step_quick_audit
+
+    fake = FakeTransport("192.168.1.50")
+    fake.set_specs()
+    fake.add_rule("settings get global package_verifier_user_consent", "1")
+    fake.add_rule("settings get global package_verifier_enable", "1")
+    fake.add_rule("pm list packages -f -s", "")
+    fake.add_rule("pm list packages -d", "")
+    fake.add_rule("pm list packages", "package:com.android.settings")
+    fake.add_rule("netstat -n -a", "")
+    fake.add_rule("getprop", "")
+    fake.add_rule("cat /system/etc/init/*.rc", "    exec - root -- /system/bin/settings put global package_verifier_user_consent -1")
+
+    monkeypatch.setattr(AdbDevice, "_init_connection", lambda self: setattr(self, "device", fake))
+    dev = AdbDevice("192.168.1.50")
+    dev.device = fake
+
+    res = step_quick_audit(dev, json_output=False)
+    v = res.get("verdict", "")
+    assert "SUSPEITO" in v or "SUSPICIOUS" in v
+    assert any("init.rc trigger" in b for b in res.get("suspicious_binaries", []))
+
+
+def test_at30_oem_camouflaged_google_pkg_and_privileged_installer(monkeypatch):
+    """
+    AT-30:
+    1) Um pacote camuflado com prefixo com.google.* instalado em /oem/ dispara SUSPEITO (HIGH).
+    2) Um updater OEM desconhecido em /oem/ com INSTALL_PACKAGES apenas regista aviso LOW sem falso positivo (CLEAN).
+    """
+    from audit_security import AdbDevice, step_quick_audit
+
+    # Caso 1: Camuflagem com.google.* em /oem/
+    fake1 = FakeTransport("192.168.1.50")
+    fake1.set_specs()
+    fake1.add_rule("settings get global package_verifier_user_consent", "1")
+    fake1.add_rule("settings get global package_verifier_enable", "1")
+    fake1.add_rule("pm list packages -f -s", "package:/oem/priv-app/FakeGms/FakeGms.apk=com.google.tv.provision")
+    fake1.add_rule("pm list packages -d", "")
+    fake1.add_rule("pm list packages", "package:com.google.tv.provision")
+    fake1.add_rule("netstat -n -a", "")
+    fake1.add_rule("getprop", "")
+
+    monkeypatch.setattr(AdbDevice, "_init_connection", lambda self: setattr(self, "device", fake1))
+    dev1 = AdbDevice("192.168.1.50")
+    dev1.device = fake1
+
+    res1 = step_quick_audit(dev1, json_output=False)
+    v1 = res1.get("verdict", "")
+    assert "SUSPEITO" in v1 or "SUSPICIOUS" in v1
+    assert any("com.google.tv.provision" in b for b in res1.get("suspicious_binaries", []))
+
+    # Caso 2: Updater OEM genérico em /oem/ com INSTALL_PACKAGES -> LOW (1 ponto), mantém CLEAN (zero falso positivo)
+    fake2 = FakeTransport("192.168.1.51")
+    fake2.set_specs()
+    fake2.add_rule("settings get global package_verifier_user_consent", "1")
+    fake2.add_rule("settings get global package_verifier_enable", "1")
+    fake2.add_rule("pm list packages -f -s", "package:/oem/app/VendorOta/VendorOta.apk=com.vendor.ota")
+    fake2.add_rule("pm list packages -d", "")
+    fake2.add_rule("pm list packages", "package:com.vendor.ota")
+    fake2.add_rule("dumpsys package com.vendor.ota", "requested permissions:\n  android.permission.INSTALL_PACKAGES")
+    fake2.add_rule("netstat -n -a", "")
+    fake2.add_rule("getprop", "")
+
+    monkeypatch.setattr(AdbDevice, "_init_connection", lambda self: setattr(self, "device", fake2))
+    dev2 = AdbDevice("192.168.1.51")
+    dev2.device = fake2
+
+    res2 = step_quick_audit(dev2, json_output=False)
+    v2 = res2.get("verdict", "")
+    assert "LIMPO" in v2 or "CLEAN" in v2
+    assert res2.get("score") == 1
+

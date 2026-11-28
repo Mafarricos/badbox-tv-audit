@@ -16,6 +16,7 @@ READ_ONLY_PREFIXES = (
     "ps ",
     "ps -",
     "which ",
+    "grep ",
 )
 
 def is_mutating(cmd: str) -> bool:

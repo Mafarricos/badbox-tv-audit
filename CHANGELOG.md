@@ -5,6 +5,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ---
 
+## [2.0.6] - 2026-11-28
+
+### Deteção Anti-Evasão e Novos Firmwares OEM
+- **Deteção de `init.rc` no `--quick-scan` e na App**: Verifica automaticamente scripts `*.rc` (`/system/etc/init`, `/vendor/etc/init`, `/odm/etc/init`) contra desativação silenciosa/atrasada do Play Protect (`package_verifier_user_consent -1`, `package_verifier_enable 0`) e watchdogs de botnet.
+- **Deteção de Camuflagem em `/oem/` e `/custom/`**: Pacotes instalados em `/oem/` ou `/custom/` que falsifiquem o prefixo `com.google.*` ou `com.android.*` disparam imediatamente `OEM_CAMOUFLAGED_GOOGLE_PKG` (`HIGH` / `SUSPICIOUS`).
+- **Visibilidade Heurística em `/oem/`**: Aplicações desconhecidas ativas em `/oem/` com `INSTALL_PACKAGES` ou `android.uid.system` são sinalizadas explicitamente (`OEM_PRIVILEGED_INSTALLER` / `LOW`) sem gerar falsos positivos críticos em firmwares legítimos.
+- **Documentação para Sleep Timers**: Adicionada recomendação de `--vpn-duration 600` pós-arranque para capturar malwares com atraso programado.
+
+---
+
 ## [2.0.5] - 2026-11-23
 
 ### Inteligência de Ameaças (BADBOX 3.0 & PXYEDGE)

@@ -109,6 +109,7 @@ A suite **deteta automaticamente o idioma do seu sistema** (assume **Inglês** p
 
 ```bash
 # 1. Auditoria Dinâmica Completa (Instala APK, corre 20s sentinela VPN, recolhe logs e desinstala)
+#    Dica: Use --vpn-duration 600 logo após reiniciar a box para apanhar malwares com atraso programado (sleep timers)
 python tools/audit_security.py <IP_DA_TV> --auto-pipeline
 
 # 2. Diagnóstico Rápido de Leitura via ADB (Modo Padrão ou JSON Puro para Agentes)

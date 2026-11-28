@@ -142,6 +142,16 @@
       "severity": "HIGH",
       "weight": 6,
       "description": "Propriedade de sistema associada a kill-switch ou bypass de verificação de botnet"
+    },
+    "OEM_CAMOUFLAGED_GOOGLE_PKG": {
+      "severity": "HIGH",
+      "weight": 6,
+      "description": "Pacote com prefixo Google/AOSP instalado em partição não-oficial (/oem ou /custom)"
+    },
+    "OEM_PRIVILEGED_INSTALLER": {
+      "severity": "LOW",
+      "weight": 1,
+      "description": "Aplicação desconhecida em /oem/ com permissão INSTALL_PACKAGES ou UID de sistema"
     }
   },
   "modes": {

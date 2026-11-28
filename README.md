@@ -112,6 +112,7 @@ The suite **automatically detects your system language** (defaults to **English*
 
 ```bash
 # 1. Intensive Dynamic Audit (Installs APK, runs 20s VPN sentinel for unknown threats, and cleans up)
+#    Tip: Use --vpn-duration 600 right after reboot to catch delayed-activation malware (sleep timers)
 python tools/audit_security.py <TV_IP> --auto-pipeline
 
 # 2. Fast 6-Layer ADB Read-Only Scan (Known threats triage - Standard or Token-Saving Pure JSON)

@@ -210,13 +210,39 @@ public class CoreScanner {
                 }
             }
 
-            // Heurística de privilégios de sistema
-            if (!pkg.packageName.startsWith("com.android.") && !pkg.packageName.startsWith("com.google.") && !pkg.packageName.startsWith("android")) {
-                if (pkg.sharedUserId != null && pkg.sharedUserId.equals("android.uid.system")) {
-                    result.addFinding("[SUSPEITO] App OEM não-Google com privilégios de sistema (sharedUser=system): " + pkg.packageName, 2);
+            // Heurística de privilégios de sistema e camuflagem em /oem ou /custom
+            String srcDir = (pkg.applicationInfo != null && pkg.applicationInfo.sourceDir != null) ? pkg.applicationInfo.sourceDir : "";
+            boolean inOemOrCustom = srcDir.startsWith("/oem/") || srcDir.startsWith("/custom/");
+            boolean isGoogleOrAndroidPrefix = pkgName.startsWith("com.android.") || pkgName.startsWith("com.google.") || pkgName.equals("android");
+            boolean isEnabledPkg = (pkg.applicationInfo == null) || pkg.applicationInfo.enabled;
+
+            if (isEnabledPkg && !packageMatcher.matches(pkgName)) {
+                if (inOemOrCustom && isGoogleOrAndroidPrefix) {
+                    result.addFinding("[SUSPEITO] Pacote camuflado com prefixo Google/AOSP em partição não-oficial (" + srcDir + "): " + pkgName, 6);
+                } else if (inOemOrCustom) {
+                    boolean hasInstallPerm = false;
+                    if (pkg.requestedPermissions != null) {
+                        for (String perm : pkg.requestedPermissions) {
+                            if ("android.permission.INSTALL_PACKAGES".equals(perm)) {
+                                hasInstallPerm = true;
+                                break;
+                            }
+                        }
+                    }
+                    boolean isSysUid = (pkg.sharedUserId != null && pkg.sharedUserId.equals("android.uid.system"))
+                            || (pkg.applicationInfo != null && pkg.applicationInfo.uid == 1000);
+                    if (hasInstallPerm || isSysUid) {
+                        result.addFinding("[INFO] App ativa em /oem com permissão INSTALL_PACKAGES ou UID 1000: " + pkgName + " (" + srcDir + ")", 1);
+                    }
+                } else if (!isGoogleOrAndroidPrefix) {
+                    if (pkg.sharedUserId != null && pkg.sharedUserId.equals("android.uid.system")) {
+                        result.addFinding("[SUSPEITO] App OEM não-Google com privilégios de sistema (sharedUser=system): " + pkg.packageName, 2);
+                    }
                 }
             }
         }
+
+        checkInitRcScripts(result);
 
         // 5. Inspeção Estática de APKs em /oem, /vendor, /system/priv-app
         if (listener != null) listener.onProgress("[5/6] A analisar APKs e bibliotecas nativas (/oem, /vendor, /system/priv-app)...");
@@ -281,6 +307,33 @@ public class CoreScanner {
         String mecool = getSystemProperty("ro.mecool.device");
         if ("true".equalsIgnoreCase(mecool)) {
             result.addFinding("[INFO] Identificador de firmware MECOOL/Videostrong detetado: ro.mecool.device = true", 1);
+        }
+    }
+
+    private static void checkInitRcScripts(ScanResult result) {
+        String[] initDirs = {"/system/etc/init", "/vendor/etc/init", "/odm/etc/init", "/system_ext/etc/init"};
+        for (String dirPath : initDirs) {
+            File dir = new File(dirPath);
+            if (!dir.exists() || !dir.isDirectory() || !dir.canRead()) continue;
+            File[] rcFiles = dir.listFiles();
+            if (rcFiles == null) continue;
+            for (File rc : rcFiles) {
+                if (!rc.isFile() || !rc.getName().endsWith(".rc") || !rc.canRead() || rc.length() > 512 * 1024) continue;
+                try (InputStream is = new FileInputStream(rc)) {
+                    ByteArrayOutputStream bos = new ByteArrayOutputStream();
+                    byte[] buf = new byte[4096];
+                    int n;
+                    while ((n = is.read(buf)) != -1) bos.write(buf, 0, n);
+                    String content = bos.toString("UTF-8").toLowerCase();
+                    if ((content.contains("package_verifier_user_consent") && content.contains("-1"))
+                            || (content.contains("package_verifier_enable") && content.contains("0"))
+                            || content.contains("app_xcpe")
+                            || content.contains("/xbin/vo1d")) {
+                        result.addFinding("[SUSPEITO] Gatilho de arranque suspeito detetado em script init.rc: " + rc.getAbsolutePath(), 6);
+                    }
+                } catch (Exception ignored) {
+                }
+            }
         }
     }
 

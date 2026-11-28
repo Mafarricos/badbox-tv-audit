@@ -730,11 +730,50 @@ def step_quick_audit(adb, json_output=False):
         print(t("layer_6_total", count=len(oem_paths)))
 
     found_binaries = []
+    oem_privileged_notices = []
+    for line_pkg in oem_paths:
+        # Formato: package:/oem/app/foo/foo.apk=com.example.foo
+        raw_entry = line_pkg.replace("package:", "", 1).strip()
+        if "=" not in raw_entry:
+            continue
+        apk_path, pkg_name = raw_entry.rsplit("=", 1)
+        pkg_lower = pkg_name.strip().lower()
+        if pkg_lower in disabled_pkgs or pkg_lower in exact_lower:
+            continue
+        if apk_path.startswith(("/oem/", "/custom/")):
+            if pkg_lower.startswith(("com.google.", "com.android.")) or pkg_lower == "android":
+                msg = f"{apk_path} [Camuflagem Google/AOSP em partição OEM: {pkg_name}]"
+                found_binaries.append(msg)
+                findings.append(GLOBAL_ENGINE.create_finding("OEM_CAMOUFLAGED_GOOGLE_PKG", "system_partitions", f"{pkg_name} ({apk_path})"))
+            else:
+                dump_pkg = adb.run(f"dumpsys package {shlex.quote(pkg_name)} 2>/dev/null")
+                has_install_perm = "android.permission.INSTALL_PACKAGES" in dump_pkg
+                has_sys_uid = ("android.uid.system" in dump_pkg) or ("userId=1000" in dump_pkg)
+                if has_install_perm or has_sys_uid:
+                    findings.append(GLOBAL_ENGINE.create_finding("OEM_PRIVILEGED_INSTALLER", "system_partitions", f"{pkg_name} ({apk_path})"))
+                    oem_privileged_notices.append(f"{pkg_name} ({apk_path})")
+
+    if oem_privileged_notices and not json_output:
+        for notice in oem_privileged_notices:
+            print(f"    [!] AVISO HEURÍSTICO (/oem): Pacote ativo com INSTALL_PACKAGES/UID 1000 detetado: {notice}")
+
     for b_path in IOC_BINARY_PATHS:
         check = adb.run(f"ls -ld {b_path} 2>/dev/null").strip()
         if check and "No such file" not in check and "not found" not in check:
             found_binaries.append(b_path)
             findings.append(GLOBAL_ENGINE.create_finding("FILE_IOC_PRESENT", "system_partitions", b_path))
+
+    # Inspeção de scripts init*.rc contra desativação silenciosa/atrasada do Play Protect ou watchdogs
+    init_rc_out = adb.run(
+        "cat /system/etc/init/*.rc /vendor/etc/init/*.rc /odm/etc/init/*.rc /system_ext/etc/init/*.rc /etc/init/*.rc 2>/dev/null "
+        "| grep -iE 'package_verifier_user_consent[[:space:]]+-1|package_verifier_enable[[:space:]]+0|app_xcpe|x\\.cpe|/xbin/vo1d|corejava|titannet|linkfog|szbboys'"
+    ).strip()
+    if init_rc_out:
+        for rc_line in init_rc_out.splitlines():
+            rc_clean = rc_line.strip()
+            if rc_clean and not rc_clean.lower().startswith("cat:") and "no such file" not in rc_clean.lower():
+                found_binaries.append(f"init.rc trigger: {rc_clean[:100]}")
+                findings.append(GLOBAL_ENGINE.create_finding("INIT_RC_IOC_REFERENCE", "system_partitions", rc_clean[:120]))
 
     # Inspeção de Conteúdo em /system/etc/install-recovery.sh
     recovery_sh = adb.run("cat /system/etc/install-recovery.sh 2>/dev/null").strip()
@@ -1926,6 +1965,8 @@ def step_automated_pipeline(adb, vpn_duration=20, force_recompile=False):
 
     print(f"\n[*] A monitorizar Sentinela VPN em tempo real (à escuta durante {vpn_duration}s)...")
     print("    [!] NOTA: Durante a monitorização VPN, apenas o DNS é reencaminhado; o restante tráfego TCP/UDP é descartado (a box fica sem internet aberta até o teste terminar).")
+    if vpn_duration < 120:
+        print("    [i] Dica: Para despistar atrasos programados pós-arranque (sleep timers), pode usar --vpn-duration 600.")
     # Verificamos se surgiu o diálogo de permissão do sistema Android (com.android.vpndialogs)
     time.sleep(1)
     top_window = adb.run("dumpsys window | grep -E mCurrentFocus")
